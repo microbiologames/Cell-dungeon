@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Cell Dungeon — planche de contact</title>
+<style>
+  body { margin: 0; background: #02060a; color: #cfe6d8;
+         font-family: ui-monospace, Menlo, Consolas, monospace; }
+  #wrap { padding: 16px; }
+  canvas { image-rendering: pixelated; width: 100%; max-width: 1400px; display: block; }
+  h1 { font-size: 15px; letter-spacing: .14em; margin: 0 0 4px; }
+  p  { font-size: 11px; color: #5d7a68; margin: 0 0 14px; line-height: 1.5; max-width: 90ch; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>PLANCHE DE CONTACT</h1>
+  <p>Chaque organisme est rendu par le moteur du jeu, agrandi 7 fois. Le chiffre
+     sous le nom est la TAILLE REELLE a l'ecran, en pixels : c'est la taille que
+     doit faire le sprite. En dessous de 8 px, un sprite dessine a la main
+     n'apportera rien de plus que la forme procedurale.</p>
+  <canvas id="cv"></canvas>
+</div>
+<script type="module">
+import { Screen, computeLayout, VIEW, fade32 } from '../src/core/pixel.js';
+import { drawOrganism, drawPlayer, colorOf } from '../src/render/organisms.js';
+import { drawTextCentered } from '../src/core/font.js';
+import { MILK_MOBS, MILK_NEUTRALS, MILK_BOSSES } from '../src/data/bestiary.js';
+import { MATRICES_PALETTE, UI } from '../src/data/palette.js';
+
+const SCALE = 7;            // zoom maximal
+const MAX_DRAWN = 86;       // diametre maximal dessine dans une case
+const CELL_W = 138;
+const CELL_H = 152;
+const COLS = 6;
+
+/* Zoom effectif : plafonne pour qu'un boss ne deborde pas sur ses voisins.
+   Les petits gardent le zoom plein, les gros sont reduits. */
+const zoomFor = (px) => Math.min(SCALE, MAX_DRAWN / Math.max(px, 1));
+const pal = MATRICES_PALETTE.milk;
+
+/* Ce qu'on met sur la planche, dans l'ordre ou on le dessinerait. */
+const entries = [];
+entries.push({ label: 'JOUEUR', px: 3.4 * 2, draw: (s, x, y, r) => drawPlayer(s, x, y, r, 0, 1.2, UI, { count: 0, mode: 'bundle' }) });
+entries.push({ label: 'JOUEUR PERITRICHE', px: 3.4 * 2, draw: (s, x, y, r) => drawPlayer(s, x, y, r, 0, 1.2, UI, { count: 6, mode: 'peritriche' }) });
+entries.push({ label: 'JOUEUR POLAIRE', px: 3.4 * 2, draw: (s, x, y, r) => drawPlayer(s, x, y, r, 0, 1.2, UI, { count: 6, mode: 'polaire' }) });
+for (const spec of [...MILK_MOBS, ...MILK_NEUTRALS, ...Object.values(MILK_BOSSES)]) {
+  const [fill, rim] = colorOf(spec, pal);
+  entries.push({
+    label: spec.label, px: spec.radius * 2, sub: spec.role,
+    draw: (s, x, y, r) => drawOrganism(s, spec, x, y, r, 0.4, 1.1, fill, rim),
+  });
+}
+const ep = (r, px) => Math.max(1, (r / (px / 2)) * 1.3);   // epaisseur a l'echelle
+entries.push({ label: 'GLOBULE GRAS', px: 16, sub: 'decor max',
+  draw: (s, x, y, r) => { s.ring(x, y, r * 0.85, ep(r, 16), pal.debrisRim); s.disc(x, y, r * 0.5, pal.debris, 0); } });
+entries.push({ label: 'GLOBULE GRAS', px: 4, sub: 'decor min',
+  draw: (s, x, y, r) => { s.ring(x, y, r * 0.85, ep(r, 4), pal.debrisRim); s.disc(x, y, r * 0.5, pal.debris, 0); } });
+entries.push({ label: 'BULLE D AIR', px: 12, sub: 'decor',
+  draw: (s, x, y, r) => { s.ring(x, y, r, ep(r, 12), fade32(UI.shield, 0.7)); s.ring(x, y, r * 0.45, ep(r, 12) * 0.8, fade32(UI.shield, 0.35)); } });
+entries.push({ label: 'ACIDE AMINE', px: 3, sub: 'butin',
+  draw: (s, x, y, r) => { s.disc(x, y, r * 0.5, UI.aa, 0); s.disc(x, y, r * 0.2, UI.aaGlow, 0); } });
+entries.push({ label: 'PLASMIDE', px: 7, sub: 'butin',
+  draw: (s, x, y, r) => s.ring(x, y, r * 0.7, ep(r, 7), UI.plasmid) });
+
+const rows = Math.ceil(entries.length / COLS);
+const W = COLS * CELL_W;
+const H = rows * CELL_H + 8;
+
+const scr = new Screen(document.getElementById('cv'),
+  { W, H, CX: W / 2, CY: H / 2, R: Math.max(W, H), mode: 'sheet' });
+scr.beginFrame(pal.bg);
+scr.clip = false;
+
+entries.forEach((e, i) => {
+  const cx = (i % COLS) * CELL_W + CELL_W / 2;
+  const cy = Math.floor(i / COLS) * CELL_H + 52;
+  scr.layer(0);
+  e.zoom = zoomFor(e.px);
+  e.draw(scr, cx, cy, (e.px / 2) * e.zoom);
+});
+scr.composite(0);
+
+/* Etiquettes par-dessus, jamais floutees. */
+entries.forEach((e, i) => {
+  const cx = (i % COLS) * CELL_W + CELL_W / 2;
+  const top = Math.floor(i / COLS) * CELL_H;
+  drawTextCentered(scr, e.label, cx, top + 106, UI.text, 1, 1);
+  drawTextCentered(scr, `${Math.round(e.px)} PX`, cx, top + 118, UI.textHot, 1, 1);
+  drawTextCentered(scr, `x${e.zoom.toFixed(1)}`, cx, top + 128, UI.textDim, 1, 1);
+  if (e.sub) drawTextCentered(scr, String(e.sub).toUpperCase(), cx, top + 138, UI.textDim, 1, 1);
+});
+scr.present();
+window.__ready = true;
+</script>
+</body>
+</html>

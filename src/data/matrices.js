@@ -93,7 +93,15 @@ export const MILK = {
   },
 
   /* Decor : globules gras, generes par hachage de coordonnees. */
-  decor: { kind: 'globule', density: 0.00022, minR: 2, maxR: 7, blocksBullets: true },
+  /* Gamme de tailles large et BIAISEE vers le petit : dans un lait cru les
+     globules gras vont de 1 a 8 um avec beaucoup plus de petits que de gros,
+     et c'est cette dispersion qui donne au champ sa texture. Un gros globule
+     devient un vrai obstacle, et donc un vrai abri. */
+  decor: {
+    kind: 'globule', minR: 1.5, maxR: 16, skew: 2.4,
+    bubbleMinR: 1.8, bubbleMaxR: 15, bubbleSkew: 2.0,
+    blocksBullets: true,
+  },
 };
 
 export const MATRICES = { milk: MILK };

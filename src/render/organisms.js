@@ -9,9 +9,12 @@
 
 import { TAU } from '../core/util.js';
 import { rgba } from '../core/pixel.js';
+import { getSprite, drawSprite } from './sprites.js';
 
-/** @type {Record<string, (ctx:object)=>void>} */
-export const SPRITES = {};
+/* Les sprites disponibles sont servis par le registre ; tant qu'une espece
+   n'en a pas, sa forme procedurale fait foi. Un asset peut donc arriver seul,
+   sans rien casser. */
+export { SPRITE_REGISTRY } from './sprites.js';
 
 /**
  * Couleurs d'un organisme.
@@ -49,8 +52,13 @@ export function colorOf(spec, pal) {
  * @param {import('../core/pixel.js').Screen} scr
  */
 export function drawOrganism(scr, spec, x, y, r, ang, phase, fill, rim) {
-  const sprite = SPRITES[spec.spriteId || spec.id];
-  if (sprite) { sprite({ scr, spec, x, y, r, ang, phase, fill, rim }); return; }
+  const sprite = getSprite(spec.spriteId || spec.id);
+  if (sprite) {
+    /* Le sprite est dessine a sa taille native ; c'est l'importateur qui
+       garantit qu'elle correspond au rayon de l'espece. */
+    drawSprite(scr, sprite, x, y, ang, (fill >>> 24) / 255);
+    return;
+  }
 
   switch (spec.kind) {
     case 'diplo': {

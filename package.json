@@ -9,7 +9,10 @@
     "smoke": "node tools/smoke.mjs",
     "visual": "node tools/visual.mjs",
     "serve": "python3 -m http.server 8080",
-    "playtest": "node tools/playtest.mjs"
+    "playtest": "node tools/playtest.mjs",
+    "sheet": "node tools/make-contact-sheet.mjs",
+    "sprites:bake": "node tools/sprites.mjs bake",
+    "sprites:import": "node tools/sprites.mjs import"
   },
   "devDependencies": {
     "playwright": "^1.63.0"

@@ -1,0 +1,196 @@
+/* ---------------------------------------------------------------------------
+   Chaine de fabrication des sprites.
+
+     node tools/sprites.mjs bake     rend chaque espece proceduralement a sa
+                                     taille native et ecrit un PNG editable
+                                     dans assets/sprites/. C'est la TOILE DE
+                                     DEPART : on l'ouvre dans Aseprite, on
+                                     retouche, on reimporte.
+
+     node tools/sprites.mjs import   lit assets/sprites/<id>.png, redimensionne
+                                     a la taille de l'espece, quantifie sur une
+                                     palette courte, et ecrit
+                                     src/render/sprite-data.js.
+
+   Le decodage PNG passe par Chromium, deja present pour les tests : aucune
+   dependance supplementaire.
+
+   Nommage : assets/sprites/<id>.png ou <id> est l'identifiant du bestiaire
+   (listeria, staph, kluyveromyces...) ou 'player'. Un suffixe @WxH force une
+   taille : listeria@40x40.png.
+--------------------------------------------------------------------------- */
+import { chromium } from 'playwright';
+import { createServer } from 'node:http';
+import { readFile, writeFile, readdir, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { extname, join, normalize, basename } from 'node:path';
+
+const MODE = process.argv[2] || 'import';
+const ROOT = process.cwd();
+const SPRITE_DIR = join(ROOT, 'assets/sprites');
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png' };
+
+const srv = createServer(async (q, r) => {
+  try {
+    const p = decodeURIComponent(q.url.split('?')[0]);
+    const body = await readFile(join(ROOT, normalize(p).replace(/^(\.\.[/\\])+/, '')));
+    r.writeHead(200, { 'content-type': TYPES[extname(p)] || 'application/octet-stream' });
+    r.end(body);
+  } catch { r.writeHead(404); r.end(); }
+});
+await new Promise((r) => srv.listen(8093, r));
+
+const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  '/opt/pw-browsers/chromium/chrome-linux/chrome'].find(existsSync);
+const browser = await chromium.launch(exe ? { executablePath: exe } : {});
+const page = await browser.newPage();
+page.on('pageerror', (e) => console.error('ERREUR', e.message));
+await page.goto('http://localhost:8093/index.html');
+
+await mkdir(SPRITE_DIR, { recursive: true });
+
+/* --------------------------------------------------------------- bake --- */
+if (MODE === 'bake') {
+  const files = await page.evaluate(async () => {
+    const { Screen } = await import('./src/core/pixel.js');
+    const { drawOrganism, drawPlayer, colorOf } = await import('./src/render/organisms.js');
+    const { MILK_MOBS, MILK_NEUTRALS, MILK_BOSSES } = await import('./src/data/bestiary.js');
+    const { MATRICES_PALETTE, UI } = await import('./src/data/palette.js');
+    const pal = MATRICES_PALETTE.milk;
+    const out = [];
+
+    const bake = (id, size, draw) => {
+      const cv = document.createElement('canvas');
+      const scr = new Screen(cv, { W: size, H: size, CX: size / 2, CY: size / 2, R: size, mode: 'bake' });
+      scr.beginFrame(0x00000000);
+      scr.clip = false;
+      scr.layer(0);
+      draw(scr, size / 2, size / 2, size / 2 - 0.5);
+      scr.composite(0);
+      /* Le fond doit rester transparent : on remet alpha a 0 la ou rien
+         n'a ete dessine, sinon le sprite arrive avec un carre noir. */
+      const d = scr.image.data;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] === 0 && d[i + 1] === 0 && d[i + 2] === 0) d[i + 3] = 0;
+      }
+      scr.ctx.putImageData(scr.image, 0, 0);
+      out.push({ id, dataUrl: cv.toDataURL('image/png') });
+    };
+
+    bake('player', 16, (s, x, y, r) => drawPlayer(s, x, y, 3.4, 0, 1.2, UI, { count: 4, mode: 'bundle' }));
+    for (const spec of [...MILK_MOBS, ...MILK_NEUTRALS, ...Object.values(MILK_BOSSES)]) {
+      const size = Math.max(6, Math.ceil(spec.radius * 2) + 2);
+      const [fill, rim] = colorOf(spec, pal);
+      bake(spec.id, size, (s, x, y) => drawOrganism(s, spec, x, y, spec.radius, 0, 1.1, fill, rim));
+    }
+    return out;
+  });
+
+  for (const f of files) {
+    const b64 = f.dataUrl.split(',')[1];
+    await writeFile(join(SPRITE_DIR, `${f.id}.png`), Buffer.from(b64, 'base64'));
+  }
+  console.log(`${files.length} toiles de depart ecrites dans assets/sprites/`);
+  console.log('Retouche-les, puis : node tools/sprites.mjs import');
+  await browser.close(); srv.close();
+  process.exit(0);
+}
+
+/* ------------------------------------------------------------- import --- */
+const all = (await readdir(SPRITE_DIR)).filter((f) => f.endsWith('.png'));
+if (!all.length) {
+  console.log('Aucun PNG dans assets/sprites/. Lance d\'abord : node tools/sprites.mjs bake');
+  await browser.close(); srv.close();
+  process.exit(0);
+}
+
+const specs = await page.evaluate(async () => {
+  const { BESTIARY } = await import('./src/data/bestiary.js');
+  const t = {};
+  for (const [id, m] of Object.entries(BESTIARY)) t[id] = Math.max(6, Math.ceil(m.radius * 2) + 2);
+  t.player = 16;
+  return t;
+});
+
+const sprites = {};
+for (const file of all) {
+  const name = basename(file, '.png');
+  const m = name.match(/^(.+?)@(\d+)x(\d+)$/);
+  const id = m ? m[1] : name;
+  const target = m ? [Number(m[2]), Number(m[3])] : [specs[id] || 16, specs[id] || 16];
+  if (!specs[id] && !m) {
+    console.warn(`  ! ${file} : identifiant inconnu du bestiaire, ignore`);
+    continue;
+  }
+
+  const res = await page.evaluate(async ([url, tw, th]) => {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    /* Reduction par moyenne de surface : a ces tailles, un simple
+       echantillonnage perdrait la moitie des details. */
+    const cv = document.createElement('canvas');
+    cv.width = tw; cv.height = th;
+    const g = cv.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(img, 0, 0, tw, th);
+    const d = g.getImageData(0, 0, tw, th).data;
+
+    /* Palette : on quantifie grossierement, on compte, on garde les plus
+       frequentes, et le reste tombe sur la plus proche. */
+    const bucket = new Map();
+    for (let i = 0; i < tw * th; i++) {
+      if (d[i * 4 + 3] < 110) continue;
+      const key = ((d[i * 4] >> 4) << 8) | ((d[i * 4 + 1] >> 4) << 4) | (d[i * 4 + 2] >> 4);
+      const e = bucket.get(key) || { n: 0, r: 0, g: 0, b: 0 };
+      e.n++; e.r += d[i * 4]; e.g += d[i * 4 + 1]; e.b += d[i * 4 + 2];
+      bucket.set(key, e);
+    }
+    const cols = [...bucket.values()]
+      .sort((a, b) => b.n - a.n).slice(0, 11)
+      .map((e) => [Math.round(e.r / e.n), Math.round(e.g / e.n), Math.round(e.b / e.n)]);
+    if (!cols.length) return null;
+
+    const nearest = (r, g2, b) => {
+      let best = 0, bd = Infinity;
+      cols.forEach((c, k) => {
+        const dd = (c[0] - r) ** 2 + (c[1] - g2) ** 2 + (c[2] - b) ** 2;
+        if (dd < bd) { bd = dd; best = k; }
+      });
+      return best + 1;              // 0 est reserve a la transparence
+    };
+    const idx = [];
+    for (let i = 0; i < tw * th; i++) {
+      idx.push(d[i * 4 + 3] < 110 ? 0 : nearest(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]));
+    }
+    return { cols, idx, used: cols.length };
+  }, [`/assets/sprites/${file}`, target[0], target[1]]);
+
+  if (!res) { console.warn(`  ! ${file} : entierement transparent, ignore`); continue; }
+
+  const ALPHABET = '.0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let data = '';
+  for (const v of res.idx) data += v === 0 ? '.' : ALPHABET[v];
+  sprites[id] = {
+    w: target[0], h: target[1], ox: target[0] / 2, oy: target[1] / 2,
+    palette: [0, ...res.cols.map(([r, g, b]) => ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0)],
+    data,
+  };
+  console.log(`  ${id.padEnd(16)} ${target[0]}x${target[1]}  ${res.used} couleurs`);
+}
+
+const body = `/* GENERE PAR tools/sprites.mjs - ne pas editer a la main.
+   Source : assets/sprites/*.png  |  ${new Date().toISOString().slice(0, 10)} */
+
+import { registerSprites } from './sprites.js';
+
+export const SPRITE_DATA = ${JSON.stringify(sprites, null, 1)};
+
+registerSprites(SPRITE_DATA);
+`;
+await writeFile(join(ROOT, 'src/render/sprite-data.js'), body);
+console.log(`\n${Object.keys(sprites).length} sprite(s) ecrits dans src/render/sprite-data.js`);
+console.log("N'oublie pas de l'importer depuis src/main.js pour les activer.");
+await browser.close();
+srv.close();

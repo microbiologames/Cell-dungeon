@@ -40,14 +40,14 @@ export const MILK_MOBS = [
   M({
     id: 'ecoli', label: 'E. COLI', role: 'chaff',
     kind: 'rod', mot: 'swim', gram: '-',
-    hp: 20, speed: 58, contact: 6, radius: 3, aa: 3,
+    hp: 20, speed: 64, contact: 6, radius: 3, aa: 3,
     phSlow: 5.6,
     note: "Flagelles peritriches, nage en run and tumble. Coliforme : ralentit nettement sous pH 5,6.",
   }),
   M({
     id: 'pseudomonas', label: 'P. FRAGI', role: 'runner',
     kind: 'rod', mot: 'swim', gram: '-',
-    hp: 16, speed: 92, contact: 9, radius: 2.6, aa: 4,
+    hp: 16, speed: 104, contact: 9, radius: 2.6, aa: 4,
     ability: 'lipase', phBurn: 5.2, phBurnDps: 3,
     note: "Psychrotrophe majeur du lait cru, lipolytique et proteolytique. Flagelle polaire unique : nage rapide et rectiligne.",
   }),
@@ -68,7 +68,7 @@ export const MILK_MOBS = [
   M({
     id: 'bacillus', label: 'B. CEREUS', role: 'tank',
     kind: 'rodlong', mot: 'swim', gram: '+',
-    hp: 110, speed: 30, contact: 14, radius: 4.5, aa: 10,
+    hp: 110, speed: 42, contact: 14, radius: 4.5, aa: 10,
     ability: 'sporulation',
     note: "Endospore refringente, resistante a la chaleur et aux acides. Arrive au lait par le sol et la traite.",
   }),

@@ -53,9 +53,12 @@ export function forEachDecor(matrix, cx, cy, radius, removed, time, fn) {
         const h4 = hash2(gx * 7 - i, gy * 3 + i * 41);
 
         const kind = h4 > 0.84 ? 'bubble' : 'globule';
+        /* L'exposant biaise la distribution vers les petites tailles : sans
+           lui, une loi uniforme remplit le champ de gros objets et il n'y a
+           plus de texture. */
         const r = kind === 'bubble'
-          ? 2.5 + h3 * 5.5
-          : d.minR + h3 * (d.maxR - d.minR);
+          ? d.bubbleMinR + Math.pow(h3, d.bubbleSkew) * (d.bubbleMaxR - d.bubbleMinR)
+          : d.minR + Math.pow(h3, d.skew) * (d.maxR - d.minR);
 
         /* Mouvement brownien d'amplitude 1/sqrt(taille) : les petits objets
            s'agitent plus. C'est Stokes-Einstein, et c'est gratuit ici

@@ -20,7 +20,9 @@ export const BASE = {
      se diffuse en vol (voir la diffusion des projectiles dans game.js). */
   bulletSpeed: 172,
   bulletRadius: 2.2,
-  range: 190,
+  /* Portee : l'acide se dilue vite. Au depart on touche a peine au-dela de
+     son propre voisinage, et c'est une STAT que les evolutions comblent. */
+  range: 96,
   pierce: 0,
   projectiles: 1,
   spread: 0,
@@ -49,7 +51,7 @@ const MUL_KEYS = {
   bulletSpeedMul: 'bulletSpeed', bulletRadiusMul: 'bulletRadius',
   aaGainMul: 'aaGain', pickupMul: 'pickup', maxHpMul: 'maxHp',
   hitboxMul: 'hitbox', focusPenaltyMul: 'focusPenalty',
-  accelMul: 'accel', pullMul: 'pull',
+  accelMul: 'accel', pullMul: 'pull', rangeMul: 'range',
 };
 const ADD_KEYS = {
   maxHpAdd: 'maxHp', regenAdd: 'regen', resistAdd: 'resist',
@@ -94,7 +96,7 @@ export function computeStats(taken) {
     fireRate: BASE.fireRate * (1 + (muls.fireRate || 0)),
     bulletSpeed: BASE.bulletSpeed * (1 + (muls.bulletSpeed || 0)),
     bulletRadius: BASE.bulletRadius * (1 + (muls.bulletRadius || 0)),
-    range: BASE.range,
+    range: BASE.range * (1 + (muls.range || 0)),
     pierce: BASE.pierce + (adds.pierce || 0),
     projectiles: BASE.projectiles + (adds.projectiles || 0),
     spread: BASE.spread + (adds.spread || 0),

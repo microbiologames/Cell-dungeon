@@ -135,10 +135,13 @@ export class Director {
   spawnAt(spec) {
     const g = this.game;
     const a = g.rng() * TAU;
-    /* Juste au bord du champ visible, pas au-dela : la promesse de la mise
-       au point est de VOIR la vague se former. Un mob qui apparait hors du
-       disque ne telegraphe rien. */
-    const d = 82 + g.rng() * 46;
+    /* Deux contraintes a la fois :
+         - dans le champ visible (rayon ~124 px), sinon la mise au point ne
+           telegraphie plus rien ;
+         - a portee d'engagement, sinon les especes IMMOBILES apparaissent
+           trop loin et n'arrivent jamais : mesure a 125-140 px du joueur
+           pour une portee de 96, le joueur ne tirait plus du tout. */
+    const d = 54 + g.rng() * 70;
     let x = g.player.x + Math.cos(a) * d;
     let y = g.player.y + Math.sin(a) * d;
     const R = this.matrix.arenaRadius;

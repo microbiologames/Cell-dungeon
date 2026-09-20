@@ -140,8 +140,11 @@ export function renderField(scr, game, pal) {
     if (!b.alive) continue;
     const s = b.hostile ? sharpness(b.z, game.focus, dof) : 1;
     scr.layer(Screen.layerFor(b.hostile ? b.z : -0.03, blurLevelOf(s)));
-    const col = b.hostile ? UI.hostile : UI.acid;
-    scr.disc(toX(b.x), toY(b.y), b.radius, fade32(col, 0.35 + 0.65 * s), 0);
+    if (b.hostile) {
+      scr.disc(toX(b.x), toY(b.y), b.radius, fade32(UI.hostile, 0.35 + 0.65 * s), 0);
+    } else {
+      drawAcidDrop(scr, toX(b.x), toY(b.y), b);
+    }
   }
 
   /* --- particules ------------------------------------------------------- */
@@ -175,6 +178,54 @@ export function renderField(scr, game, pal) {
 
   drawEdge(scr, game, pal, fieldR);
   if (game.flash > 0) tintField(scr, fieldR, UI.damage, game.flash * 0.35);
+}
+
+/**
+ * Une goutte d'acide lactique en vol.
+ *
+ * Trois etats, qui racontent la dilution : la goutte part COMPACTE et
+ * brillante, elle s'etire puis se SEPARE en gouttelettes de plus en plus
+ * fines, et celles-ci s'ecartent et palissent jusqu'a disparaitre.
+ * Les decalages derivent de l'identifiant du projectile, donc ils sont
+ * stables d'une image a l'autre : pas de scintillement.
+ */
+function drawAcidDrop(scr, sx, sy, b) {
+  const t = clamp(b.diffuse || 0, 0, 1);
+  const r0 = b.r0 || b.radius;
+
+  if (t < 0.30) {
+    /* Compacte : un noyau clair dans une enveloppe, elle file droit. */
+    scr.disc(sx, sy, b.radius, fade32(UI.acid, 0.95), 0);
+    scr.disc(sx, sy, Math.max(0.6, b.radius * 0.45), UI.acidCore, 0);
+    return;
+  }
+
+  /* Direction de vol : les gouttelettes trainent derriere. */
+  const sp = Math.hypot(b.vx, b.vy) || 1;
+  const bx = -b.vx / sp, by = -b.vy / sp;
+
+  const u = (t - 0.30) / 0.70;            // 0 a la separation, 1 a la dilution
+  const n = u < 0.45 ? 3 : 6;
+  const spread = r0 * (0.35 + 3.6 * u);
+  const sub = Math.max(0.55, b.radius * (0.52 - 0.22 * u));
+  const alpha = 0.92 * (1 - u * 0.82);
+
+  for (let i = 0; i < n; i++) {
+    /* Angles et distances figes par l'identifiant : stables dans le temps. */
+    const h = hash2(b.uid * 31 + i, i * 17 + 3);
+    const a = (i / n) * TAU + b.uid * 0.61 + u * 0.9;
+    const d = spread * (0.35 + 0.65 * h);
+    const px = sx + Math.cos(a) * d + bx * spread * 0.45;
+    const py = sy + Math.sin(a) * d + by * spread * 0.45;
+    scr.disc(px, py, sub * (0.6 + 0.4 * h), fade32(UI.acid, alpha), 0);
+  }
+
+  /* En fin de course, le halo de dilution : l'acide est encore la, mais
+     trop dilue pour mordre. */
+  if (u > 0.55) {
+    scr.ring(sx + bx * spread * 0.45, sy + by * spread * 0.45,
+      spread * 1.05, 1, fade32(UI.acidRim, 0.30 * (1 - u)));
+  }
 }
 
 function zoneColor(z, pal) {

@@ -14,6 +14,7 @@ export const UI = {
   playerCore: hexToRgba('#d8ffe4'),
   acid: hexToRgba('#c9ff5a'),
   acidRim: hexToRgba('#7fbf16'),
+  acidCore: hexToRgba('#f2ffd0'),
   aa: hexToRgba('#ff9b3d'),
   aaGlow: hexToRgba('#ffd9a0'),
   plasmid: hexToRgba('#ffe14d'),

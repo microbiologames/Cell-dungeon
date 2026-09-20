@@ -52,6 +52,7 @@ const result = await page.evaluate(async (runs) => {
     const marks = [];
     let nextMark = 0;
     let deaths = 0;
+    const deathPhase = [0, 0, 0];   // debut / milieu / fin
 
     for (let i = 0; i < steps; i++) {
       /* Pilote : cherche les acides amines, fuit quand la foule colle. */
@@ -76,8 +77,22 @@ const result = await page.evaluate(async (runs) => {
         const d = Math.hypot(tx - p.x, ty - p.y) || 1;
         input.move.x = (tx - p.x) / d; input.move.y = (ty - p.y) / d;
       } else {
-        const a = g.time * 0.45;
-        input.move.x = Math.cos(a); input.move.y = Math.sin(a);
+        /* Pas d'acide amine en vue : on va CHERCHER le combat, comme le
+           ferait un joueur qui veut monter. Un pilote qui se contente de
+           tourner en rond ne mesure que la fuite. */
+        let ex = null, ey = null, ed = 1e9;
+        for (const e of g.enemies) {
+          if (!e.alive || e.spec.neutral) continue;
+          const d = Math.hypot(e.x - p.x, e.y - p.y);
+          if (d < ed) { ed = d; ex = e.x; ey = e.y; }
+        }
+        if (ex !== null && ed > p.stats.range * 0.6) {
+          const d = Math.hypot(ex - p.x, ey - p.y) || 1;
+          input.move.x = (ex - p.x) / d; input.move.y = (ey - p.y) / d;
+        } else {
+          const a = g.time * 0.45;
+          input.move.x = Math.cos(a) * 0.35; input.move.y = Math.sin(a) * 0.35;
+        }
       }
       g.focusTarget = 0;
 
@@ -90,7 +105,14 @@ const result = await page.evaluate(async (runs) => {
         if (!hand.length) { g.state = 'playing'; break; }
         g.chooseEvolution(hand[Math.floor(Math.random() * hand.length)].id);
       }
-      if (g.state === 'dead') { deaths++; g.player.hp = g.player.stats.maxHp; g.state = 'playing'; }
+      if (g.state === 'dead') {
+        deaths++;
+        /* Ou meurt-on ? Des morts concentrees a la fin, c'est le decrochage
+           voulu. Des morts des l'ouverture, c'est un probleme. */
+        deathPhase[Math.min(2, Math.floor((g.time / g.matrix.duration) * 3))]++;
+        g.player.hp = g.player.stats.maxHp;
+        g.state = 'playing';
+      }
 
       if (g.time >= nextMark) {
         nextMark += 120;
@@ -104,13 +126,14 @@ const result = await page.evaluate(async (runs) => {
       }
       if (g.state === 'won') break;
     }
-    out.push({ run, deaths, marks, niveauFinal: g.player.level, tues: g.player.kills });
+    out.push({ run, deaths, deathPhase, marks, niveauFinal: g.player.level, tues: g.player.kills });
   }
   return out;
 }, RUNS);
 
 for (const r of result) {
-  console.log(`--- run ${r.run} : niveau ${r.niveauFinal}, ${r.tues} tues, ${r.deaths} mort(s) ---`);
+  console.log(`--- run ${r.run} : niveau ${r.niveauFinal}, ${r.tues} tues, `
+    + `${r.deaths} mort(s) [debut ${r.deathPhase[0]} / milieu ${r.deathPhase[1]} / fin ${r.deathPhase[2]}] ---`);
   for (const m of r.marks) {
     console.log(`  ${String(Math.floor(m.t / 60)).padStart(2)}:${String(m.t % 60).padStart(2, '0')}`
       + `  niv ${String(m.niv).padStart(2)}  dps ${String(m.dps).padStart(3)}`
@@ -121,6 +144,9 @@ for (const r of result) {
 const niv = result.map((r) => r.niveauFinal);
 console.log(`\nniveau final : ${Math.min(...niv)} a ${Math.max(...niv)}`
   + `  (moyenne ${(niv.reduce((a, b) => a + b, 0) / niv.length).toFixed(1)})`);
+const ph = [0, 1, 2].map((i) => result.reduce((a, r) => a + r.deathPhase[i], 0));
+console.log(`morts par tiers de run : debut ${ph[0]}  milieu ${ph[1]}  fin ${ph[2]}`
+  + (ph[2] > ph[0] ? '   (le decrochage est bien a la fin)' : '   ATTENTION : ouverture trop dure'));
 console.log(errs.length ? 'ERREURS: ' + errs.join(' | ') : 'aucune erreur');
 await browser.close();
 srv.close();
