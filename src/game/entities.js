@@ -3,7 +3,7 @@
    des degats infliges, du ciblage automatique et de qui peut vous toucher.
 --------------------------------------------------------------------------- */
 
-import { clamp, TAU } from '../core/util.js';
+import { clamp, TAU, hash2 } from '../core/util.js';
 
 /* ------------------------------------------------------------- optique -- */
 
@@ -64,12 +64,39 @@ export function makeBullet(x, y, z, vx, vy, dmg, radius, pierce, owner, flags) {
   };
 }
 
-export function makePickup(x, y, z, amount, kind = 'dna') {
-  return { uid: uid++, x, y, z, amount, kind, alive: true, phase: Math.random() * TAU, ttl: 90 };
+export function makePickup(x, y, z, amount, kind = 'aa', vx = 0, vy = 0) {
+  return {
+    uid: uid++, x, y, z, vx, vy, amount, kind,
+    alive: true, phase: Math.random() * TAU, ttl: 90,
+  };
 }
 
+/**
+ * Zone d'effet. Elle porte des BOUFFEES : une poignee de lobes decales,
+ * figes par l'identifiant de la zone. Un disque net se lit comme un cercle
+ * geometrique ; des lobes qui s'etendent et se diluent se lisent comme de
+ * la fumee pour l'EPS, et comme une masse irreguliere pour un gel.
+ */
 export function makeZone(x, y, r, type, ttl, opts = {}) {
-  return { uid: uid++, x, y, r, type, ttl, maxTtl: ttl, alive: true, ...opts };
+  const z = {
+    uid: uid++, x, y, r, type, ttl, maxTtl: ttl, alive: true, ...opts,
+  };
+  const gel = type === 'gel' || type === 'coagulum';
+  const n = opts.puffCount ?? (gel ? 7 : 5);
+  z.puffs = [];
+  for (let i = 0; i < n; i++) {
+    const h1 = hash2(z.uid * 13 + i, i * 7 + 3);
+    const h2 = hash2(i * 31 + 5, z.uid * 17 + i);
+    const h3 = hash2(z.uid + i * 101, i - z.uid * 3);
+    const a = h1 * TAU;
+    const d = (gel ? 0.10 + 0.52 * h2 : 0.12 + 0.58 * h2) * r;
+    z.puffs.push({
+      ox: Math.cos(a) * d, oy: Math.sin(a) * d,
+      r: r * (gel ? 0.40 + 0.34 * h3 : 0.32 + 0.40 * h3),
+      ph: h1 * TAU, sp: 0.5 + h2,
+    });
+  }
+  return z;
 }
 
 /* ---------------------------------------------------------- motilite ---- */

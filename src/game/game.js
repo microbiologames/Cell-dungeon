@@ -7,7 +7,7 @@ import { MATRICES } from '../data/matrices.js';
 import { BESTIARY } from '../data/bestiary.js';
 import { Player } from './player.js';
 import { PhField } from './phfield.js';
-import { collectDecor, applyDecor, decorBlocksBullet } from './decor.js';
+import { collectDecor, applyDecor, decorBlocksBullet, convection } from './decor.js';
 import { Director } from './director.js';
 import {
   makeEnemy, makeBullet, makePickup, makeZone, updateEnemy, pickTarget,
@@ -349,8 +349,15 @@ export class Game {
     }
   }
 
+  /** Trainee d'EPS. Chaque bouffee a un rayon, une duree et un decalage
+   *  differents : des lobes identiques alignes se lisent comme une chaine
+   *  de perles, pas comme une trainee qui se dilue. */
   dropEps(x, y) {
-    this.zones.push(makeZone(x, y, 11, 'eps', 2.5, { slow: 0.3, friendly: true }));
+    const r = 8 + this.rng() * 7;
+    const a = this.rng() * TAU;
+    const d = this.rng() * 4;
+    this.zones.push(makeZone(x + Math.cos(a) * d, y + Math.sin(a) * d, r, 'eps',
+      1.8 + this.rng() * 1.6, { slow: 0.3, friendly: true }));
   }
 
   /* ----------------------------------------------------------- chimie --- */
@@ -472,16 +479,24 @@ export class Game {
       p.sideroTtl = 8;
     }
 
-    if (!silent) this.spark(e.x, e.y, 5);
+    if (!silent) this.lyse(e);
 
     /* Butin : acides amines liberes par la lyse. Les bacteries lactiques
        sont auxotrophes pour la plupart d'entre eux : c'est litteralement
-       ce dont elles ont besoin pour croitre. */
+       ce dont elles ont besoin pour croitre.
+
+       Ils PARTENT AVEC L'EXPLOSION : leur vitesse initiale est celle de la
+       gerbe. Un butin qui tombe sur place trahit l'idee meme de lyse. */
     const n = Math.max(1, Math.round(e.spec.aa));
-    for (let i = 0; i < Math.min(n, 6); i++) {
-      const a = this.rng() * TAU, d = this.rng() * 8;
-      this.pickups.push(makePickup(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d,
-        0, n / Math.min(n, 6)));
+    const parts = Math.min(n, 6);
+    for (let i = 0; i < parts; i++) {
+      const a = this.rng() * TAU;
+      const d = this.rng() * 6;
+      const sp = silent ? 0 : (25 + this.rng() * 65) * (e.spec.boss ? 1.8 : 1);
+      this.pickups.push(makePickup(
+        e.x + Math.cos(a) * d, e.y + Math.sin(a) * d, 0, n / parts, 'aa',
+        Math.cos(a) * sp, Math.sin(a) * sp,
+      ));
     }
     if (e.spec.dropsPlasmid) {
       this.pickups.push(makePickup(e.x, e.y, 0, 0, 'plasmid'));
@@ -555,6 +570,20 @@ export class Game {
       k.ttl -= dt;
       k.phase += dt * 3;
       if (k.ttl <= 0) { k.alive = false; continue; }
+
+      /* Derive : l'elan de la gerbe s'amortit, puis le courant du milieu
+         prend le relais, avec un peu d'agitation brownienne. Rien ne reste
+         pose sur place dans un bouillon. */
+      k.x += k.vx * dt; k.y += k.vy * dt;
+      const fr = Math.exp(-2.6 * dt);
+      k.vx *= fr; k.vy *= fr;
+      const cur = convection(this.time);
+      k.x += (cur.x - (k.cx || 0)) * 0.04;
+      k.y += (cur.y - (k.cy || 0)) * 0.04;
+      k.cx = cur.x; k.cy = cur.y;
+      k.x += (this.rng() * 2 - 1) * 5 * dt;
+      k.y += (this.rng() * 2 - 1) * 5 * dt;
+
       const dx = p.x - k.x, dy = p.y - k.y;
       const d = Math.hypot(dx, dy);
       if (d < r) {
@@ -645,10 +674,60 @@ export class Game {
     for (let i = 0; i < n; i++) {
       const a = this.rng() * TAU, s = 20 + this.rng() * 60;
       this.particles.push({
-        x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
-        ttl: 0.25 + this.rng() * 0.3, alive: true,
+        kind: 'dot', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        r: 0.9, drag: 0.92, ttl: 0.25 + this.rng() * 0.3, maxTtl: 0.55,
+        spec: null, alive: true,
       });
     }
+  }
+
+  /**
+   * Lyse d'une cellule. Trois couches, et c'est leur superposition qui rend
+   * la mort lisible sans la rendre grandiloquente :
+   *   - une onde de choc breve, qui donne le coup ;
+   *   - des fragments de PAROI, allonges et tournoyants, qui portent la
+   *     couleur de l'espece et disent QUI vient de mourir ;
+   *   - des gouttelettes de cytoplasme, plus rapides et plus nombreuses.
+   * Tout est dimensionne sur le rayon du mob : un coque fait un petit
+   * nuage, un boss fait un evenement.
+   */
+  lyse(e) {
+    const r = e.radius;
+    const big = e.spec.boss ? 2.3 : 1;
+    const P = this.particles;
+
+    P.push({
+      kind: 'ring', x: e.x, y: e.y, vx: 0, vy: 0,
+      r: r * 0.6, r1: r * 3.0 * big, spec: e.spec,
+      ttl: 0.26 * big, maxTtl: 0.26 * big, alive: true,
+    });
+
+    const shards = Math.round((3 + r * 0.8) * big);
+    for (let i = 0; i < shards; i++) {
+      const a = this.rng() * TAU;
+      const sp = (30 + this.rng() * 90) * big;
+      P.push({
+        kind: 'shard', x: e.x, y: e.y,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        r: 0.9 + this.rng() * (0.7 + r * 0.12), ang: a,
+        spin: (this.rng() - 0.5) * 16, drag: 0.90, spec: e.spec,
+        ttl: 0.30 + this.rng() * 0.45 * big, maxTtl: 0.75 * big, alive: true,
+      });
+    }
+
+    const dots = Math.round((5 + r * 1.5) * big);
+    for (let i = 0; i < dots; i++) {
+      const a = this.rng() * TAU;
+      const sp = (50 + this.rng() * 150) * big;
+      P.push({
+        kind: 'dot', x: e.x, y: e.y,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        r: 0.7 + this.rng() * 0.8, drag: 0.88, spec: null,
+        ttl: 0.18 + this.rng() * 0.32, maxTtl: 0.5, alive: true,
+      });
+    }
+
+    if (e.spec.boss) this.shake = Math.min(1, this.shake + 0.8);
   }
 
   updateParticles(dt) {
@@ -656,8 +735,11 @@ export class Game {
       if (!q.alive) continue;
       q.ttl -= dt;
       if (q.ttl <= 0) { q.alive = false; continue; }
+      if (q.kind === 'ring') continue;      // l'anneau ne fait que grandir
       q.x += q.vx * dt; q.y += q.vy * dt;
-      q.vx *= 0.92; q.vy *= 0.92;
+      const k = q.drag ?? 0.92;
+      q.vx *= k; q.vy *= k;
+      if (q.spin) q.ang += q.spin * dt;
     }
   }
 

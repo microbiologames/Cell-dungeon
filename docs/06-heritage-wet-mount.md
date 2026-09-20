@@ -8,7 +8,45 @@ sont donc de mauvais choix dans le second. Audit :
 
 ---
 
-## ❌ Rejeté — la palette d'état frais
+## ⚠️ Révisé — le fond noir n'est pas universel
+
+> **J'avais tort sur un point, et il faut le dire.** Ce document rejetait le
+> fond clair et imposait le fond noir partout. Or **le lait cru est blanc** :
+> l'observer sur fond noir est contre-intuitif, et ça se voit immédiatement
+> à l'écran.
+>
+> Mon objection portait en réalité sur le **contraste**, pas sur le fond. Un
+> état frais non coloré a 8 % de contraste et c'est illisible — mais un
+> **frottis coloré** en fond clair est parfaitement lisible : une coloration
+> de Gram donne des cellules franches sur un fond pâle.
+>
+> La règle corrigée n'est donc pas « fond noir », c'est :
+> **le mode d'observation suit le milieu, et le contraste vient de la
+> coloration.**
+>
+> | Matrice | Milieu | Mode | Organismes |
+> |---|---|---|---|
+> | Lait cru | blanc | **fond clair** | **sombres**, colorés |
+> | Conduite, kombucha, sang | sombres | **fond noir** | **lumineux**, marquage vital |
+>
+> `src/data/palette.js` porte un `mode` par matrice (`'bright'` / `'dark'`)
+> et deux jeux de couleurs complets. Le rendu s'y adapte à trois endroits :
+>
+> - **le halo de défocalisation** : en fond clair il n'y en a pas. Un objet
+>   hors plan s'étale et fonce ; l'anneau lumineux est propre au contraste
+>   de phase, donc réservé à l'évolution du même nom ;
+> - **l'opacité des zones** : sur fond clair, une zone opaque devient de la
+>   peinture. Elles sont gardées bien plus translucides ;
+> - **le plancher d'opacité des organismes flous** : sans lui, le gain
+>   appliqué après le flou faisait des boules sombres plus lourdes que les
+>   organismes nets. En fond clair, ce qui est hors plan se **fond** dans le
+>   milieu.
+>
+> Le HUD, lui, ne change jamais : il vit sur le pourtour noir de l'objectif,
+> quel que soit le mode. `UI` est donc un jeu de couleurs distinct des
+> palettes de matrice.
+
+## ❌ Rejeté — la palette d'état frais (dans les matrices sombres)
 
 Dans `wet-mount`, tout est gris-beige translucide sur crème. C'est **le sujet
 même** du simulateur : un état frais n'est pas coloré, on ne voit presque rien,

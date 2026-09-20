@@ -19,6 +19,10 @@ Format commun : **12 minutes**, mini-boss à 4:00 et 8:00, boss à 12:00.
 | Oxygène | microaérophile | Neutre |
 | Encombrement | fort | Globules gras (1–8 µm) : obstacles dérivants qui **bloquent les tirs** et masquent |
 
+**Observation : fond clair.** Le lait est blanc, on le regarde donc comme un
+frottis coloré — organismes sombres sur fond crème. C'est la seule matrice
+dans ce mode ; les trois autres sont en fond noir.
+
 **Le décor n'est pas un fond.** Deux éléments remplissent le champ et se
 comportent à l'opposé l'un de l'autre :
 
@@ -29,6 +33,23 @@ comportent à l'opposé l'un de l'autre :
 
 Les deux interactions sont volontairement opposées pour que le champ se lise
 d'un coup d'œil : ce qui est doré colle, ce qui est clair repousse.
+
+**Les effets ne sont pas des cercles.** L'EPS et les gels sont rendus en
+**bouffées** : une poignée de lobes décalés, figés par l'identifiant de la
+zone. Une traînée d'EPS s'étend, s'enroule et se dilue comme de la fumée ;
+un coagulum prend, ne bouge presque pas, et garde un bord grumeleux. Chaque
+dépôt d'EPS a son rayon et sa durée propres, sinon la traînée se lit comme un
+chapelet de perles.
+
+**La lyse est un événement.** Trois couches superposées : une onde de choc
+brève qui donne le coup, des **fragments de paroi** allongés et tournoyants
+qui portent la couleur de l'espèce — donc on voit *qui* vient d'éclater — et
+des gouttelettes de cytoplasme. Tout est dimensionné sur le rayon du mob :
+un coque fait un petit nuage, un boss fait un événement.
+
+Les **acides aminés partent avec l'explosion** : ils héritent de la vitesse
+de la gerbe, s'amortissent, puis dérivent avec le courant du milieu et son
+agitation brownienne. Rien ne reste posé sur place dans un bouillon.
 
 **La faune neutre.** Des **cellules somatiques** (leucocytes de la vache)
 dérivent dans le champ, souvent floues, et ne vous veulent rien. Leur

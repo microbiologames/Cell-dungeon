@@ -76,10 +76,13 @@ Règle de production :
 ## Direction artistique
 
 - Pixel art minimaliste et un peu goofy, 2D vue de dessus.
-- **Microscopie sur fond noir** avec marquage vital à l'orange d'acridine :
-  organismes lumineux sur fond parfaitement noir. Ce n'est pas un choix
-  esthétique arbitraire, c'est ce qui rend le jeu lisible **et** ce qui donne
-  au HUD ses zones noires naturelles. Voir `06-heritage-wet-mount.md`.
+- **Le mode d'observation suit le milieu.** Le lait cru est blanc : on
+  l'observe en **fond clair**, organismes sombres, comme un frottis coloré.
+  La conduite, le kombucha et le sang sont des milieux sombres : on les
+  observe en **fond noir**, organismes lumineux. Le contraste vient de la
+  coloration, pas du fond. Voir `06-heritage-wet-mount.md`.
+- Le HUD vit toujours sur le **pourtour noir de l'objectif**, quel que soit
+  le mode.
 - **Flou de profondeur par calques** (8 calques, flou séparable en deux passes),
   **halo de contraste de phase** sur les objets hors plan : ils brillent au
   lieu de s'effacer, donc une menace floue reste lisible.

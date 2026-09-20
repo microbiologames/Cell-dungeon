@@ -8,9 +8,6 @@ import { clamp, TAU, hash2 } from '../core/util.js';
 import { drawOrganism, drawPlayer, colorOf } from './organisms.js';
 import { sharpness } from '../game/entities.js';
 import { forEachDecor } from '../game/decor.js';
-import { UI } from '../data/palette.js';
-
-const HALO = rgba(210, 255, 235, 150);
 
 /** Niveau de flou (0 a 3) pour une nettete donnee. */
 function blurLevelOf(sharp) {
@@ -34,8 +31,8 @@ export function renderField(scr, game, pal) {
   scr.beginFrame(pal.bg);
   /* Le senseur de pH remplace le voile par une carte en fausses couleurs :
      on voit litteralement le terrain qu'on s'est fabrique. */
-  if (p.flags.has('phsense')) drawPhMap(scr, game, fieldR, camX, camY);
-  else drawHaze(scr, game, pal, fieldR);
+  if (p.flags.has('phsense')) drawPhMap(scr, game, fieldR, camX, camY, pal);
+  else drawHaze(scr, game, pal, fieldR, camX, camY);
 
   const dof = p.stats.dof;
   const margin = 24;
@@ -46,13 +43,14 @@ export function renderField(scr, game, pal) {
       const s = sharpness(it.z, game.focus, dof);
       const bl = blurLevelOf(s);
       scr.layer(Screen.layerFor(it.z, bl));
-      const a = 0.35 + 0.5 * s;
+      /* Meme regle pour le decor : un globule hors plan s'efface. */
+      const a = (pal.mode === 'bright' ? 0.14 : 0.35) + 0.5 * s;
       const sx = toX(it.x), sy = toY(it.y);
       if (it.kind === 'bubble') {
         /* Bulle d'air : anneau vif et centre vide. Elle repousse, donc elle
            doit se distinguer au premier coup d'oeil du globule qui colle. */
-        scr.ring(sx, sy, it.r, 1.3, fade32(UI.shield, 0.55 * a));
-        scr.ring(sx, sy, it.r * 0.45, 1, fade32(UI.shield, 0.25 * a));
+        scr.ring(sx, sy, it.r, 1.3, fade32(pal.shield, 0.55 * a));
+        scr.ring(sx, sy, it.r * 0.45, 1, fade32(pal.shield, 0.25 * a));
       } else {
         if (bl >= 2) scr.ring(sx, sy, it.r + 1, 1.4, fade32(pal.debrisRim, 0.5 * a));
         scr.ring(sx, sy, it.r * 0.85, 1.3, fade32(pal.debrisRim, a));
@@ -60,27 +58,30 @@ export function renderField(scr, game, pal) {
       }
     });
 
-  /* --- zones ------------------------------------------------------------ */
+  /* --- zones : bouffees qui s'etendent et se diluent ------------------- */
   for (const z of game.zones) {
     if (!z.alive) continue;
     scr.layer(Screen.layerFor(0.01, 0));
-    const t = clamp(z.ttl / z.maxTtl, 0, 1);
+    const reste = clamp(z.ttl / z.maxTtl, 0, 1);   // 1 = neuve, 0 = dissipee
+    const age = 1 - reste;
+    const gel = z.type === 'gel' || z.type === 'coagulum';
     const col = zoneColor(z, pal);
     const sx = toX(z.x), sy = toY(z.y);
-    /* Tramage clairseme, sans anneau plein : une zone doit se signaler sans
-       masquer ce qu'elle contient. Un contour opaque rendait les organismes
-       pris dedans illisibles. */
-    const R = Math.ceil(z.r);
-    const dense = z.dps ? 0.42 : 0.26;
-    for (let yy = -R; yy <= R; yy++) {
-      for (let xx = -R; xx <= R; xx++) {
-        const d = Math.hypot(xx, yy);
-        if (d > z.r) continue;
-        const px = (sx + xx) | 0, py = (sy + yy) | 0;
-        const edge = d > z.r - 1.2;
-        if (bayer(px, py) > (edge ? 0.55 : dense) * t) continue;
-        scr.plot(px, py, fade32(col, edge ? 0.55 * t : 0.32 * t));
-      }
+
+    /* La fumee s'etend franchement et se dilue ; un gel prend et bouge a
+       peine, mais reste grumeleux. */
+    const grow = gel ? 1 + age * 0.14 : 1 + age * 1.35;
+    const curl = gel ? 0 : age * 7;
+    /* Sur un fond clair, une zone opaque devient de la peinture : on la
+       garde nettement plus translucide que sur fond noir. */
+    const clair = pal.mode === 'bright' ? 0.55 : 1;
+    const dens = (gel ? 0.62 : 0.42) * clair
+      * (gel ? 0.35 + 0.65 * reste : reste * reste);
+
+    for (const puff of z.puffs) {
+      const px = sx + puff.ox * grow + Math.sin(puff.ph + age * 3.2 * puff.sp) * curl;
+      const py = sy + puff.oy * grow + Math.cos(puff.ph * 1.3 + age * 2.7 * puff.sp) * curl;
+      softBlob(scr, px, py, puff.r * grow, col, dens, gel, clair);
     }
   }
 
@@ -91,10 +92,10 @@ export function renderField(scr, game, pal) {
     const pulse = 0.7 + 0.3 * Math.sin(k.phase);
     if (k.kind === 'plasmid') {
       /* Le plasmide est un anneau : c'est ce qu'est un plasmide. */
-      scr.ring(toX(k.x), toY(k.y), 3.2, 1.4, fade32(UI.plasmid, pulse));
+      scr.ring(toX(k.x), toY(k.y), 3.2, 1.4, fade32(pal.plasmid, pulse));
     } else {
-      scr.disc(toX(k.x), toY(k.y), 1.4, fade32(UI.aa, pulse), 0);
-      scr.plot(toX(k.x), toY(k.y), UI.aaGlow);
+      scr.disc(toX(k.x), toY(k.y), 1.4, fade32(pal.aa, pulse), 0);
+      scr.plot(toX(k.x), toY(k.y), pal.aaGlow);
     }
   }
 
@@ -110,17 +111,30 @@ export function renderField(scr, game, pal) {
     scr.layer(Screen.layerFor(e.z, bl));
 
     let [fill, rim] = colorOf(e.spec, pal);
-    if (e.ally > 0) { fill = UI.ally; rim = UI.ally; }
+    if (e.ally > 0) { fill = pal.ally; rim = pal.ally; }
 
     /* Halo de contraste de phase : un objet hors plan brille au lieu de
        s'effacer. C'est ce que fait un objet defocalise, et c'est ce qui rend
        une menace floue lisible. */
     if (bl >= 1) {
-      const strength = (bl / 3) * (phaseTrace ? 0.9 : 0.55);
-      scr.ring(sx, sy, e.radius + 1.5 + bl, 1.2 + bl * 0.4, fade32(HALO, strength));
+      /* En fond clair, un objet defocalise s'etale et FONCE : il n'a pas
+         d'anneau. Le halo est propre au contraste de phase, donc on ne le
+         trace que si le joueur a pris cette evolution. Sans ce garde, le
+         halo se melait au flou et donnait des taches brunes. */
+      const base = pal.mode === 'bright' ? (phaseTrace ? 0.7 : 0) : (phaseTrace ? 0.9 : 0.55);
+      if (base > 0) {
+        scr.ring(sx, sy, e.radius + 1.5 + bl, 1.2 + bl * 0.4,
+          fade32(pal.halo, (bl / 3) * base));
+      }
     }
 
-    const alpha = phaseTrace ? Math.max(0.5, 0.35 + 0.65 * s) : 0.3 + 0.7 * s;
+    /* En fond clair, un objet tres defocalise se FOND dans le milieu.
+       Sans ce plancher plus bas, le gain applique apres flou en faisait une
+       boule sombre et opaque, plus lourde que les organismes nets. */
+    const plancher = pal.mode === 'bright' ? 0.10 : 0.30;
+    const alpha = phaseTrace
+      ? Math.max(0.5, 0.35 + 0.65 * s)
+      : plancher + (1 - plancher) * s;
     drawOrganism(scr, e.spec, sx, sy, e.radius, e.ang, e.phase,
       fade32(fill, alpha), fade32(rim, alpha));
 
@@ -130,7 +144,7 @@ export function renderField(scr, game, pal) {
       scr.layer(Screen.layerFor(-0.02, 0));
       for (let i = 0; i < w; i++) {
         scr.plot(sx - w / 2 + i, sy - e.radius - 5,
-          i / w < frac ? UI.damage : rgba(40, 20, 24, 200));
+          i / w < frac ? pal.damage : rgba(40, 20, 24, 200));
       }
     }
   }
@@ -141,17 +155,43 @@ export function renderField(scr, game, pal) {
     const s = b.hostile ? sharpness(b.z, game.focus, dof) : 1;
     scr.layer(Screen.layerFor(b.hostile ? b.z : -0.03, blurLevelOf(s)));
     if (b.hostile) {
-      scr.disc(toX(b.x), toY(b.y), b.radius, fade32(UI.hostile, 0.35 + 0.65 * s), 0);
+      scr.disc(toX(b.x), toY(b.y), b.radius, fade32(pal.hostile, 0.35 + 0.65 * s), 0);
     } else {
-      drawAcidDrop(scr, toX(b.x), toY(b.y), b);
+      drawAcidDrop(scr, toX(b.x), toY(b.y), b, pal);
     }
   }
 
-  /* --- particules ------------------------------------------------------- */
+  /* --- particules et lyses ---------------------------------------------- */
   scr.layer(Screen.layerFor(-0.04, 0));
   for (const q of game.particles) {
     if (!q.alive) continue;
-    scr.plot(toX(q.x), toY(q.y), fade32(UI.acidRim, clamp(q.ttl * 3, 0, 1)));
+    const vie = clamp(q.ttl / (q.maxTtl || 0.5), 0, 1);
+    const sx = toX(q.x), sy = toY(q.y);
+
+    if (q.kind === 'ring') {
+      /* Onde de choc : un anneau qui s'ouvre vite et s'efface. C'est lui
+         qui donne le COUP ; sans anneau, une mort n'est qu'un essaim de
+         points et ne se sent pas. */
+      const k = 1 - vie;
+      const rr = q.r + (q.r1 - q.r) * (1 - (1 - k) * (1 - k));
+      const [fill] = q.spec ? colorOf(q.spec, pal) : [pal.acid];
+      scr.ring(sx, sy, rr, 1 + 1.6 * vie, fade32(fill, 0.75 * vie));
+      continue;
+    }
+
+    if (q.kind === 'shard') {
+      /* Fragment de paroi : allonge, il tourne. Il porte la couleur de
+         l'espece, donc on voit QUI vient d'eclater. */
+      const [fill, rim] = q.spec ? colorOf(q.spec, pal) : [pal.acid, pal.acidRim];
+      const len = q.r * 2.2;
+      scr.cap(sx, sy, len, Math.max(1, q.r * 0.8), q.ang || 0,
+        fade32(fill, 0.35 + 0.65 * vie), fade32(rim, 0.35 + 0.65 * vie));
+      continue;
+    }
+
+    /* Gouttelette de cytoplasme. */
+    scr.disc(sx, sy, Math.max(0.5, (q.r || 0.8) * (0.4 + 0.6 * vie)),
+      fade32(pal.acidRim, clamp(vie * 1.4, 0, 1)), 0);
   }
 
   /* --- aura et joueur --------------------------------------------------- */
@@ -159,25 +199,25 @@ export function renderField(scr, game, pal) {
   const aura = p.stats.aura;
   if (aura.dps > 0) {
     scr.ring(toX(p.x), toY(p.y), aura.radius, 1.2,
-      fade32(UI.acid, 0.18 + 0.08 * Math.sin(p.phase * 4)));
+      fade32(pal.acid, 0.18 + 0.08 * Math.sin(p.phase * 4)));
   }
   if (p.shield > 0) {
     scr.ring(toX(p.x), toY(p.y), p.radius + 3.5, 1.6,
-      fade32(UI.shield, clamp(p.shield / 60, 0.2, 0.9)));
+      fade32(pal.shield, clamp(p.shield / 60, 0.2, 0.9)));
   }
   if (p.phagocytosedBy) {
     /* Englouti : on ne voit plus que la vacuole de l'hote. */
-    scr.ring(toX(p.x), toY(p.y), p.radius + 5, 2, fade32(UI.hostile, 0.8));
+    scr.ring(toX(p.x), toY(p.y), p.radius + 5, 2, fade32(pal.hostile, 0.8));
   }
   const blink = p.invuln > 0 && Math.floor(p.phase * 12) % 2 === 0;
   if (!blink) {
-    drawPlayer(scr, toX(p.x), toY(p.y), p.radius, p.ang, p.phase, UI, p.flagellation);
+    drawPlayer(scr, toX(p.x), toY(p.y), p.radius, p.ang, p.phase, pal, p.flagellation);
   }
 
   scr.composite();
 
   drawEdge(scr, game, pal, fieldR);
-  if (game.flash > 0) tintField(scr, fieldR, UI.damage, game.flash * 0.35);
+  if (game.flash > 0) tintField(scr, fieldR, pal.damage, game.flash * 0.35);
 }
 
 /**
@@ -189,14 +229,14 @@ export function renderField(scr, game, pal) {
  * Les decalages derivent de l'identifiant du projectile, donc ils sont
  * stables d'une image a l'autre : pas de scintillement.
  */
-function drawAcidDrop(scr, sx, sy, b) {
+function drawAcidDrop(scr, sx, sy, b, pal) {
   const t = clamp(b.diffuse || 0, 0, 1);
   const r0 = b.r0 || b.radius;
 
   if (t < 0.30) {
     /* Compacte : un noyau clair dans une enveloppe, elle file droit. */
-    scr.disc(sx, sy, b.radius, fade32(UI.acid, 0.95), 0);
-    scr.disc(sx, sy, Math.max(0.6, b.radius * 0.45), UI.acidCore, 0);
+    scr.disc(sx, sy, b.radius, fade32(pal.acid, 0.95), 0);
+    scr.disc(sx, sy, Math.max(0.6, b.radius * 0.45), pal.acidCore, 0);
     return;
   }
 
@@ -217,25 +257,47 @@ function drawAcidDrop(scr, sx, sy, b) {
     const d = spread * (0.35 + 0.65 * h);
     const px = sx + Math.cos(a) * d + bx * spread * 0.45;
     const py = sy + Math.sin(a) * d + by * spread * 0.45;
-    scr.disc(px, py, sub * (0.6 + 0.4 * h), fade32(UI.acid, alpha), 0);
+    scr.disc(px, py, sub * (0.6 + 0.4 * h), fade32(pal.acid, alpha), 0);
   }
 
   /* En fin de course, le halo de dilution : l'acide est encore la, mais
      trop dilue pour mordre. */
   if (u > 0.55) {
     scr.ring(sx + bx * spread * 0.45, sy + by * spread * 0.45,
-      spread * 1.05, 1, fade32(UI.acidRim, 0.30 * (1 - u)));
+      spread * 1.05, 1, fade32(pal.acidRim, 0.30 * (1 - u)));
+  }
+}
+
+/**
+ * Lobe diffus. Le tramage de Bayer decroit du centre vers le bord, ce qui
+ * donne une frange irreguliere au lieu d'un contour net : c'est ce qui
+ * distingue une bouffee d'un disque.
+ */
+function softBlob(scr, cx, cy, r, col, density, ferme, opacite = 1) {
+  if (r < 0.6 || density <= 0.01) return;
+  const R = Math.ceil(r);
+  const icx = cx | 0, icy = cy | 0;
+  for (let y = -R; y <= R; y++) {
+    for (let x = -R; x <= R; x++) {
+      const d = Math.sqrt(x * x + y * y) / r;
+      if (d > 1) continue;
+      const px = icx + x, py = icy + y;
+      /* Un gel garde un bord marque ; une fumee s'effiloche. */
+      const a = density * (ferme ? (d > 0.86 ? 1.15 : 0.8) : (1 - d * d));
+      if (bayer(px, py) > a) continue;
+      scr.plot(px, py, fade32(col, (ferme ? 0.6 : 0.5) * opacite));
+    }
   }
 }
 
 function zoneColor(z, pal) {
   switch (z.type) {
     case 'coagulum':
-    case 'gel': return UI.gel;
+    case 'gel': return pal.gel;
     case 'dextrane': return rgba(150, 132, 86, 255);
-    case 'eps': return UI.shield;
+    case 'eps': return pal.shield;
     case 'hemolysine':
-    case 'llo': return UI.damage;
+    case 'llo': return pal.damage;
     default: return pal.edge;
   }
 }
@@ -245,7 +307,7 @@ function zoneColor(z, pal) {
  * pH du milieu. L'echelle se cale sur les bornes reelles du champ, donc elle
  * reste lisible meme quand tout le champ a deja ete acidifie.
  */
-function drawPhMap(scr, game, fieldR, camX, camY) {
+function drawPhMap(scr, game, fieldR, camX, camY, pal) {
   const f = game.phField;
   const [lo, hi] = f.range(camX, camY, fieldR + 20);
   const span = Math.max(0.25, hi - lo);
@@ -256,28 +318,60 @@ function drawPhMap(scr, game, fieldR, camX, camY) {
       const px = VIEW.CX + x, py = VIEW.CY + y;
       const acid = clamp(1 - (f.atSmooth(camX + x, camY + y) - lo) / span, 0, 1);
       if (acid < 0.12) continue;
-      /* Surcouche de capteur, pas repeinture du champ : tres tramee et
-         peu opaque, pour qu'on continue a voir les organismes dedans. */
+      /* Surcouche de capteur, pas repeinture du champ : tres tramee et peu
+         opaque, pour qu'on continue a voir les organismes dedans. En fond
+         clair l'acide ASSOMBRIT le milieu, en fond noir il l'illumine :
+         sinon la carte se perd dans le fond. */
       if (bayer(px, py) > acid * 0.55) continue;
-      const r = Math.round(120 + 120 * acid);
-      const g = Math.round(40 + 60 * (1 - acid));
-      const b = Math.round(30 + 40 * (1 - acid));
+      const lumineux = pal.mode !== 'bright';
+      const r = lumineux ? Math.round(120 + 120 * acid) : Math.round(168 - 58 * acid);
+      const g = lumineux ? Math.round(40 + 60 * (1 - acid)) : Math.round(96 - 46 * acid);
+      const b = lumineux ? Math.round(30 + 40 * (1 - acid)) : Math.round(64 - 34 * acid);
       scr.direct(px, py, rgba(r, g, b, Math.round(60 + 90 * acid)));
     }
   }
   scr.clip = true;
 }
 
-/** Voile de fond : un bouillon n'est jamais parfaitement vide. */
-function drawHaze(scr, game, pal, fieldR) {
+/**
+ * Voile de fond : un bouillon n'est jamais parfaitement vide.
+ *
+ * Un seuil applique a un bruit echantillonne tous les deux pixels produit une
+ * GRILLE, pas des nuees : ca se lit comme une trame d'ecran. On interpole
+ * donc un bruit de valeur basse frequence et on le trame avec Bayer, ce qui
+ * donne un moutonnement irregulier — des micelles de caseine, pas un store.
+ */
+function valueNoise(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const tx = x - xi, ty = y - yi;
+  const a = hash2(xi, yi), b = hash2(xi + 1, yi);
+  const c = hash2(xi, yi + 1), d = hash2(xi + 1, yi + 1);
+  const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+  const top = a + (b - a) * sx;
+  const bot = c + (d - c) * sx;
+  return top + (bot - top) * sy;
+}
+
+function drawHaze(scr, game, pal, fieldR, camX, camY) {
   const t = game.time * 0.35;
+  const bright = pal.mode === 'bright';
+  /* En fond clair le voile assombrit a peine : le lait est homogene. */
+  const amp = bright ? 0.42 : 0.85;
   scr.clip = false;
-  for (let y = -fieldR; y <= fieldR; y += 2) {
+  for (let y = -fieldR; y <= fieldR; y++) {
     const w = Math.floor(Math.sqrt(Math.max(0, fieldR * fieldR - y * y)));
-    for (let x = -w; x <= w; x += 2) {
+    for (let x = -w; x <= w; x++) {
       const px = VIEW.CX + x, py = VIEW.CY + y;
-      const n = hash2(Math.floor((px + t) * 0.5), Math.floor((py - t * 0.3) * 0.5));
-      if (n > 0.86) scr.direct(px, py, fade32(pal.haze, 0.5));
+      /* Deux octaves, en coordonnees MONDE : les nuees derivent avec le
+         champ au lieu de coller a l'ecran. */
+      const wx = (camX + x) * 0.035, wy = (camY + y) * 0.035;
+      let n = valueNoise(wx + t * 0.05, wy - t * 0.03) * 0.65
+            + valueNoise(wx * 2.7 - t * 0.02, wy * 2.7) * 0.35;
+      n = (n - 0.42) * 2.4;
+      if (n <= 0) continue;
+      const a = Math.min(1, n) * amp;
+      if (bayer(px, py) > a) continue;
+      scr.direct(px, py, fade32(pal.haze, 0.55 + 0.45 * a));
     }
   }
   scr.clip = true;
@@ -303,9 +397,9 @@ function drawEdge(scr, game, pal, fieldR) {
       const x = VIEW.CX + Math.cos(dir + a) * fieldR;
       const y = VIEW.CY + Math.sin(dir + a) * fieldR;
       const f = k * (1 - Math.abs(a) / 0.9);
-      scr.direct(x, y, mix32(pal.edge, UI.textHot, f));
+      scr.direct(x, y, mix32(pal.edge, pal.textHot, f));
       scr.direct(VIEW.CX + Math.cos(dir + a) * (fieldR - 1),
-        VIEW.CY + Math.sin(dir + a) * (fieldR - 1), fade32(UI.textHot, f * 0.5));
+        VIEW.CY + Math.sin(dir + a) * (fieldR - 1), fade32(pal.textHot, f * 0.5));
     }
   }
 }
