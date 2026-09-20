@@ -7,6 +7,7 @@
 import { RARITY } from '../data/evolutions.js';
 import { RARITY_HEX } from '../data/palette.js';
 import { mmss } from '../core/util.js';
+import { CARD_ART } from './card-art.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -68,13 +69,16 @@ export class Overlay {
       btn.type = 'button';
       const col = RARITY_HEX[evo.rarity] || '#cfe6d8';
       btn.style.borderLeft = `3px solid ${col}`;
-      /* L'illustration est FACULTATIVE : si assets/cards/<id>.png n'existe
-         pas, l'image se retire d'elle-meme et la carte reste identique a
-         avant. Les vignettes peuvent donc arriver une par une. */
+      /* L'illustration est FACULTATIVE. On ne demande QUE les fichiers
+         presents (CARD_ART est genere depuis assets/cards/) : sinon chaque
+         carte sans vignette provoquait un 404, et ces erreurs attendues
+         noyaient les vraies dans la console. */
+      const art = CARD_ART.has(evo.id)
+        ? `<img class="art" src="assets/cards/${encodeURIComponent(evo.id)}.png" alt="">`
+        : '';
       btn.innerHTML = `
         <div class="body">
-          <img class="art" src="assets/cards/${encodeURIComponent(evo.id)}.png" alt=""
-               onerror="this.remove()">
+          ${art}
           <div class="txt">
             <div class="top">
               <span class="name">${i + 1}. ${escapeHtml(evo.label)}</span>

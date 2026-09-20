@@ -198,6 +198,23 @@ for (const file of all) {
   console.log(`  ${id.padEnd(16)} ${target[0]}x${target[1]}  ${res.used} couleurs`);
 }
 
+/* Liste des vignettes de cartes disponibles. Sans elle, l'interface
+   demandait assets/cards/<id>.png pour CHAQUE evolution et encaissait un 404
+   par carte sans illustration : le repli marchait, mais la console se
+   remplissait d'erreurs attendues, ce qui noie les vraies. */
+let cardIds = [];
+try {
+  cardIds = (await readdir(join(ROOT, 'assets/cards')))
+    .filter((f) => f.endsWith('.png'))
+    .map((f) => basename(f, '.png'))
+    .sort();
+} catch { /* pas encore de vignettes */ }
+await writeFile(join(ROOT, 'src/ui/card-art.js'),
+  `/* GENERE PAR tools/sprites.mjs - ne pas editer a la main.\n`
+  + `   Source : assets/cards/*.png */\n\n`
+  + `export const CARD_ART = new Set(${JSON.stringify(cardIds)});\n`);
+console.log(`${cardIds.length} vignette(s) de carte -> src/ui/card-art.js`);
+
 const body = `/* GENERE PAR tools/sprites.mjs - ne pas editer a la main.
    Source : assets/sprites/*.png  |  ${new Date().toISOString().slice(0, 10)} */
 
