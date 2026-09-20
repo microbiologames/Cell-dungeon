@@ -51,6 +51,8 @@ const BRIGHT = {
 
   player: hexToRgba('#2f9e5e'), playerRim: hexToRgba('#14512f'),
   playerCore: hexToRgba('#b7f2ce'),
+  /* Sur le lait, le detourage du joueur doit ECLAIRCIR, pas assombrir. */
+  playerHalo: hexToRgba('#ffffff', 165),
   acid: hexToRgba('#7d9c0e'), acidRim: hexToRgba('#4d6106'),
   acidCore: hexToRgba('#d8ee7c'),
   aa: hexToRgba('#c7590a'), aaGlow: hexToRgba('#f09a35'),
@@ -80,6 +82,7 @@ const DARK = {
 
   player: hexToRgba('#7dff9b'), playerRim: hexToRgba('#2ea84f'),
   playerCore: hexToRgba('#d8ffe4'),
+  playerHalo: hexToRgba('#000000', 190),
   acid: hexToRgba('#c9ff5a'), acidRim: hexToRgba('#7fbf16'),
   acidCore: hexToRgba('#f2ffd0'),
   aa: hexToRgba('#ff9b3d'), aaGlow: hexToRgba('#ffd9a0'),

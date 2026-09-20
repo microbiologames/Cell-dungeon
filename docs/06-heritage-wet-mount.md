@@ -45,6 +45,21 @@ sont donc de mauvais choix dans le second. Audit :
 > Le HUD, lui, ne change jamais : il vit sur le pourtour noir de l'objectif,
 > quel que soit le mode. `UI` est donc un jeu de couleurs distinct des
 > palettes de matrice.
+>
+> **Deux pièges dormants que le passage au clair a réveillés**, tous deux
+> invisibles tant que le milieu était noir :
+>
+> - `beginFrame` remplissait **tout le tampon** avec la couleur du milieu.
+>   Le pourtour se peignait donc en crème et le HUD devenait illisible. On
+>   peint maintenant le noir partout, puis le milieu **dans le disque**.
+> - Le détourage du joueur était un disque **noir en dur**, ajouté pour le
+>   détacher de la foule lumineuse. Sur le lait, il laissait une tache noire.
+>   Il suit désormais le mode : `pal.playerHalo`, sombre sur fond noir,
+>   clair sur le lait.
+>
+> La leçon est générale : **une couleur écrite en dur est une hypothèse sur
+> le fond**. Tout ce qui est dessiné dans le champ doit venir de la palette
+> de la matrice.
 
 ## ❌ Rejeté — la palette d'état frais (dans les matrices sombres)
 

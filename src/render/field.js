@@ -28,7 +28,14 @@ export function renderField(scr, game, pal) {
   const toX = (wx) => VIEW.CX + (wx - camX);
   const toY = (wy) => VIEW.CY + (wy - camY);
 
-  scr.beginFrame(pal.bg);
+  /* Le pourtour de l'objectif est TOUJOURS noir, quel que soit le milieu :
+     c'est la ou vit le HUD. beginFrame remplissait tout le tampon avec la
+     couleur du milieu, ce qui passait inapercu tant qu'elle etait noire —
+     avec le lait, le champ debordait sur le HUD et le rendait illisible.
+     On peint donc le noir partout, puis le milieu DANS le disque. */
+  scr.beginFrame(0xff000000);
+  fillField(scr, fieldR, pal.bg);
+
   /* Le senseur de pH remplace le voile par une carte en fausses couleurs :
      on voit litteralement le terrain qu'on s'est fabrique. */
   if (p.flags.has('phsense')) drawPhMap(scr, game, fieldR, camX, camY, pal);
@@ -331,6 +338,14 @@ function drawPhMap(scr, game, fieldR, camX, camY, pal) {
     }
   }
   scr.clip = true;
+}
+
+/** Peint le milieu observe a l'interieur du disque de l'objectif. */
+function fillField(scr, fieldR, col) {
+  for (let y = -fieldR; y <= fieldR; y++) {
+    const w = Math.floor(Math.sqrt(Math.max(0, fieldR * fieldR - y * y)));
+    for (let x = -w; x <= w; x++) scr.direct(VIEW.CX + x, VIEW.CY + y, col);
+  }
 }
 
 /**
