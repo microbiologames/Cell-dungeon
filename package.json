@@ -12,7 +12,9 @@
     "playtest": "node tools/playtest.mjs",
     "sheet": "node tools/make-contact-sheet.mjs",
     "sprites:bake": "node tools/sprites.mjs bake",
-    "sprites:import": "node tools/sprites.mjs import"
+    "sprites:import": "node tools/sprites.mjs import",
+    "rd:guard": "node tools/rd.mjs guard",
+    "rd:credits": "node tools/rd.mjs credits"
   },
   "devDependencies": {
     "playwright": "^1.63.0"

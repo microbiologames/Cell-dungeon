@@ -1,0 +1,21 @@
+{
+  "_commentaire": [
+    "Serveur MCP Retro Diffusion, HEBERGE : rien a installer.",
+    "Pour l'activer : renommer ce fichier en .mcp.json.",
+    "La cle n'est PAS ecrite ici : ${RETRODIFFUSION_API_KEY} est developpee",
+    "depuis l'environnement. Si votre client ne developpe pas les variables",
+    "dans ce fichier, n'y collez pas la cle en clair pour autant : utilisez",
+    "tools/rd.mjs, qui lit la variable directement.",
+    "Alternative en ligne de commande :",
+    "  claude mcp add --transport http retro-diffusion https://mcp.retrodiffusion.ai/mcp --header \"Authorization: Bearer $RETRODIFFUSION_API_KEY\""
+  ],
+  "mcpServers": {
+    "retro-diffusion": {
+      "type": "http",
+      "url": "https://mcp.retrodiffusion.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer ${RETRODIFFUSION_API_KEY}"
+      }
+    }
+  }
+}

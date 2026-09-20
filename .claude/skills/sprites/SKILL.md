@@ -91,6 +91,36 @@ C'est faisable et c'est le chemin le plus fiable :
 L'étape 3 n'est pas optionnelle : à 8–30 px, la seule façon de juger est de
 regarder le résultat dans le jeu, pas le code.
 
+## Génération assistée (Retro Diffusion)
+
+La clé **ne vit jamais dans le dépôt**. Elle est lue dans
+`RETRODIFFUSION_API_KEY`, définie dans les réglages d'environnement de
+Claude Code (le conteneur de session est éphémère ; un `.env` écrit dedans
+disparaît). Ne jamais la coller dans une conversation : les transcriptions
+sont conservées, et une clé collée est une clé à révoquer.
+
+```bash
+npm run rd:guard      # verifie qu'aucune cle n'est versionnee — a lancer avant tout commit
+npm run rd:credits    # solde, et donc validite de la cle
+node tools/rd.mjs cost "<prompt>"              # estimation GRATUITE
+node tools/rd.mjs gen listeria "<prompt>" --w 34 --h 34
+node tools/sprites.mjs import                  # puis la chaine habituelle
+```
+
+`cost` passe `check_cost: true` : l'API répond le prix sans rien générer et
+sans consommer de crédit. **Toujours estimer avant de générer.**
+
+Le serveur MCP hébergé (`.mcp.json.example`) est l'autre voie : il permet
+d'appeler les outils directement depuis la conversation. Il est opt-in,
+à activer en renommant le fichier.
+
+### Tailles utiles à la génération
+
+Les styles Retro Diffusion descendent à 12×12. En dessous de 8 px, la
+génération ne peut rien dire d'utile : rester au procédural. Cibler la
+génération sur le **joueur (16)**, les **boss (28 et 34)**, la **cellule
+somatique (20)**, *Geotrichum* (16) et *Kluyveromyces* (13).
+
 ## Vérification
 
 ```

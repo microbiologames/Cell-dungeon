@@ -1,3 +1,11 @@
+# Secrets : JAMAIS versionnes. La cle vit dans une variable d'environnement,
+# pas dans un fichier du depot.
+.env
+.env.*
+!.env.example
+*.key
+secrets.json
+
 node_modules/
 package-lock.json
 *.png
