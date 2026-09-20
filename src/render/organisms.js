@@ -8,7 +8,6 @@
 --------------------------------------------------------------------------- */
 
 import { TAU } from '../core/util.js';
-import { rgba } from '../core/pixel.js';
 import { getSprite, drawSprite } from './sprites.js';
 
 /* Les sprites disponibles sont servis par le registre ; tant qu'une espece
@@ -187,10 +186,11 @@ export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null) {
       1.1, pal.playerRim, 0);
   }
   const d = r * 0.5;
-  /* Halo de detourage : sans lui, le joueur se perd dans la foule. Sa
-     couleur suit le mode de la matrice — sombre sur fond noir, clair sur
-     le lait. En dur en noir, il laissait un disque noir sur le lait. */
-  scr.disc(x, y, r * 1.55, pal.playerHalo || rgba(0, 0, 0, 190), 0);
+  /* Pas de halo de detourage.
+     Il avait ete ajoute pour que le joueur ne se perde pas dans la foule,
+     mais la CAMERA EST VERROUILLEE SUR LUI : il occupe toujours le centre
+     exact du champ, on ne peut donc pas le perdre. Le halo ne resolvait
+     aucun probleme reel et posait un disque etranger sur le milieu. */
 
   /* Eclairage FIXE en haut a gauche, independant de l'orientation : la
      lumiere ne tourne pas avec la cellule. A sept pixels de large, un liseré

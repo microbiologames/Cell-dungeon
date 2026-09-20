@@ -54,8 +54,10 @@ sont donc de mauvais choix dans le second. Audit :
 >   peint maintenant le noir partout, puis le milieu **dans le disque**.
 > - Le détourage du joueur était un disque **noir en dur**, ajouté pour le
 >   détacher de la foule lumineuse. Sur le lait, il laissait une tache noire.
->   Il suit désormais le mode : `pal.playerHalo`, sombre sur fond noir,
->   clair sur le lait.
+>   Il a fini par être **supprimé** : la caméra est verrouillée sur le
+>   joueur, qui occupe donc toujours le centre exact du champ. On ne peut
+>   pas le perdre, et le halo ne résolvait aucun problème réel — il posait
+>   seulement un disque étranger sur le milieu.
 >
 > La leçon est générale : **une couleur écrite en dur est une hypothèse sur
 > le fond**. Tout ce qui est dessiné dans le champ doit venir de la palette
