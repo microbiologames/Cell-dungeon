@@ -38,35 +38,81 @@ et n'en bougent pas).
 
 ## 2 — Conduite industrielle (acier 316L, biofilm)
 
-> La matrice qui circule dans la conduite est un **moût de kombucha en transfert**.
-> Acide, sucré, et plein de monde. Le biofilm, lui, est vieux de six mois.
+> Ce n'est pas une arène, c'est un **couloir**. On n'y tourne pas autour de la
+> horde : on l'affronte de face, dos au courant.
 
 | Paramètre | Valeur | Effet de jeu |
 |---|---|---|
-| Écoulement | 0.8 m/s, laminaire au centre | **Courant** qui pousse le joueur ; les bords (couche limite) sont calmes |
-| Surface | inox rayé + EPS | Les rayures sont des abris : le courant y tombe à zéro |
-| pH | 3.4 | 2 dps constants sans *Acid Tolerance Response* |
-| Nettoyage | **NIP toutes les 150 s** | Voir ci-dessous |
+| Forme de l'arène | tube : ±1400 px en X, **±110 px en Y** | Le déplacement est **essentiellement gauche-droite** |
+| Écoulement | 0.8 m/s, laminaire au centre | Poussée permanente ; remonter le courant coûte 45 % de vitesse |
+| Couche limite | le long des parois | Le courant y tombe à zéro : les bords sont des refuges |
+| Surface | inox rayé + EPS | Les rayures sont des anfractuosités : abri contre le NEP |
+| Nettoyage | **NEP toutes les 150 s** | Voir plus bas |
 
-**Signature — le Nettoyage En Place (NEP/CIP)** : toutes les 150 s, un cycle
-démarre. 8 s de télégraphe (le champ vire au jaune, le courant s'accélère),
-puis une **vague de soude à 2 % traverse l'écran** et inflige 70 dégâts à tout
-ce qui n'est pas dans une anfractuosité du biofilm. Les mobs meurent aussi :
-c'est une arme si on sait s'en servir. Alternance soude → acide nitrique → chlore.
+### L'axe Z devient la stratification du biofilm
+
+C'est ce qui distingue cette matrice de toutes les autres. On n'observe pas
+une goutte, on observe **une paroi en coupe**, et la profondeur cesse d'être
+seulement optique :
+
+```
+z = +1   acier, base du biofilm     mobs denses, abri total contre le NEP
+z =  0   matrice d'EPS              votre plan par défaut
+z = -1   lumière de la conduite     courant maximal, balayé par le NEP
+```
+
+Descendre dans le biofilm (`z > 0`) met à l'abri du courant et des biocides,
+mais c'est là que la population est la plus dense et que les persistants
+vivent. Remonter dans le flux (`z < 0`) dégage le champ, mais vous expose.
+La molette n'est donc plus seulement une arme de ciblage : c'est un
+**déplacement**.
+
+### Logique de biofilm
+
+La paroi porte des **plaques de biofilm** colonisables, visibles comme des
+amas d'EPS accrochés en haut et en bas du couloir.
+
+- Chaque plaque **émet** des mobs à intervalle régulier, indéfiniment.
+- Détruire une plaque tarit sa source, mais elle **se reforme** en 45 s si un
+  *P. aeruginosa* survit à proximité (c'est lui qui sécrète l'alginate).
+- Se tenir dans une plaque : immunité au courant, immunité au NEP, mais
+  dégâts de contact continus et vision réduite.
+
+Le jeu consiste donc à arbitrer entre nettoyer les sources et survivre à ce
+qu'elles produisent — exactement le problème d'un atelier réel.
+
+### Le Nettoyage En Place, et ses biocides
+
+Toutes les 150 s, un cycle démarre : 8 s de télégraphe (le champ vire, le
+courant s'accélère), puis **une vague traverse le couloir de bout en bout**.
+
+Les biocides **tournent**, et chacun a un contre différent. C'est là que le
+build construit dans le lait cru se révèle bon ou mauvais :
+
+| Cycle | Biocide | Mécanisme réel | Ce qui vous sauve |
+|---|---|---|---|
+| 1 | **Soude 2 %** | Saponifie les lipides membranaires | S'abriter (anfractuosité ou biofilm) |
+| 2 | **Acide nitrique** | Choc de pH, déminéralise | `Réponse de tolérance à l'acide` |
+| 3 | **Hypochlorite** | Oxydant, génère des ROS | `Catalase / SOD` |
+| 4 | **Acide peracétique** | Oxydant fort, pénètre l'EPS | `Catalase` **et** `Efflux multidrogue` |
+
+Le cycle 4 est le seul que l'abri ne sauve pas : l'acide peracétique traverse
+l'EPS, ce qui est sa qualité industrielle réelle. Il faut l'encaisser
+chimiquement ou pas du tout.
+
+Les mobs meurent aussi dans le NEP. C'est donc une arme, si on sait se placer.
 
 **Mécanique introduite** : la **phagocytose subie**. *Acanthamoeba* broute le
-biofilm et vous gobe. Sans *Endolysine*, c'est 4 s d'impuissance et 35 dégâts.
+biofilm et vous gobe. Sans `Endolysine`, c'est 4 s d'impuissance et 35 dégâts.
 Avec, vous le tuez de l'intérieur — c'est le moment où l'évolution paie.
 
-**Flore** : *Pseudomonas aeruginosa* (EPS alginate, quorum sensing) ·
-*Listeria monocytogenes* persistante · *Sphingomonas* · spores de *Bacillus* adhérées ·
-*Acanthamoeba castellanii* · *Komagataeibacter* dérivant du moût
+**Flore** : *Pseudomonas aeruginosa* (alginate, quorum sensing) ·
+*Listeria monocytogenes* persistante · *Sphingomonas* (adhésion) ·
+spores de *Bacillus* adhérées · *Acanthamoeba castellanii*
 
-**Boss 12:00** — **Le biofilm mature lui-même** : une masse immobile qui envoie
-des essaims, se rétracte quand on l'acidifie, et dont il faut détruire les
-quatre points d'ancrage. Fenêtre de dégâts pendant le NEP.
-
----
+**Boss 12:00** — **Le biofilm mature** : une masse immobile occupant tout le
+fond du couloir, quatre points d'ancrage à détruire. Elle se rétracte quand on
+l'acidifie et envoie des essaims. Fenêtre de dégâts pendant le NEP.
 
 ## 3 — Kombucha (jarre, jour 7)
 
@@ -129,14 +175,3 @@ système. Trois neutrophiles liés par des NETs, plus une pression de complémen
 qui monte. Il faut casser les NETs (ADNase — une vraie enzyme de *S. aureus*).
 
 ---
-
-## Note d'arbitrage à trancher
-
-Tu as écrit « conduite industrielle **avec matrice favorable kombucha** ».
-J'ai lu ça comme : la conduite **transporte** du kombucha (d'où la flore
-acétique et le pH 3.4 du stage 2), et la jarre de kombucha reste un stage
-distinct où l'enjeu est la pellicule de cellulose.
-
-Si tu préférais **fusionner** les stages 2 et 3 en un seul, on passe à
-3 matrices et je bascule la pellicule de cellulose et le gradient d'oxygène
-dans la conduite. Dis-moi.

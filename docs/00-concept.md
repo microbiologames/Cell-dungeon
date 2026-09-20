@@ -9,6 +9,13 @@ victimes pour **muter**.
 
 Roguelite d'arène, vue de dessus, tir automatique, run de 12 minutes par matrice.
 
+Les quatre matrices ne sont pas quatre décors : chacune change la **forme de
+l'espace** et le rôle de l'axe Z. Le lait cru est une goutte ouverte. La
+conduite est un **couloir** où l'on se déplace surtout de gauche à droite et
+où Z devient la stratification du biofilm. Le kombucha est une jarre où Z
+porte le gradient d'oxygène et où l'arène **rétrécit**. Le sang est un flux
+pulsatile.
+
 ## Les trois piliers
 
 ### 1. La mise au point est une arme
