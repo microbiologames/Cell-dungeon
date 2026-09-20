@@ -105,7 +105,7 @@ if (MODE === 'bake') {
   const files = await page.evaluate(async (forced) => {
     const { Screen } = await import('./src/core/pixel.js');
     const { drawOrganism, drawPlayer, colorOf } = await import('./src/render/organisms.js');
-    const { MILK_MOBS, MILK_NEUTRALS, MILK_BOSSES } = await import('./src/data/bestiary.js');
+    const { BESTIARY } = await import('./src/data/bestiary.js');
     const { MATRICES_PALETTE, UI } = await import('./src/data/palette.js');
     const pal = MATRICES_PALETTE.milk;
     const out = [];
@@ -133,7 +133,9 @@ if (MODE === 'bake') {
     const fit = (native) => (forced ? (forced * 0.70) / (native * 2) : 1);
 
     bake('player', forced || 16, (s, x, y) => drawPlayer(s, x, y, 3.4 * fit(3.4), 0, 1.2, UI, { count: 4, mode: 'bundle' }));
-    for (const spec of [...MILK_MOBS, ...MILK_NEUTRALS, ...Object.values(MILK_BOSSES)]) {
+    /* Tout le bestiaire, toutes matrices : la toile de depart d'une espece
+       de la conduite se bake exactement comme celle du lait cru. */
+    for (const spec of Object.values(BESTIARY)) {
       const size = forced || Math.max(6, Math.ceil(spec.radius * 2) + 2);
       const [fill, rim] = colorOf(spec, pal);
       bake(spec.id, size, (s, x, y) => drawOrganism(s, spec, x, y, spec.radius * fit(spec.radius), 0, 1.1, fill, rim));

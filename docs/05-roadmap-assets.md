@@ -148,3 +148,34 @@ vise les gros éléments : boss, amibe, SCOBY, décor de conduite.
 3. Globules gras du lait cru (décor qui remplit le champ).
 4. Levures et phages.
 5. Le reste, si le besoin s'en fait sentir.
+
+---
+
+## Sprites adoptés (état au 20/09/2026)
+
+`assets/sprites/` se **cure à la main** : on n'y copie que ce qui bat la forme
+procédurale à la taille réelle du jeu. Une espèce sans sprite retombe sur sa
+forme procédurale, donc les assets arrivent un par un sans rien casser.
+
+| id | Taille | Pourquoi adopté |
+|---|---|---|
+| `staph` | 28 px | Grappe de sept coques : volume et séparations que le procédural ne donne pas |
+| `listeria` | 34 px | Gain faible (un reflet) mais aucune perte : pas d'animation de forme |
+| `biofilmMur` | 52 px | Masse d'EPS immobile et grumeleuse, avec canaux d'eau. Le meilleur gain mesuré |
+
+Refusés, et pourquoi : `somatic` et `acanthamoeba` (un sprite tuerait les
+pseudopodes), `kluyveromyces` et `geotrichum` (silhouette trop simple à leur
+taille), `player` (7 px : la génération n'ajoutait que du bruit ; réglé par un
+éclairage directionnel codé à la main), `mucoid` (24 px mais silhouette lisse
+— la taille ne rachète pas la simplicité).
+
+## Vignettes de cartes
+
+Les **56 évolutions** ont leur vignette, dans `assets/cards/<id>.png`, listées
+par `src/ui/card-art.js` (manifeste généré : sans lui, le DOM demandait une
+image pour chaque évolution et noyait les vraies erreurs sous des 404).
+
+```
+node tools/cards-batch.mjs [n]      # génère les vignettes manquantes
+node tools/sprites.mjs import       # régénère le manifeste
+```

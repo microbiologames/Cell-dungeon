@@ -106,5 +106,16 @@ await shot('29-biofilm', { width: 960, height: 540 }, async (pg) => {
   });
   await pg.waitForTimeout(700);
 });
+/* Le boss de la conduite : la masse de biofilm mur. */
+await shot('30-boss-biofilm', { width: 960, height: 540 }, async (pg) => {
+  await pg.evaluate(() => window.__startMatrice('pipe'));
+  await pg.waitForTimeout(800);
+  await pg.evaluate(() => {
+    const g = window.__game;
+    g.director.runEvent({ type: 'boss', id: 'biofilm' });
+    g.focusTarget = 0.8;
+  });
+  await pg.waitForTimeout(900);
+});
 console.log(errs.length ? 'ERREURS: ' + errs.join(' | ') : 'aucune erreur');
 await b.close(); srv.close();

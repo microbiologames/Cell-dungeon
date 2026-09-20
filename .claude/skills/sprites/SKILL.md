@@ -133,8 +133,25 @@ Mesuré sur cinq organismes, tous à 0.60 + palette :
 | Cellule somatique (amibe) | complexe mais **animée** | refusé : le sprite tuerait les pseudopodes |
 | Joueur (deux disques plats) | trop simple | **négatif** — n'a ajouté que du bruit |
 
+Deux mesures de plus, sur la conduite (20/09/2026, même recette) :
+
+| Organisme | Silhouette | Gain réel |
+|---|---|---|
+| `biofilmMur` (masse d'EPS, 52 px) | complexe, **immobile** | **fort** — texture grumeleuse et canaux d'eau, adopté |
+| `mucoid` (bacille long, 24 px) | lisse | **nul** — une dalle rouge avant, une dalle rouge avec du bruit sur les bords après. Refusé |
+
 **Règle** : une silhouette riche gagne du volume, une silhouette lisse gagne
 un point blanc. Ne générer que ce qui a de la structure à éclairer.
+
+Corollaire mesuré sur `mucoid` : la **taille ne rachète pas** la simplicité.
+Un bacille de 24 px ne gagne pas plus qu'un bacille de 13 px — c'est la
+structure interne qui décide, pas le nombre de pixels disponibles.
+
+### Le bake couvre tout le bestiaire
+
+`node tools/sprites.mjs bake` parcourt `BESTIARY`, donc toutes les matrices.
+La toile de départ d'une espèce de la conduite se bake exactement comme celle
+du lait cru.
 
 ### `assets/sprites/` se CURE, ne se déverse pas
 

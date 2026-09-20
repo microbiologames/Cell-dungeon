@@ -168,7 +168,14 @@ export function drawOrganism(scr, spec, x, y, r, ang, phase, fill, rim) {
           * (1 + 0.06 * Math.sin(phase * 0.7 + i));
         scr.disc(x + Math.cos(a) * d, y + Math.sin(a) * d, rr, fill, 0);
       }
-      scr.disc(x, y, r * 0.42, rim, 0);
+      /* Canaux d'eau : un biofilm mur en est parcouru, et c'est ce qui le
+         distingue d'un depot. Des creux, pas un trou central — un disque
+         sombre au milieu faisait lire la plaque comme un anneau. */
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * TAU + ang * 0.5 + 0.6;
+        const d = r * (0.2 + 0.3 * ((i * 2 + 1) % 3) / 3);
+        scr.disc(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 0.13, rim, 0);
+      }
       break;
     }
     case 'globule':
