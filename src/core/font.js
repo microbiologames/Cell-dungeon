@@ -39,37 +39,45 @@ function glyph(ch) {
   return G[ch] || G[up] || G[FOLD[up]] || null;
 }
 
-export function textWidth(str, spacing = 1) {
+export function textWidth(str, spacing = 1, scale = 1) {
   if (!str.length) return 0;
-  return str.length * (GLYPH_W + spacing) - spacing;
+  return str.length * (GLYPH_W * scale + spacing) - spacing;
 }
 
 /**
  * Ecrit un texte dans le tampon principal (non floute).
- * @param {import('./pixel.js').Screen} scr
+ * `scale` agrandit chaque pixel de glyphe en bloc : a l'echelle 2 la fonte
+ * fait 6 x 10, ce qui est le minimum lisible sur un ecran de telephone.
  */
-export function drawText(scr, str, x, y, color, spacing = 1) {
+export function drawText(scr, str, x, y, color, spacing = 1, scale = 1) {
   let cx = x | 0;
+  const yy = y | 0;
+  const sc = Math.max(1, scale | 0);
   for (const ch of String(str)) {
     const g = glyph(ch);
     if (g) {
       for (let row = 0; row < GLYPH_H; row++) {
         const bits = g[row];
         if (!bits) continue;
-        if (bits & 4) scr.direct(cx, y + row, color);
-        if (bits & 2) scr.direct(cx + 1, y + row, color);
-        if (bits & 1) scr.direct(cx + 2, y + row, color);
+        for (let col = 0; col < GLYPH_W; col++) {
+          if (!(bits & (4 >> col))) continue;
+          for (let sy = 0; sy < sc; sy++) {
+            for (let sx = 0; sx < sc; sx++) {
+              scr.direct(cx + col * sc + sx, yy + row * sc + sy, color);
+            }
+          }
+        }
       }
     }
-    cx += GLYPH_W + spacing;
+    cx += GLYPH_W * sc + spacing;
   }
   return cx - spacing;
 }
 
-export function drawTextCentered(scr, str, cx, y, color, spacing = 1) {
-  return drawText(scr, str, cx - (textWidth(str, spacing) >> 1), y, color, spacing);
+export function drawTextCentered(scr, str, cx, y, color, spacing = 1, scale = 1) {
+  return drawText(scr, str, cx - (textWidth(str, spacing, scale) >> 1), y, color, spacing, scale);
 }
 
-export function drawTextRight(scr, str, rx, y, color, spacing = 1) {
-  return drawText(scr, str, rx - textWidth(str, spacing), y, color, spacing);
+export function drawTextRight(scr, str, rx, y, color, spacing = 1, scale = 1) {
+  return drawText(scr, str, rx - textWidth(str, spacing, scale), y, color, spacing, scale);
 }

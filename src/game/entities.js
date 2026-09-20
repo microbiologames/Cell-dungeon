@@ -123,7 +123,8 @@ function motility(e, dt, px, py, rng) {
       e.ang = Math.atan2(dy, dx);
       break;
     case 'none':
-      e.vx *= 0.1; e.vy *= 0.1;
+      /* Ancrees : ni le courant ni les collisions ne les deplacent. */
+      e.vx = 0; e.vy = 0;
       break;
     default:
       e.vx += dx * e.speed * 3 * dt;
@@ -234,10 +235,12 @@ function applyAbility(e, dt, game) {
       break;
     }
     case 'germination':
+      /* Laisser une spore en vie, c'est rendre le Bacillus. */
       e.charge += dt;
-      if (e.charge > 12) {
+      if (e.charge > 14) {
         e.alive = false;
         game.spawnSpecific('bacillus', e.x, e.y, 0, 0.6);
+        game.spark(e.x, e.y, 6);
       }
       break;
     case 'hyphes':

@@ -2,8 +2,15 @@
 
 ## Boucle
 
-Tuer → **ADN extracellulaire** au sol → absorbé dans le rayon de captation
-(transformation naturelle) → niveau → **3 cartes tirées au sort** → on en garde une.
+Tuer → **acides aminés** libérés par la lyse → absorbés dans le rayon de
+captation → niveau → **3 cartes tirées au sort** → on en garde une.
+
+> **Pourquoi des acides aminés et pas de l'ADN.** Les bactéries lactiques sont
+> **auxotrophes** pour la plupart des acides aminés : elles ne savent pas les
+> fabriquer et doivent les prélever dans le milieu, via leur protéinase de
+> paroi puis le système **Opp** (perméase à oligopeptides). C'est littéralement
+> le facteur limitant de leur croissance en lait. L'ADN libre, lui, sert à la
+> transformation — un autre mécanisme, qui reste dans le jeu comme évolution.
 
 Un **plasmide** (butin rare, garanti sur mini-boss) court-circuite tout : il
 accorde **immédiatement** une évolution de rareté ≥ Rare, sans niveau et sans choix.
@@ -12,11 +19,16 @@ C'est la récompense qui fait dévier un build.
 ### Courbe d'expérience
 
 ```
-ADN requis pour le niveau n :  X(n) = 8 + 6n + 0.55 n²
+Acides aminés requis pour le niveau n :  X(n) = 6 + 5n + 0.32 n²
 ```
 
-Un chaff lâche 1 à 3 brins, un tank 6 à 10, un boss 60.
-Cela place le joueur autour du **niveau 26-30** à la fin d'un run de 12 min.
+Un chaff lâche 1 à 3 unités, un tank 6, un boss 40 à 120.
+Cela place le joueur autour du **niveau 26** à la fin d'un run de 12 min,
+mesuré par `tools/balance-sim.mjs` et non estimé.
+
+Le **rayon de captation est volontairement court au départ** (22 px) : il faut
+aller chercher les acides amines dans la foule. Il s'allonge avec
+`Chimiotactisme`, `Système Opp` et surtout `Récepteurs MCP surnuméraires`.
 
 ### Table de rareté
 
@@ -70,7 +82,7 @@ telles quelles dans `src/data/evolutions.js`.
 | C4 | Flagelle supplémentaire | +9 % vitesse, **+4 % hitbox** | 6 | Chaque flagelle ajoute de la poussée et de l'encombrement |
 | C5 | Réticulation du peptidoglycane | +14 PV, **−3 % vitesse** | 6 | Pontages peptidiques : paroi plus épaisse, plus lourde |
 | C6 | Fluidité membranaire | +9 % cadence, **−6 % résistance** | 5 | Insaturation des acides gras : membrane fluide mais fragile |
-| C7 | Perméase lactose (LacY) | +15 % d'ADN ramassé | 4 | Symport lactose/H⁺, l'opéron lac |
+| C7 | **Système Opp** | +15 % d'acides aminés, +12 % de captation | 4 | Perméase à oligopeptides : la voie de nutrition réelle des lactiques, auxotrophes |
 | C8 | Chimiotactisme (Che) | +25 % rayon de captation | 4 | Système Che, migration vers un gradient |
 | C9 | Osmorégulation (bétaïne) | +10 PV | 4 | Soluté compatible accumulé en stress osmotique |
 | C10 | Sécrétion Sec | +10 % vitesse de projectile | 4 | Translocon SecYEG |
@@ -79,6 +91,8 @@ telles quelles dans `src/data/evolutions.js`.
 | C13 | Réponse SOS (RecA) | +0.4 PV/s | 4 | Réparation de l'ADN induite par le stress |
 | C14 | Cardiolipine | +6 % résistance | 4 | Phospholipide des pôles, stabilise la membrane |
 | C15 | Homofermentaire strict | +15 % dégâts, **−8 % rayon** | 3 | Voie d'Embden-Meyerhof : lactate seul, rendement max |
+| C16 | **Flagellation péritriche** | +22 % d'agilité, −5 % de vitesse de pointe | 3 | Flagelles répartis sur toute la surface (*E. coli*) : tourne vite, pousse moins |
+| C17 | **Flagellation polaire en touffe** | +14 % de vitesse de pointe, −18 % d'agilité | 3 | Touffe lophotriche à un pôle (*Pseudomonas*) : nage droite et rapide, virages laborieux |
 
 ### Peu communes — poids 42
 
@@ -94,26 +108,36 @@ telles quelles dans `src/data/evolutions.js`.
 | U8 | Lipase / estérase | +25 % dégâts contre levures et moisissures | 3 | Hydrolyse des lipides membranaires |
 | U9 | Pili de type IV | **Dash** (motilité par saccades), 6 s | 1 | *Twitching motility* par rétraction du pilus |
 | U10 | Réponse de tolérance à l'acide | −50 % dégâts d'acide du milieu | 3 | ATR : adaptation réelle des lactiques au pH bas |
-| U11 | Transformation naturelle | ADN compté double sous 40 % PV | 2 | Compétence naturelle, capture d'ADN libre |
+| U11 | **Dérèglement de CodY** | Acides aminés comptés double sous 40 % PV | 2 | Régulateur global des Firmicutes : détecte la carence en acides aminés ramifiés et lève la répression des transporteurs de peptides |
 | U12 | Exopolysaccharide (EPS) | Traînée visqueuse qui ralentit les poursuivants | 3 | EPS des lactiques (texturants du yaourt) |
 | U13 | Autolysine régulée | +10 % dégâts, −10 % PV max | 3 | Hydrolases de paroi, remodelage au prix de la solidité |
 | U14 | Profondeur de champ *(optique)* | −30 % de pénalité de netteté, +20 % zone nette | 3 | Ouverture du diaphragme |
 | U15 | Transposon (élément IS) | Relance la main une fois par niveau | 1 | Éléments d'insertion, réarrangement génomique |
+| U16 | **Lyse programmée (holine)** | Chaque mob tué a 18 %/rang de libérer un projectile | 3 | Les holines percent la membrane et déclenchent la lyse : le cytoplasme part avec |
+| U17 | **Récepteurs MCP surnuméraires** | +50 % de captation, attraction plus vive | 2 | Protéines chimiotactiques acceptrices de méthyle : les chimiorécepteurs eux-mêmes |
 
 ### Rares — poids 14
 
 | # | Nom | Effet | Rangs | Fondement |
 |---|---|---|---|---|
-| R1 | **Prédation périplasmique** | Au contact, absorbe les mobs ≤ 60 % de votre taille (soin + ADN) | 2 | *Bdellovibrio bacteriovorus* pénètre le périplasme de sa proie |
+| R1 | **Prédation périplasmique** | Au contact, absorbe les mobs ≤ 60 % de votre taille (soin + acides aminés) | 2 | *Bdellovibrio bacteriovorus* pénètre le périplasme de sa proie |
 | R2 | **Endolysine (LLO)** | Si phagocyté, lyse l'hôte de l'intérieur en 1.5 s | 1 | Listériolysine O : *Listeria* s'échappe du phagosome |
 | R3 | **Phage tempéré** | Convertit un mob en allié 8 s (recharge 14 s) | 3 | Lysogénie, conversion phagique |
-| R4 | **Spore** | Ressuscite une fois à 40 % PV, 6 s d'invulnérabilité | 1 | Endospore de *Bacillus* : survie à tout |
+| R4 | **Dormance (état VBNC)** | Ressuscite une fois à 40 % PV, 6 s de reprise invulnérable | 1 | État viable non cultivable : dormance métabolique, documentée chez les lactiques |
 | R5 | β-lactamase | Immunité aux antibiotiques β-lactames | 1 | Hydrolyse du cycle β-lactame — la résistance historique |
 | R6 | Efflux multidrogue | −30 % de tous les dégâts de zone du milieu | 2 | Pompe AcrAB-TolC |
 | R7 | Quorum sensing (AI-2) | +6 % dégâts par mob net dans le champ (max +60 %) | 2 | Autoinducteur-2, décision collective selon la densité |
 | R8 | Biofilm inductible | 1.5 s immobile → bouclier absorbant | 2 | Passage planctonique → sessile sous stress |
 | R9 | Contraste de phase *(optique)* | Les mobs flous laissent un halo traceur visible | 1 | Anneau de phase de Zernike |
 | R10 | Sidérophores | Chaque kill : +2 % cadence 8 s (max 10 piles) | 2 | Chélateurs de fer, captation en milieu carencé |
+| R11 | **Vésicules membranaires** | +2 projectiles par rang, tirés en gerbe. −18 % de dégâts chacun | 3 | Les Gram + libèrent des vésicules à travers leur paroi : une salve, pas un jet |
+| R12 | **Senseur de pH** | Révèle la carte des pH en fausses couleurs | 1 | Systèmes à deux composants sensibles aux protons |
+
+Les gouttes d'acide **diffusent en vol** : elles partent concentrées et
+rapides, s'étalent, ralentissent, frappent de plus en plus large et de moins
+en moins fort (−50 % de dégâts en fin de course, +160 % de rayon), puis
+déposent leur charge. `Diffusion acide` et `Homofermentaire strict` jouent
+donc sur deux bouts opposés du même compromis.
 
 ### Épiques — poids 4
 
@@ -135,6 +159,29 @@ telles quelles dans `src/data/evolutions.js`.
 | L4 | Objectif à immersion *(optique)* | Tout le champ est net, mais le champ **rétrécit de 25 %** | Immersion à huile : n=1.515, résolution maximale, champ minimal |
 
 ---
+
+## Note : la spore appartient aux mobs, pas au joueur
+
+Une bactérie lactique **ne sporule pas**. L'endospore est l'affaire des
+*Bacillus* et *Clostridium* : c'est une structure de survie que les
+Firmicutes lactiques ont perdue. Faire sporuler le joueur était une erreur.
+
+L'évolution de résurrection est donc devenue la **dormance VBNC** (viable but
+non-culturable), un état de ralentissement métabolique documenté chez les
+lactiques, d'où la cellule repart. Même effet de jeu, mécanisme exact.
+
+La spore reste **intégralement** dans le jeu, du côté des mobs :
+
+- Un *B. cereus* qui meurt laisse une endospore.
+- Elle est **immobile mais bien présente** : elle occupe l'espace et blesse
+  au contact comme n'importe quel mob.
+- Elle **encaisse** (55 % de réduction de dégâts) et elle est **invulnérable
+  aux dégâts de zone** : aura acide, nanotubes et flaques ne l'atteignent pas.
+  Il faut un tir direct.
+- Si on la laisse, elle **germe au bout de 14 s** et rend un *B. cereus*.
+- Elle est ciblée par le tir automatique comme un mob normal.
+
+C'est le seul ennemi qui punit le joueur qui ne nettoie pas derrière lui.
 
 ## Note : « Phagocytose » vs prédation
 

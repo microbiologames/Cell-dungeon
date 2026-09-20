@@ -15,13 +15,30 @@ Format commun : **12 minutes**, mini-boss à 4:00 et 8:00, boss à 12:00.
 | Paramètre | Valeur | Effet de jeu |
 |---|---|---|
 | Température | 6 → 12 °C | Les psychrotrophes (*Pseudomonas*) sont rapides, les mésophiles lents |
-| pH | 6.7 → 5.2 | **Descend avec vos propres tirs.** Sous pH 5.6 les coliformes perdent 25 % de vitesse ; sous 5.2 les *Pseudomonas* subissent 3 dps |
+| pH | 6.7 → 5.0, **localement** | Voir ci-dessous |
 | Oxygène | microaérophile | Neutre |
 | Encombrement | fort | Globules gras (1–8 µm) : obstacles dérivants qui **bloquent les tirs** et masquent |
 
-**Signature** : le champ est saturé de globules gras très réfringents. On ne voit
-pas grand-chose, et l'acidification que l'on produit soi-même est une arme de
-zone lente qui transforme la matrice au fil du run.
+**Signature — le pH est un terrain, pas un compteur.**
+
+Le pH n'est pas une valeur globale : c'est une **carte** (grille 96 × 96 sur
+l'arène). Chaque goutte d'acide lactique dépose sa charge là où elle crève —
+sur la cellule touchée, ou au sol en fin de course — puis l'acide diffuse
+lentement et le milieu le tamponne encore plus lentement. Les poches
+d'acidité **persistent** et suivent les endroits où l'on s'est battu.
+
+| Seuil | Effet |
+|---|---|
+| pH < 5.6 | Les coliformes (*E. coli*) perdent 25 % de vitesse |
+| pH < 5.2 | Les *Pseudomonas* subissent 3 dégâts/s |
+| pH < 5.7 | **Vous** gagnez jusqu'à +14 % de cadence : une bactérie lactique est chez elle dans l'acide qu'elle produit |
+
+Fabriquer son terrain devient donc une tactique : tenir une poche acide, c'est
+tirer plus vite pendant que la flore indésirable y ralentit et y brûle. Le
+`Senseur de pH` révèle la carte en fausses couleurs.
+
+Le champ est par ailleurs saturé de globules gras très réfringents, qui
+bloquent les tirs et masquent.
 
 **Mécanique introduite** : la mise au point (les phages arrivent à `z ≈ +0.5`
 et n'en bougent pas).

@@ -13,11 +13,12 @@ export class Player {
   constructor(game) {
     this.game = game;
     this.x = 0; this.y = 0;
+    this.vx = 0; this.vy = 0;
     this.ang = -Math.PI / 2;
     this.phase = 0;
     this.taken = new Map();
     this.level = 1;
-    this.dna = 0;
+    this.aa = 0;
     this.recompute();
     this.hp = this.stats.maxHp;
     this.fireCd = 0;
@@ -25,7 +26,7 @@ export class Player {
     this.dashTtl = 0;
     this.invuln = 0;
     this.dot = 0; this.dotTtl = 0;
-    this.sporeUsed = false;
+    this.dormancyUsed = false;
     this.stillTime = 0;
     this.shield = 0;
     this.sideroStacks = 0; this.sideroTtl = 0;
@@ -52,10 +53,12 @@ export class Player {
 
   get flagellaCount() { return this.rankOf('flagelle'); }
 
-  /** Cadence effective, siderophores compris. */
+  /** Cadence effective : siderophores, plus le confort acide.
+   *  Une bacterie lactique fonctionne mieux dans l'acide qu'elle produit. */
   get fireRate() {
     const sid = this.sideroTtl > 0 ? 1 + 0.02 * this.sideroStacks : 1;
-    return this.stats.fireRate * sid;
+    const acid = 1 + 0.14 * (this.game.acidComfort || 0);
+    return this.stats.fireRate * sid * acid;
   }
 
   /** Degats effectifs : quorum sensing et CRISPR s'ajoutent ici. */
@@ -76,14 +79,14 @@ export class Player {
     return d;
   }
 
-  gainDna(amount) {
-    let a = amount * this.stats.dnaGain;
+  gainAa(amount) {
+    let a = amount * this.stats.aaGain;
     /* Transformation naturelle : la competence monte sous stress. */
     if (this.flags.has('transformation') && this.hp < this.stats.maxHp * 0.4) a *= 2;
-    this.dna += a;
+    this.aa += a;
     let levels = 0;
-    while (this.dna >= XP_FOR_LEVEL(this.level) && levels < 5) {
-      this.dna -= XP_FOR_LEVEL(this.level);
+    while (this.aa >= XP_FOR_LEVEL(this.level) && levels < 5) {
+      this.aa -= XP_FOR_LEVEL(this.level);
       this.level++;
       levels++;
     }
@@ -175,12 +178,32 @@ export class Player {
       return;
     }
 
-    const speed = this.stats.speed * (this.dashTtl > 0 ? 3.2 : 1) * game.playerSlowFactor;
-    const mx = move.x, my = move.y;
-    if (mx || my) {
-      this.x += mx * speed * dt;
-      this.y += my * speed * dt;
-      this.ang = Math.atan2(my, mx);
+    /* --- deplacement a inertie ------------------------------------------
+       A l'echelle reelle un procaryote n'a AUCUNE inertie : a nombre de
+       Reynolds tres bas, il s'arrete en une fraction de diametre des qu'il
+       cesse de pousser. C'est une deviation assumee, pour le toucher.
+
+       Le modele est un moteur a saturation : on vise une vitesse cible et
+       on l'approche avec une constante de temps tau = vitesse / agilite.
+       La flagellation pilote donc directement le feel :
+         peritriche  tau ~ 0.10 s  -> vif, tourne sec
+         polaire     tau ~ 0.59 s  -> lance fort, vire mal
+    */
+    const maxSpeed = this.stats.speed * game.playerSlowFactor;
+    const tau = maxSpeed / Math.max(1, this.stats.accel);
+    const k = 1 - Math.exp(-dt / Math.max(tau, 0.016));
+    const tvx = move.x * maxSpeed;
+    const tvy = move.y * maxSpeed;
+    this.vx += (tvx - this.vx) * k;
+    this.vy += (tvy - this.vy) * k;
+
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+
+    const moving = Math.hypot(this.vx, this.vy) > maxSpeed * 0.12;
+    if (move.x || move.y) this.ang = Math.atan2(move.y, move.x);
+
+    if (moving) {
       this.stillTime = 0;
       this.shield = 0;
       /* EPS : la trainee visqueuse ne se depose qu'en mouvement. */
@@ -198,14 +221,24 @@ export class Player {
 
     const R = game.matrix.arenaRadius - 6;
     const d = Math.hypot(this.x, this.y);
-    if (d > R) { const k = R / d; this.x *= k; this.y *= k; }
+    if (d > R) {
+      const kk = R / d;
+      this.x *= kk; this.y *= kk;
+      /* On rebondit mollement sur le menisque au lieu d'y coller. */
+      this.vx *= -0.25; this.vy *= -0.25;
+    }
   }
 
+  /** Twitching : une impulsion breve, pas un multiplicateur de vitesse.
+   *  Avec l'inertie, l'impulsion est le seul moyen de sortir d'un piege. */
   dash() {
     if (!this.flags.has('dash') || this.dashCd > 0) return false;
     this.dashCd = 6;
     this.dashTtl = 0.16;
     this.invuln = Math.max(this.invuln, 0.2);
+    const a = this.ang;
+    this.vx += Math.cos(a) * this.stats.speed * 2.8;
+    this.vy += Math.sin(a) * this.stats.speed * 2.8;
     return true;
   }
 }

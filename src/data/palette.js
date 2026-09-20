@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------------------
    Palettes. Fond noir + marquage vital a l'orange d'acridine :
-   cellules vivantes en vert, ADN libre et cellules mortes en orange-rouge.
+   cellules vivantes en vert, et methode OPA pour les acides amines libres.
    Douze couleurs par matrice, pas plus (contrainte pour les futurs sprites).
    Justification dans docs/06-heritage-wet-mount.md.
 --------------------------------------------------------------------------- */
@@ -14,8 +14,8 @@ export const UI = {
   playerCore: hexToRgba('#d8ffe4'),
   acid: hexToRgba('#c9ff5a'),
   acidRim: hexToRgba('#7fbf16'),
-  dna: hexToRgba('#ff9b3d'),
-  dnaGlow: hexToRgba('#ffd9a0'),
+  aa: hexToRgba('#ff9b3d'),
+  aaGlow: hexToRgba('#ffd9a0'),
   plasmid: hexToRgba('#ffe14d'),
   hostile: hexToRgba('#ff5a6e'),
   damage: hexToRgba('#ff2e46'),

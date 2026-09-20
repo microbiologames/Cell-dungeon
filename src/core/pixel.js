@@ -9,8 +9,34 @@
 
 import { clamp } from './util.js';
 
-export const VIEW = { W: 256, H: 352, CX: 128, CY: 124, R: 104 };
-export const R2 = VIEW.R * VIEW.R;
+/* Disposition. VIEW est MUTABLE : le champ doit remplir l'ecran quelle que
+   soit son orientation, et le HUD change de place avec lui.
+     - portrait  : le disque touche le haut, la gauche et la droite,
+                   le HUD prend la bande du bas
+     - paysage   : le disque touche le haut et le bas,
+                   le HUD prend les deux colonnes laterales */
+export const VIEW = { W: 256, H: 352, CX: 128, CY: 132, R: 124, mode: 'bottom' };
+
+/** Calcule la disposition interne pour une fenetre donnee. */
+export function computeLayout(winW, winH) {
+  const ar = Math.max(0.35, Math.min(3.2, winW / Math.max(1, winH)));
+  const M = 4;
+  if (ar >= 1.05) {
+    const H = 272;
+    const R = Math.round(H / 2 - M);
+    /* On garantit 60 px de colonne de chaque cote : sans ca, sur une fenetre
+       presque carree le HUD n'a litteralement plus de place. Le canvas est
+       alors un peu plus large que la fenetre et se met a l'echelle. */
+    const W = Math.max(Math.round(H * ar), H + 120);
+    return { W: Math.min(W, 720), H, CX: Math.round(Math.min(W, 720) / 2), CY: Math.round(H / 2), R, mode: 'sides' };
+  }
+  const W = 256;
+  const R = Math.round(W / 2 - M);
+  const H = Math.max(300, Math.min(470, Math.round(W / ar)));
+  return { W, H, CX: Math.round(W / 2), CY: M + R, R, mode: 'bottom' };
+}
+
+export let R2 = VIEW.R * VIEW.R;
 
 /* Huit calques : 0-3 derriere le joueur (z >= 0), 4-7 devant (z < 0).
    Le second chiffre est le niveau de flou (0 = net). */
@@ -151,13 +177,26 @@ function boxBlur(L, r) {
 }
 
 export class Screen {
-  constructor(canvas) {
-    this.w = VIEW.W;
-    this.h = VIEW.H;
+  constructor(canvas, layout) {
     this.canvas = canvas;
-    canvas.width = this.w;
-    canvas.height = this.h;
-    this.ctx = canvas.getContext('2d', { alpha: false });
+    this.applyLayout(layout || computeLayout(innerWidth, innerHeight));
+  }
+
+  /** (Re)construit les tampons pour une disposition. */
+  applyLayout(L) {
+    if (this.w === L.W && this.h === L.H && VIEW.mode === L.mode) {
+      VIEW.CX = L.CX; VIEW.CY = L.CY; VIEW.R = L.R;
+      R2 = L.R * L.R;
+      this.setFieldRadius(L.R);
+      return false;
+    }
+    Object.assign(VIEW, L);
+    R2 = L.R * L.R;
+    this.w = L.W;
+    this.h = L.H;
+    this.canvas.width = this.w;
+    this.canvas.height = this.h;
+    this.ctx = this.canvas.getContext('2d', { alpha: false });
     this.ctx.imageSmoothingEnabled = false;
     this.image = this.ctx.createImageData(this.w, this.h);
     this.px = new Uint32Array(this.image.data.buffer);
@@ -165,9 +204,8 @@ export class Screen {
     for (let i = 0; i < LAYERS; i++) this.layers.push(new Layer(this.w, this.h));
     this.cur = this.layers[0];
     this.clip = true;
-    /* Rayon de decoupe, modifiable : l'objectif a immersion retrecit le champ. */
-    this.clipR2 = R2;
-    this.clipR = VIEW.R;
+    this.setFieldRadius(L.R);
+    return true;
   }
 
   /** Change le rayon du champ (objectif a immersion, transitions). */

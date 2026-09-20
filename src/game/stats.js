@@ -9,17 +9,26 @@ import { clamp } from '../core/util.js';
 export const BASE = {
   maxHp: 100,
   regen: 0,
-  speed: 118,        // px/s
+  speed: 118,        // vitesse de pointe, px/s
+  /* Acceleration : c'est elle qui porte l'inertie. Une valeur finie donne a
+     la cellule une mise en train et une glisse, au lieu d'un deplacement
+     collant a la touche. La flagellation la module fortement. */
+  accel: 620,        // px/s^2
   dmg: 10,
   fireRate: 2.2,     // tirs/s
-  bulletSpeed: 330,
+  /* Une goutte d'acide ejectee n'est pas une balle : elle part lentement et
+     se diffuse en vol (voir la diffusion des projectiles dans game.js). */
+  bulletSpeed: 172,
   bulletRadius: 2.2,
   range: 190,
   pierce: 0,
   projectiles: 1,
   spread: 0,
-  dnaGain: 1,
-  pickup: 46,
+  aaGain: 1,
+  /* Rayon de captation volontairement court : il faut aller CHERCHER les
+     acides amines. C'est ce qui oblige a entrer dans la foule. */
+  pickup: 22,
+  pull: 1,           // vivacite de l'attraction
   resist: 0,         // reduction de degats, 0..0.75
   hitbox: 3.4,
   dof: 0.45,         // profondeur de champ
@@ -36,8 +45,9 @@ export const BASE = {
 const MUL_KEYS = {
   dmgMul: 'dmg', speedMul: 'speed', fireRateMul: 'fireRate',
   bulletSpeedMul: 'bulletSpeed', bulletRadiusMul: 'bulletRadius',
-  dnaGainMul: 'dnaGain', pickupMul: 'pickup', maxHpMul: 'maxHp',
+  aaGainMul: 'aaGain', pickupMul: 'pickup', maxHpMul: 'maxHp',
   hitboxMul: 'hitbox', focusPenaltyMul: 'focusPenalty',
+  accelMul: 'accel', pullMul: 'pull',
 };
 const ADD_KEYS = {
   maxHpAdd: 'maxHp', regenAdd: 'regen', resistAdd: 'resist',
@@ -74,6 +84,10 @@ export function computeStats(taken) {
     maxHp: (BASE.maxHp + (adds.maxHp || 0)) * (1 + (muls.maxHp || 0)),
     regen: BASE.regen + (adds.regen || 0),
     speed: BASE.speed * (1 + (muls.speed || 0)),
+    /* L'agilite ne descend jamais sous 35 % : une cellule lourde reste
+       pilotable, elle est juste patraque. */
+    accel: BASE.accel * Math.max(0.35, 1 + (muls.accel || 0)),
+    pull: BASE.pull * (1 + (muls.pull || 0)),
     dmg: BASE.dmg * (1 + (muls.dmg || 0)),
     fireRate: BASE.fireRate * (1 + (muls.fireRate || 0)),
     bulletSpeed: BASE.bulletSpeed * (1 + (muls.bulletSpeed || 0)),
@@ -82,7 +96,7 @@ export function computeStats(taken) {
     pierce: BASE.pierce + (adds.pierce || 0),
     projectiles: BASE.projectiles + (adds.projectiles || 0),
     spread: BASE.spread + (adds.spread || 0),
-    dnaGain: BASE.dnaGain * (1 + (muls.dnaGain || 0)),
+    aaGain: BASE.aaGain * (1 + (muls.aaGain || 0)),
     pickup: BASE.pickup * (1 + (muls.pickup || 0)),
     hitbox: BASE.hitbox * (1 + (muls.hitbox || 0)),
     dof: BASE.dof + (adds.dof || 0),

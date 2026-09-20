@@ -6,6 +6,7 @@ import { clamp, mulberry32, TAU } from '../core/util.js';
 import { MATRICES } from '../data/matrices.js';
 import { BESTIARY } from '../data/bestiary.js';
 import { Player } from './player.js';
+import { PhField } from './phfield.js';
 import { Director } from './director.js';
 import {
   makeEnemy, makeBullet, makePickup, makeZone, updateEnemy, pickTarget,
@@ -37,16 +38,18 @@ export class Game {
     this.player = new Player(this);
     this.director = new Director(this);
     this.focus = 0;
-    this.focusVel = 0;
+    this.focusTarget = 0;
     this.boss = null;
     this.banner = null;
     this.bannerTtl = 0;
     this.hand = null;
     this.pendingLevels = 0;
+    this.phField = new PhField(this.matrix);
     this.ph = this.matrix.chem.phStart;
     this.shots = 0;
     this.sharpEnemyCount = 0;
     this.playerSlowFactor = 1;
+    this.acidComfort = 0;
     this.flash = 0;
     this.shake = 0;
   }
@@ -62,10 +65,16 @@ export class Game {
   /* -------------------------------------------------------------- focus - */
 
   updateFocus(dt, axis, impulse) {
-    /* Inertie douce : la molette d'un microscope a du repondant. */
-    this.focusVel += axis * 2.6 * dt;
-    this.focusVel *= Math.exp(-7 * dt);
-    this.focus = clamp(this.focus + this.focusVel * dt + impulse, -1.1, 1.1);
+    /* La molette d'un navigateur arrive par crans discrets ; l'appliquer
+       directement a la mise au point faisait sauter l'image d'un cran a
+       l'autre. Une vraie vis micrometrique n'a pas de crans.
+
+       On accumule donc les crans dans une CIBLE, et le plan focal la
+       rejoint de facon continue. Un cran isole devient un glissement doux,
+       et une rotation soutenue reste parfaitement lineaire. */
+    this.focusTarget = clamp(this.focusTarget + impulse + axis * 1.5 * dt, -1.05, 1.05);
+    const k = 1 - Math.exp(-dt / 0.085);
+    this.focus += (this.focusTarget - this.focus) * k;
   }
 
   sharpnessOf(z) {
@@ -92,6 +101,8 @@ export class Game {
     for (const e of this.enemies) if (e.alive) updateEnemy(e, dt, this);
 
     this.updateBullets(dt);
+    this.phField.update(dt);
+    this.applyChemistry(dt);
     this.updateZones(dt);
     this.updatePickups(dt);
     this.updateParticles(dt);
@@ -152,13 +163,15 @@ export class Game {
         },
       );
       b.hits = new Set();
+      /* La goutte vit le temps d'atteindre la portee, puis se dissout. */
+      b.life = (p.stats.range / Math.max(40, p.stats.bulletSpeed)) * 1.2;
+      b.ttl = b.life;
+      b.r0 = p.stats.bulletRadius;
+      b.age = 0;
       this.bullets.push(b);
     }
 
-    /* Chaque tir acidifie un peu le milieu : la matrice change au fil du run. */
     this.shots++;
-    const chem = this.matrix.chem;
-    this.ph = Math.max(chem.phFloor, this.ph - chem.phPerShot * n);
   }
 
   updateBullets(dt) {
@@ -166,9 +179,31 @@ export class Game {
     for (const b of this.bullets) {
       if (!b.alive) continue;
       b.ttl -= dt;
-      if (b.ttl <= 0) { b.alive = false; continue; }
+      if (b.ttl <= 0) {
+        /* Fin de course : la goutte acheve de se diffuser et laisse sa
+           charge acide sur place. C'est le lien entre le tir et le pH. */
+        if (!b.hostile) {
+          this.phField.acidify(b.x, b.y, this.matrix.chem.phDeposit, b.radius * 4.5);
+        }
+        b.alive = false;
+        continue;
+      }
       b.x += b.vx * dt;
       b.y += b.vy * dt;
+
+      /* Une goutte d'acide lactique n'est pas une balle : ejectee bien
+         formee, elle s'etale et ralentit. Elle touche donc de plus en plus
+         large et de moins en moins fort, et acidifie derriere elle. */
+      if (!b.hostile && b.life) {
+        b.age += dt;
+        const t = clamp(b.age / b.life, 0, 1);
+        b.diffuse = t;
+        b.radius = b.r0 * (1 + 1.6 * t);
+        const drag = Math.exp(-1.25 * dt);
+        b.vx *= drag; b.vy *= drag;
+        const chem = this.matrix.chem;
+        this.phField.acidify(b.x, b.y, chem.phTrail * (0.3 + t) * dt, b.radius);
+      }
       if (b.zDrift) b.z -= Math.sign(b.z) * Math.min(Math.abs(b.z), b.zDrift * dt);
 
       if (Math.hypot(b.x, b.y) > this.matrix.arenaRadius) { b.alive = false; continue; }
@@ -205,8 +240,16 @@ export class Game {
            ne serait qu'un bonus, pas une mecanique. */
         if (!b.t3ss && sh <= 0.02) continue;
 
-        e.hp -= p.damageAgainst(e, fall);
+        /* Plus la goutte s'est diffusee, moins elle concentre. */
+        const spent = 1 - 0.5 * (b.diffuse || 0);
+        e.hp -= p.damageAgainst(e, fall * spent) * (e.spec.resist ? 1 - e.spec.resist : 1);
         this.spark(b.x, b.y, 2);
+        /* La goutte creve sur la cellule : elle y laisse sa charge. Sans ca,
+           presque aucune goutte n'atteignait sa fin de course et le pH ne
+           bougeait jamais la ou l'on se bat. */
+        if (!b.hostile) {
+          this.phField.acidify(b.x, b.y, this.matrix.chem.phDeposit * 0.8, b.radius * 3);
+        }
         if (b.hits) b.hits.add(e.uid);
 
         if (b.protease) { e.dot = Math.max(e.dot, 4); e.dotTtl = 4; }
@@ -255,7 +298,7 @@ export class Game {
       }
       if (z.slow && (z.friendly || z.type === 'eps' || z.type === 'gel')) {
         for (const e of this.enemies) {
-          if (!e.alive) continue;
+          if (!e.alive || e.spec.mot === 'none') continue;
           const dx = z.x - e.x, dy = z.y - e.y;
           if (dx * dx + dy * dy < z.r * z.r) { e.slow = z.slow; e.slowTtl = 0.2; }
         }
@@ -267,6 +310,33 @@ export class Game {
     this.zones.push(makeZone(x, y, 11, 'eps', 2.5, { slow: 0.3, friendly: true }));
   }
 
+  /* ----------------------------------------------------------- chimie --- */
+
+  /**
+   * Effets du pH local. Chaque espece porte ses propres seuils dans le
+   * bestiaire, donc ajouter une matrice n'oblige pas a toucher a ce code.
+   */
+  applyChemistry(dt) {
+    const p = this.player;
+    this.ph = this.phField.at(p.x, p.y);
+
+    /* Une bacterie lactique est chez elle dans l'acide qu'elle fabrique :
+       acidifier son terrain, c'est se donner un avantage de terrain. */
+    this.acidComfort = clamp((5.7 - this.ph) / 0.9, 0, 1);
+
+    for (const e of this.enemies) {
+      if (!e.alive) continue;
+      const spec = e.spec;
+      if (!spec.phSlow && !spec.phBurn) continue;
+      const ph = this.phField.at(e.x, e.y);
+      if (spec.phSlow && ph < spec.phSlow) {
+        e.slow = Math.max(e.slow, 0.25);
+        e.slowTtl = Math.max(e.slowTtl, 0.15);
+      }
+      if (spec.phBurn && ph < spec.phBurn) e.hp -= (spec.phBurnDps || 3) * dt;
+    }
+  }
+
   /* ------------------------------------------------------------ auras --- */
 
   applyAuras(dt) {
@@ -275,7 +345,7 @@ export class Game {
     if (aura.dps > 0) {
       const r2 = aura.radius * aura.radius;
       for (const e of this.enemies) {
-        if (!e.alive || e.ally > 0) continue;
+        if (!e.alive || e.ally > 0 || e.spec.kind === 'spore') continue;
         const dx = e.x - p.x, dy = e.y - p.y;
         if (dx * dx + dy * dy < r2) e.hp -= aura.dps * dt;
       }
@@ -283,7 +353,7 @@ export class Game {
     if (p.flags.has('nanotubes')) {
       const rank = p.rankOf('nanotubes');
       for (const e of this.enemies) {
-        if (!e.alive || e.ally > 0) continue;
+        if (!e.alive || e.ally > 0 || e.spec.kind === 'spore') continue;
         if (this.sharpnessOf(e.z) < 0.5) continue;
         const dx = e.x - p.x, dy = e.y - p.y;
         if (dx * dx + dy * dy < 90 * 90) e.hp -= 1.5 * rank * dt;
@@ -361,8 +431,10 @@ export class Game {
 
     if (!silent) this.spark(e.x, e.y, 5);
 
-    /* Butin : ADN libre, marque a l'orange d'acridine. */
-    const n = Math.max(1, Math.round(e.spec.dna));
+    /* Butin : acides amines liberes par la lyse. Les bacteries lactiques
+       sont auxotrophes pour la plupart d'entre eux : c'est litteralement
+       ce dont elles ont besoin pour croitre. */
+    const n = Math.max(1, Math.round(e.spec.aa));
     for (let i = 0; i < Math.min(n, 6); i++) {
       const a = this.rng() * TAU, d = this.rng() * 8;
       this.pickups.push(makePickup(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d,
@@ -396,16 +468,29 @@ export class Game {
       }
     }
     if (p.flags.has('crispr') && e.spec.kind === 'phage') p.crisprBonus += 0.01;
+
+    /* Holine : la cellule lysee projette son contenu. Payant en foule,
+       puisque chaque mort peut en declencher une autre. */
+    if (p.flags.has('holine') && this.rng() < 0.18 * p.rankOf('holine')) {
+      const foe = nearestEnemy(this, e.x, e.y, 120, e);
+      const a = foe ? Math.atan2(foe.y - e.y, foe.x - e.x) : this.rng() * TAU;
+      const b = makeBullet(e.x, e.y, 0, Math.cos(a) * 140, Math.sin(a) * 140,
+        0, 2.4, 0, 'player', {});
+      b.hits = new Set();
+      b.life = 0.85; b.ttl = 0.85; b.r0 = 2.4; b.age = 0;
+      this.bullets.push(b);
+    }
   }
 
   onPlayerDeath() {
     const p = this.player;
-    /* Endospore : on survit a tout, une fois. */
-    if (p.flags.has('spore') && !p.sporeUsed) {
-      p.sporeUsed = true;
+    /* Dormance VBNC : une bacterie lactique ne sporule pas, mais elle sait
+       passer en etat viable non cultivable et repartir. */
+    if (p.flags.has('vbnc') && !p.dormancyUsed) {
+      p.dormancyUsed = true;
       p.hp = p.stats.maxHp * 0.4;
       p.invuln = 6;
-      this.announce('GERMINATION');
+      this.announce('REPRISE VBNC');
       return;
     }
     this.state = STATE.DEAD;
@@ -424,8 +509,8 @@ export class Game {
       const dx = p.x - k.x, dy = p.y - k.y;
       const d = Math.hypot(dx, dy);
       if (d < r) {
-        /* Chimiotactisme : l'ADN migre le long du gradient. */
-        const pull = 240 * (1 - d / r) + 60;
+        /* Chimiotactisme : on remonte le gradient vers les peptides. */
+        const pull = (200 * (1 - d / r) + 50) * p.stats.pull;
         k.x += (dx / (d || 1)) * pull * dt;
         k.y += (dy / (d || 1)) * pull * dt;
       }
@@ -434,7 +519,7 @@ export class Game {
         if (k.kind === 'plasmid') {
           this.grantPlasmid();
         } else {
-          const levels = p.gainDna(k.amount);
+          const levels = p.gainAa(k.amount);
           if (levels > 0) {
             this.pendingLevels += levels;
             this.openLevelUp();

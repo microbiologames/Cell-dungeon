@@ -1,93 +1,120 @@
 /* ---------------------------------------------------------------------------
    HUD. Tout vit dans le noir autour du champ : ce noir n'est pas un cache,
    c'est le fond noir du microscope (docs/06-heritage-wet-mount.md).
+
+   Deux dispositions, choisies sur l'orientation de l'ecran :
+     portrait -> bande du bas, jauge de profondeur HORIZONTALE
+     paysage  -> deux colonnes, jauge de profondeur VERTICALE
 --------------------------------------------------------------------------- */
 
-import { VIEW, fade32, rgba, mix32 } from '../core/pixel.js';
-import { drawText, drawTextRight, drawTextCentered } from '../core/font.js';
+import { VIEW, fade32, rgba } from '../core/pixel.js';
+import { drawText, drawTextRight, drawTextCentered, textWidth } from '../core/font.js';
 import { clamp, mmss, TAU } from '../core/util.js';
 import { UI, RARITY_COLOR } from '../data/palette.js';
 import { sharpness } from '../game/entities.js';
 import { WAYS } from '../data/evolutions.js';
+import { XP_FOR_LEVEL } from '../data/matrices.js';
 
-const GAUGE_X = 240;
-const GAUGE_TOP = 34;
-const GAUGE_BOT = 214;
+const BG_BAR = rgba(22, 38, 30, 255);
+const BG_BAR_AA = rgba(42, 28, 12, 255);
 
 function bar(scr, x, y, w, h, frac, fg, bg) {
+  const cut = Math.round(w * clamp(frac, 0, 1));
   for (let j = 0; j < h; j++) {
-    for (let i = 0; i < w; i++) {
-      scr.direct(x + i, y + j, i / w < frac ? fg : bg);
-    }
+    for (let i = 0; i < w; i++) scr.direct(x + i, y + j, i < cut ? fg : bg);
   }
 }
 
 export function renderHud(scr, game, pal) {
-  const p = game.player;
+  if (VIEW.mode === 'sides') renderSides(scr, game, pal);
+  else renderBottom(scr, game, pal);
 
-  /* --- bandeau superieur ------------------------------------------------ */
-  drawText(scr, pal.name, 4, 5, UI.textDim);
-  drawTextRight(scr, mmss(game.matrix.duration - game.time), VIEW.W - 4, 5,
-    game.matrix.duration - game.time < 60 ? UI.textHot : UI.text);
-
-  /* pH : descend avec vos propres tirs, et change la matrice. */
-  const ph = game.ph.toFixed(1).replace('.', ',');
-  drawTextCentered(scr, `PH ${ph}`, VIEW.CX, 5,
-    game.ph < 5.6 ? UI.acid : UI.textDim);
-
-  /* --- jauge de mise au point ------------------------------------------- */
-  renderFocusGauge(scr, game);
-
-  /* --- bandeau inferieur ------------------------------------------------ */
-  const y0 = 236;
-  const hpFrac = clamp(p.hp / p.stats.maxHp, 0, 1);
-  drawText(scr, 'PV', 4, y0, UI.textDim);
-  bar(scr, 18, y0, 180, 5, hpFrac,
-    hpFrac > 0.3 ? UI.heal : UI.damage, rgba(24, 40, 32, 255));
-  if (p.shield > 0) {
-    bar(scr, 18, y0 + 5, Math.round(180 * clamp(p.shield / 60, 0, 1)), 1, 1,
-      UI.shield, rgba(0, 0, 0, 0));
-  }
-  drawTextRight(scr, String(Math.ceil(p.hp)), VIEW.W - 4, y0, UI.text);
-
-  const xpFrac = clamp(p.dna / xpNeeded(p.level), 0, 1);
-  drawText(scr, 'ADN', 4, y0 + 10, UI.textDim);
-  bar(scr, 18, y0 + 10, 180, 3, xpFrac, UI.dna, rgba(40, 26, 12, 255));
-  drawTextRight(scr, String(p.level), VIEW.W - 4, y0 + 9, UI.dnaGlow);
-
-  /* --- ligne d'etat ------------------------------------------------------ */
-  const way = dominantWay(p);
-  drawText(scr, `VOIE ${way}`, 4, y0 + 20, UI.textDim);
-  drawTextRight(scr, `${p.kills} TUES`, VIEW.W - 4, y0 + 20, UI.textDim);
-
-  /* --- evolutions : une pastille par rang, couleur de rarete ------------- */
-  renderEvolutionChips(scr, p, 4, y0 + 30);
-
-  /* --- bandeau d'annonce ------------------------------------------------- */
   if (game.bannerTtl > 0 && game.banner) {
     const a = clamp(game.bannerTtl, 0, 1);
-    drawTextCentered(scr, game.banner, VIEW.CX, 100, fade32(UI.textHot, a));
+    drawTextCentered(scr, game.banner, VIEW.CX, VIEW.CY - VIEW.R + 26,
+      fade32(UI.textHot, a), 1, 2);
   }
-
-  /* --- boss -------------------------------------------------------------- */
   if (game.boss && game.boss.alive) {
-    drawTextCentered(scr, game.boss.spec.label, VIEW.CX, 14, UI.hostile);
+    drawTextCentered(scr, game.boss.spec.label, VIEW.CX, VIEW.CY - VIEW.R + 8, UI.hostile, 1, 1);
   }
-
-  /* --- indications de commande ------------------------------------------- */
-  if (game.showHints) {
-    const hint = game.input.hasTouch
-      ? 'GAUCHE DEPLACER / DROITE MISE AU POINT'
-      : 'WASD DEPLACER  MOLETTE OU R-F MISE AU POINT';
-    drawTextCentered(scr, hint, VIEW.CX, VIEW.H - 8, UI.textDim);
-  }
-
   if (game.input && game.input.hasTouch) renderTouchControls(scr, game.input);
 }
 
-function xpNeeded(level) {
-  return 6 + 5 * level + 0.32 * level * level;
+/* ------------------------------------------------------------- portrait -- */
+
+function renderBottom(scr, game, pal) {
+  const p = game.player;
+  const W = VIEW.W;
+  const barW = 118;
+
+  /* Les lignes sont ancrees EN BAS du canvas, pas sous le disque : sur un
+     telephone allonge, le disque reste en haut et les jauges tombent sous
+     le pouce, au lieu de flotter au milieu d'une zone noire. */
+  const gy = VIEW.H - 12;          // jauge de profondeur
+  const ay = VIEW.H - 30;          // acides amines
+  const hy = VIEW.H - 46;          // points de vie
+  const sy = VIEW.H - 58;          // etat
+
+  drawText(scr, 'PV', 3, hy, UI.textDim, 1, 2);
+  const hpFrac = clamp(p.hp / p.stats.maxHp, 0, 1);
+  bar(scr, 18, hy + 2, barW, 6, hpFrac, hpFrac > 0.3 ? UI.heal : UI.damage, BG_BAR);
+  if (p.shield > 0) bar(scr, 18, hy + 8, Math.round(barW * clamp(p.shield / 60, 0, 1)), 1, 1, UI.shield, BG_BAR);
+  drawText(scr, String(Math.ceil(p.hp)), 18 + barW + 4, hy, UI.text, 1, 2);
+  const left = game.matrix.duration - game.time;
+  drawTextRight(scr, mmss(left), W - 3, hy, left < 60 ? UI.textHot : UI.text, 1, 2);
+
+  drawText(scr, 'AA', 3, ay, UI.textDim, 1, 2);
+  bar(scr, 18, ay + 2, barW, 4, clamp(p.aa / XP_FOR_LEVEL(p.level), 0, 1), UI.aa, BG_BAR_AA);
+  drawText(scr, String(p.level), 18 + barW + 4, ay, UI.aaGlow, 1, 2);
+  drawTextRight(scr, game.ph.toFixed(1).replace('.', ','), W - 3, ay,
+    game.ph < 5.6 ? UI.acid : UI.textDim, 1, 2);
+
+  drawText(scr, dominantWay(p), 3, sy, UI.textDim, 1, 1);
+  drawTextRight(scr, `${p.kills} TUES`, W - 3, sy, UI.textDim, 1, 1);
+
+  gauge(scr, game, { x: 16, y: gy, len: W - 32, vertical: false });
+
+  /* Pastilles d'evolution : juste sous le disque, la ou il reste du noir. */
+  const chipTop = VIEW.CY + VIEW.R + 8;
+  if (sy - chipTop > 8) chips(scr, p, 3, chipTop, W - 6, sy - 6);
 }
+
+/* -------------------------------------------------------------- paysage -- */
+
+function renderSides(scr, game, pal) {
+  const p = game.player;
+  const colW = VIEW.CX - VIEW.R - 6;
+  const lx = 3;
+  const rx = VIEW.CX + VIEW.R + 6;
+
+  const left = game.matrix.duration - game.time;
+  drawText(scr, mmss(left), lx, 6, left < 60 ? UI.textHot : UI.text, 1, 2);
+  drawText(scr, pal.name, lx, 20, UI.textDim, 1, 1);
+
+  const hpFrac = clamp(p.hp / p.stats.maxHp, 0, 1);
+  drawText(scr, 'PV', lx, 32, UI.textDim, 1, 1);
+  bar(scr, lx, 39, colW, 6, hpFrac, hpFrac > 0.3 ? UI.heal : UI.damage, BG_BAR);
+  if (p.shield > 0) bar(scr, lx, 45, Math.round(colW * clamp(p.shield / 60, 0, 1)), 1, 1, UI.shield, BG_BAR);
+  drawText(scr, String(Math.ceil(p.hp)), lx, 48, UI.text, 1, 2);
+
+  drawText(scr, 'AA', lx, 64, UI.textDim, 1, 1);
+  bar(scr, lx, 71, colW, 4, clamp(p.aa / XP_FOR_LEVEL(p.level), 0, 1), UI.aa, BG_BAR_AA);
+  drawText(scr, `N${p.level}`, lx, 78, UI.aaGlow, 1, 2);
+
+  drawText(scr, `PH ${game.ph.toFixed(1).replace('.', ',')}`, lx, 94,
+    game.ph < 5.6 ? UI.acid : UI.textDim, 1, 1);
+  drawText(scr, `${p.kills} TUES`, lx, 104, UI.textDim, 1, 1);
+  drawText(scr, dominantWay(p), lx, 114, UI.textDim, 1, 1);
+  chips(scr, p, lx, 126, colW, VIEW.H - 4);
+
+  /* Jauge de profondeur, verticale, centree dans la colonne de droite */
+  gauge(scr, game, {
+    x: VIEW.CX + VIEW.R + Math.round(colW / 2) + 3,
+    y: 18, len: VIEW.H - 36, vertical: true,
+  });
+}
+
+/* ---------------------------------------------------------------- pieces - */
 
 function dominantWay(p) {
   const counts = {};
@@ -101,19 +128,19 @@ function dominantWay(p) {
   return (WAYS[best] || best).toUpperCase();
 }
 
-function renderEvolutionChips(scr, p, x0, y0) {
-  const items = p.summary();
+function chips(scr, p, x0, y0, w, maxY) {
   let x = x0, y = y0;
-  for (const { evo, rank } of items) {
+  for (const { evo, rank } of p.summary()) {
     const col = RARITY_COLOR[evo.rarity] || UI.text;
     for (let i = 0; i < rank; i++) {
+      if (x > x0 + w - 3) { x = x0; y += 5; if (y > maxY - 3) return; }
       scr.direct(x, y, col);
-      scr.direct(x, y + 1, fade32(col, 0.6));
-      x += 2;
-      if (x > VIEW.W - 6) { x = x0; y += 4; if (y > VIEW.H - 12) return; }
+      scr.direct(x + 1, y, col);
+      scr.direct(x, y + 1, fade32(col, 0.55));
+      scr.direct(x + 1, y + 1, fade32(col, 0.55));
+      x += 3;
     }
     x += 2;
-    if (x > VIEW.W - 6) { x = x0; y += 4; if (y > VIEW.H - 12) return; }
   }
 }
 
@@ -121,76 +148,71 @@ function renderEvolutionChips(scr, p, x0, y0) {
  * Jauge de profondeur. C'est l'element de HUD le plus important du jeu :
  * elle montre ou se trouvent les mobs sur l'axe Z, donc ce qui arrive.
  */
-function renderFocusGauge(scr, game) {
+function gauge(scr, game, L) {
   const p = game.player;
-  const h = GAUGE_BOT - GAUGE_TOP;
-  const zToY = (z) => GAUGE_TOP + ((z + 1) / 2) * h;
+  const { x, y, len, vertical } = L;
+  const at = (z) => (vertical ? y : x) + ((clamp(z, -1, 1) + 1) / 2) * len;
+  const put = (t, off, c) => (vertical ? scr.direct(x + off, t, c) : scr.direct(t, y + off, c));
 
-  /* Graduation */
-  for (let y = GAUGE_TOP; y <= GAUGE_BOT; y++) {
-    scr.direct(GAUGE_X, y, rgba(20, 36, 28, 255));
-  }
+  for (let i = 0; i <= len; i++) put((vertical ? y : x) + i, 0, rgba(20, 36, 28, 255));
   for (let i = 0; i <= 4; i++) {
-    const y = GAUGE_TOP + (i / 4) * h;
-    scr.direct(GAUGE_X - 2, y, UI.frame);
-    scr.direct(GAUGE_X - 1, y, UI.frame);
+    const t = (vertical ? y : x) + (i / 4) * len;
+    put(t, -2, UI.frame); put(t, -3, UI.frame);
   }
 
   /* Bande nette : la profondeur de champ courante. */
   const dof = p.stats.dof;
-  const yTop = zToY(clamp(game.focus - dof, -1, 1));
-  const yBot = zToY(clamp(game.focus + dof, -1, 1));
-  for (let y = Math.round(yTop); y <= Math.round(yBot); y++) {
-    scr.direct(GAUGE_X - 1, y, fade32(UI.acidRim, 0.5));
-    scr.direct(GAUGE_X + 1, y, fade32(UI.acidRim, 0.5));
+  const a = at(game.focus - dof), b = at(game.focus + dof);
+  for (let t = Math.round(Math.min(a, b)); t <= Math.round(Math.max(a, b)); t++) {
+    put(t, 1, fade32(UI.acidRim, 0.5));
+    put(t, -1, fade32(UI.acidRim, 0.5));
   }
 
   /* Le plan du joueur, toujours a z = 0. */
-  const y0 = zToY(0);
-  for (let i = -2; i <= 2; i++) scr.direct(GAUGE_X + i, y0, fade32(UI.player, 0.55));
+  const z0 = at(0);
+  for (let i = -2; i <= 2; i++) put(z0 + i, 0, fade32(UI.player, 0.6));
 
-  /* Les mobs, a leur profondeur. Un point plein = dans votre plan. */
+  /* Les mobs, a leur profondeur. Deux pixels = dans votre plan. */
   for (const e of game.enemies) {
     if (!e.alive) continue;
     const dx = e.x - p.x, dy = e.y - p.y;
-    if (dx * dx + dy * dy > 200 * 200) continue;
-    const y = Math.round(zToY(clamp(e.z, -1, 1)));
+    if (dx * dx + dy * dy > 220 * 220) continue;
     const s = sharpness(e.z, game.focus, dof);
     const col = e.ally > 0 ? UI.ally
       : e.spec.boss ? UI.hostile
         : e.spec.kind === 'phage' ? UI.plasmid : UI.textHot;
-    scr.direct(GAUGE_X, y, fade32(col, 0.45 + 0.55 * s));
-    if (Math.abs(e.z) < 0.18) scr.direct(GAUGE_X + 1, y, fade32(col, 0.8));
+    const t = Math.round(at(e.z));
+    put(t, 0, fade32(col, 0.45 + 0.55 * s));
+    if (Math.abs(e.z) < 0.18) put(t, 1, fade32(col, 0.85));
   }
 
   /* Curseur de mise au point. */
-  const yf = Math.round(zToY(clamp(game.focus, -1, 1)));
-  scr.direct(GAUGE_X - 3, yf, UI.acid);
-  scr.direct(GAUGE_X - 4, yf, UI.acid);
-  scr.direct(GAUGE_X - 3, yf - 1, fade32(UI.acid, 0.5));
-  scr.direct(GAUGE_X - 3, yf + 1, fade32(UI.acid, 0.5));
+  const f = Math.round(at(game.focus));
+  put(f, -3, UI.acid); put(f, -4, UI.acid);
+  put(f - 1, -3, fade32(UI.acid, 0.5));
+  put(f + 1, -3, fade32(UI.acid, 0.5));
 
-  drawText(scr, 'Z', GAUGE_X - 2, GAUGE_TOP - 8, UI.textDim);
+  if (vertical) drawText(scr, 'Z', x - 1, y - 10, UI.textDim, 1, 1);
+  else drawText(scr, 'Z', x - 10, y - 2, UI.textDim, 1, 1);
 }
 
 function renderTouchControls(scr, input) {
   if (input.stick.active) {
     const cx = Math.round(input.stick.ox * VIEW.W);
     const cy = Math.round(input.stick.oy * VIEW.H);
-    ringDirect(scr, cx, cy, 14, fade32(UI.textDim, 0.5));
-    ringDirect(scr, cx + input.stick.dx * 10, cy + input.stick.dy * 10, 4,
-      fade32(UI.player, 0.8));
+    ringDirect(scr, cx, cy, 16, fade32(UI.textDim, 0.5));
+    ringDirect(scr, cx + input.stick.dx * 11, cy + input.stick.dy * 11, 5, fade32(UI.player, 0.85));
   }
   if (input.focusPad.active) {
     const cy = Math.round(input.focusPad.oy * VIEW.H);
-    for (let i = 0; i < 10; i++) scr.direct(VIEW.W - 6 - i, cy, fade32(UI.acid, 0.6));
+    for (let i = 0; i < 12; i++) scr.direct(VIEW.W - 5 - i, cy, fade32(UI.acid, 0.6));
   }
 }
 
 function ringDirect(scr, cx, cy, r, col) {
-  for (let a = 0; a < TAU; a += 0.12) {
+  for (let a = 0; a < TAU; a += 0.1) {
     scr.direct(cx + Math.cos(a) * r, cy + Math.sin(a) * r, col);
   }
 }
 
-export { mix32 };
+export { textWidth };

@@ -31,7 +31,10 @@ export function renderField(scr, game, pal) {
   const toY = (wy) => VIEW.CY + (wy - camY);
 
   scr.beginFrame(pal.bg);
-  drawHaze(scr, game, pal, fieldR);
+  /* Le senseur de pH remplace le voile par une carte en fausses couleurs :
+     on voit litteralement le terrain qu'on s'est fabrique. */
+  if (p.flags.has('phsense')) drawPhMap(scr, game, fieldR, camX, camY);
+  else drawHaze(scr, game, pal, fieldR);
 
   const dof = p.stats.dof;
   const margin = 24;
@@ -74,7 +77,7 @@ export function renderField(scr, game, pal) {
     }
   }
 
-  /* --- ADN et plasmides ------------------------------------------------- */
+  /* --- acides amines et plasmides ------------------------------------------------- */
   for (const k of game.pickups) {
     if (!k.alive) continue;
     scr.layer(Screen.layerFor(-0.01, 0));
@@ -83,8 +86,8 @@ export function renderField(scr, game, pal) {
       /* Le plasmide est un anneau : c'est ce qu'est un plasmide. */
       scr.ring(toX(k.x), toY(k.y), 3.2, 1.4, fade32(UI.plasmid, pulse));
     } else {
-      scr.disc(toX(k.x), toY(k.y), 1.4, fade32(UI.dna, pulse), 0);
-      scr.plot(toX(k.x), toY(k.y), UI.dnaGlow);
+      scr.disc(toX(k.x), toY(k.y), 1.4, fade32(UI.aa, pulse), 0);
+      scr.plot(toX(k.x), toY(k.y), UI.aaGlow);
     }
   }
 
@@ -177,6 +180,34 @@ function zoneColor(z, pal) {
     case 'llo': return UI.damage;
     default: return pal.edge;
   }
+}
+
+/**
+ * Carte des pH en fausses couleurs. Chaud = acide (votre terrain), froid =
+ * pH du milieu. L'echelle se cale sur les bornes reelles du champ, donc elle
+ * reste lisible meme quand tout le champ a deja ete acidifie.
+ */
+function drawPhMap(scr, game, fieldR, camX, camY) {
+  const f = game.phField;
+  const [lo, hi] = f.range();
+  const span = Math.max(0.25, hi - lo);
+  scr.clip = false;
+  for (let y = -fieldR; y <= fieldR; y++) {
+    const w = Math.floor(Math.sqrt(Math.max(0, fieldR * fieldR - y * y)));
+    for (let x = -w; x <= w; x++) {
+      const px = VIEW.CX + x, py = VIEW.CY + y;
+      const acid = clamp(1 - (f.atSmooth(camX + x, camY + y) - lo) / span, 0, 1);
+      if (acid < 0.12) continue;
+      /* Surcouche de capteur, pas repeinture du champ : tres tramee et
+         peu opaque, pour qu'on continue a voir les organismes dedans. */
+      if (bayer(px, py) > acid * 0.55) continue;
+      const r = Math.round(120 + 120 * acid);
+      const g = Math.round(40 + 60 * (1 - acid));
+      const b = Math.round(30 + 40 * (1 - acid));
+      scr.direct(px, py, rgba(r, g, b, Math.round(60 + 90 * acid)));
+    }
+  }
+  scr.clip = true;
 }
 
 /** Voile de fond : un bouillon n'est jamais parfaitement vide. */

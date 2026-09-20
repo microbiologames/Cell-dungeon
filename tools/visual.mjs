@@ -1,12 +1,14 @@
+/* Captures de controle : portrait, paysage, vue pH, boss.
+   SHOT_DIR pour choisir le dossier de sortie. */
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
 import { existsSync } from 'node:fs';
+import { extname, join, normalize } from 'node:path';
 
-const ROOT = '/home/user/Cell-dungeon';
-const OUT = '/tmp/claude-0/-home-user-Cell-dungeon/8c8b2afa-4bc1-5597-82af-bf6100d14955/scratchpad';
-const TYPES = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css' };
+const ROOT = process.cwd();
+const OUT = process.env.SHOT_DIR || '.';
+const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
 const server = createServer(async (req, res) => {
   try {
     let p = decodeURIComponent(req.url.split('?')[0]);
@@ -18,54 +20,65 @@ const server = createServer(async (req, res) => {
 });
 await new Promise((r) => server.listen(8098, r));
 
-const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].find(existsSync);
+const exe = ['/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  '/opt/pw-browsers/chromium/chrome-linux/chrome'].find(existsSync);
 const browser = await chromium.launch(exe ? { executablePath: exe } : {});
-const page = await browser.newPage({ viewport: { width: 520, height: 760 } });
 const errs = [];
-page.on('pageerror', (e) => errs.push(e.message));
-page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
-await page.goto('http://localhost:8098/');
-await page.click('#btnStart');
 
-// Avance le run jusqu'au palier 3 SANS declencher les evenements passes,
-// sinon tous les boss sortent d'un coup et le directeur bride la pietaille.
-await page.evaluate(() => {
+/** Amene le jeu a mi-parcours sans declencher les evenements passes. */
+const FFWD = `() => {
   const g = window.__game;
   g.time = 430;
   for (const ev of g.matrix.events) if (ev.t <= g.time) g.director.fired.add(ev);
   g.boss = null; g.director.bossActive = false;
-  g.player.invuln = 1e6;   // le harnais ne joue pas : on l'empeche de mourir
+  g.player.invuln = 1e6;
+}`;
+
+async function shot(name, viewport, steps) {
+  const ctx = await browser.newContext({ viewport });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errs.push(`${name}: ${e.message}`));
+  page.on('console', (m) => { if (m.type() === 'error') errs.push(`${name}: ${m.text()}`); });
+  await page.goto('http://localhost:8098/');
+  await page.click('#btnStart');
+  await page.evaluate(FFWD);
+  await page.waitForTimeout(5000);
+  if (steps) await steps(page);
+  await page.evaluate(() => { const g = window.__game; g.focus = 0; g.focusTarget = 0; });
+  await page.waitForTimeout(400);
+  const info = await page.evaluate(() => {
+    const g = window.__game;
+    const V = window.__view;
+    return {
+      canvas: `${V.W}x${V.H}`, mode: V.mode, rayon: V.R,
+      mobs: g.enemies.length, ph: +g.ph.toFixed(2),
+      vitesse: +Math.hypot(g.player.vx, g.player.vy).toFixed(0),
+    };
+  });
+  await page.screenshot({ path: `${OUT}/${name}.png` });
+  console.log(name.padEnd(18), JSON.stringify(info));
+  await ctx.close();
+}
+
+await shot('10-portrait', { width: 420, height: 840 });
+await shot('11-paysage', { width: 960, height: 540 });
+await shot('12-ph', { width: 420, height: 840 }, async (page) => {
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.player.take('phsense');
+    /* On arrose le champ pour que la carte ait quelque chose a montrer. */
+    for (let i = 0; i < 260; i++) {
+      const a = Math.random() * 6.283, d = Math.random() * 90;
+      g.phField.acidify(g.player.x + Math.cos(a) * d, g.player.y + Math.sin(a) * d, 0.5, 26);
+    }
+  });
+  await page.waitForTimeout(400);
 });
-await page.waitForTimeout(6000);
-// Mise au point sur le plan du joueur.
-await page.evaluate(() => { window.__game.focus = 0; window.__game.focusVel = 0; });
-await page.waitForTimeout(1500);
-await page.evaluate(() => { window.__game.focus = 0; window.__game.focusVel = 0; });
-await page.screenshot({ path: OUT + '/04-net.png' });
-console.log('net:', JSON.stringify(await page.evaluate(() => {
-  const g = window.__game;
-  const byKind = {};
-  for (const e of g.enemies) byKind[e.spec.id] = (byKind[e.spec.id] || 0) + 1;
-  return { t: Math.round(g.time), enemies: g.enemies.length, byKind,
-           sharp: g.sharpEnemyCount, credits: +g.director.liveCredits().toFixed(1),
-           hp: Math.round(g.player.hp) };
-})));
-
-// Mise au point profonde : on doit voir arriver ce qui n'est pas encore la.
-await page.evaluate(() => { window.__game.focus = 0.8; window.__game.focusVel = 0; });
-await page.waitForTimeout(600);
-await page.evaluate(() => { window.__game.focus = 0.8; window.__game.focusVel = 0; });
-await page.screenshot({ path: OUT + '/05-profond.png' });
-
-// Boss
-await page.evaluate(() => { const g = window.__game; g.director.runEvent({ type:'boss', id:'staph' }); g.focus = 0; });
-await page.waitForTimeout(2500);
-await page.evaluate(() => { window.__game.focus = 0; window.__game.focusVel = 0; });
-await page.screenshot({ path: OUT + '/06-boss.png' });
-console.log('boss:', JSON.stringify(await page.evaluate(() => {
-  const b = window.__game.boss;
-  return b ? { label: b.spec.label, hp: Math.round(b.hp), z: +b.z.toFixed(2), phase: b.phaseIndex } : null;
-})));
+await shot('13-boss', { width: 960, height: 540 }, async (page) => {
+  await page.evaluate(() => window.__game.director.runEvent({ type: 'boss', id: 'staph' }));
+  await page.waitForTimeout(2500);
+});
 
 console.log(errs.length ? 'ERREURS: ' + errs.join(' | ') : 'aucune erreur');
-await browser.close(); server.close();
+await browser.close();
+server.close();

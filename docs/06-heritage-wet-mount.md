@@ -25,8 +25,10 @@ sont deux techniques réelles :
 - **Fond noir** : le condenseur n'éclaire que de la lumière oblique, seule la
   lumière diffractée par les objets entre dans l'objectif. Résultat : des
   organismes **lumineux sur fond parfaitement noir**, à très fort contraste.
-- **Orange d'acridine** : fluorochrome d'acidonucléique qui marque les cellules
-  vivantes en **vert** et l'ADN libre / cellules mortes en **orange-rouge**.
+- **Double marquage.** Les cellules sont révélées à l'**orange d'acridine**
+  (vivantes en vert). Les **acides aminés libres**, eux, ne sont pas des
+  acides nucléiques : ils sont révélés à l'**o-phtalaldéhyde**, la méthode
+  OPA, qui est précisément l'essai standard de protéolyse en laiterie.
 
 Ce choix règle trois problèmes d'un coup :
 
@@ -34,11 +36,15 @@ Ce choix règle trois problèmes d'un coup :
 |---|---|
 | Lisibilité des menaces | Contraste maximal, organismes lumineux |
 | Les « zones noires » du HUD | Ce n'est plus un cache arbitraire : **c'est le champ réel** |
-| L'ADN au sol doit se voir | L'orange d'acridine marque littéralement les acides nucléiques |
+| Le butin au sol doit se voir | La méthode OPA révèle littéralement les acides aminés libres |
 
-Le joueur est **vert** (vivant), l'ADN ramassable est **orange** (acide
-nucléique libre), et les halos de flou brillent au lieu de se délaver.
-La contrainte de lisibilité et la vérité microbiologique tombent d'accord.
+Le joueur est **vert** (vivant), les acides aminés ramassables sont **ambrés**,
+et les halos de flou brillent au lieu de se délaver.
+
+> Une réserve, notée plutôt que cachée : les dérivés OPA émettent en réalité
+> dans le bleu, pas dans l'ambre. La teinte est choisie pour la lisibilité,
+> le bleu et le cyan étant déjà pris par des rôles de menace. C'est la même
+> catégorie de déviation que l'échelle : documentée, pas dissimulée.
 
 ## ❌ Rejeté — l'échelle optique littérale
 

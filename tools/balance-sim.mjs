@@ -24,7 +24,7 @@ const RUNS = 400;
 /* Mob de reference pour le TTK : la piétaille moyenne du lait cru. */
 const REF_HP = 18;
 const AVG_COST = 1.35;
-const AVG_DNA = 2.2;
+const AVG_AA = 2.2;
 const AVG_CONTACT = 6;
 /* Fraction du temps ou un mob vivant touche effectivement le joueur.
    Un joueur competent se fait toucher rarement : 7 % du temps de presence. */
@@ -120,7 +120,7 @@ function simulate(policy, seed) {
     samples.push({ t, p, ttk, pressure, level, dps, alive });
 
     /* Progression */
-    xp += kills * AVG_DNA * stats.dnaGain * DT;
+    xp += kills * AVG_AA * stats.aaGain * DT;
     let guard = 0;
     while (xp >= XP_FOR_LEVEL(level) && guard++ < 10) {
       xp -= XP_FOR_LEVEL(level);

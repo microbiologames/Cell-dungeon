@@ -125,7 +125,7 @@ une foule.
 | 3:00 | `tank` débloqué |
 | **4:00** | **Mini-boss** — budget coupé à 25 % pendant le combat, plasmide garanti |
 | 5:00 | `splitter` et `denier` débloqués |
-| 6:00 | **Accalmie 20 s** : budget à 10 %, l'ADN au sol reste. Respiration. |
+| 6:00 | **Accalmie 20 s** : budget à 10 %, les acides aminés au sol restent. Respiration. |
 | **8:00** | **Mini-boss 2** |
 | 9:00 | `predator` débloqué (matrices 2+) |
 | 10:00 | Pression 1.0, le champ se sature |

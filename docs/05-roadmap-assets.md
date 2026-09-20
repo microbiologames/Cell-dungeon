@@ -70,7 +70,7 @@ coloration de Gram de l'espèce.
 
 `src/data/palette.js` définit une palette par matrice, construite pour le
 **fond noir** (voir `06-heritage-wet-mount.md`) : organismes lumineux sur noir,
-joueur vert (vivant), ADN orange (acide nucléique libre). Ce n'est **pas** la
+joueur vert (vivant), acides aminés ambrés. Ce n'est **pas** la
 palette d'état frais de `wet-mount.html`, qui serait illisible ici.
 Un sprite doit s'y tenir : **12 couleurs par matrice**, pas plus.
 

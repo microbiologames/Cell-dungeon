@@ -29,9 +29,12 @@
   }
   #stage {
     position: relative;
+    /* Les trois valeurs sont pilotees par relayout() dans src/main.js :
+       la disposition interne depend de l'orientation. */
     aspect-ratio: 256 / 352;
     height: min(100dvh, calc(100vw * 352 / 256));
     max-width: 100vw;
+    max-height: 100dvh;
   }
   canvas {
     display: block; width: 100%; height: 100%;

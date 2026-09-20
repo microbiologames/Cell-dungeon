@@ -33,7 +33,7 @@ export const TIER_WEIGHTS = [
 export const ROLE_CAPS = { ranged: 2, denier: 3, predator: 2, tank: 6 };
 
 /** Courbe d'experience. Calibree pour atteindre le niveau 26-30 en 12 min
- *  avec le revenu d'ADN reel : verifie par tools/balance-sim.mjs. */
+ *  avec le revenu d'acides amines reel : verifie par tools/balance-sim.mjs. */
 export const XP_FOR_LEVEL = (n) => 6 + 5 * n + 0.32 * n * n;
 
 export const MILK = {
@@ -59,7 +59,12 @@ export const MILK = {
 
   /* Physico-chimie : le pH descend avec les tirs du joueur. */
   chem: {
-    phStart: 6.7, phFloor: 5.0, phPerShot: 0.00035,
+    phStart: 6.7, phFloor: 5.0,
+    /* Acidification : en unites de pH par seconde de vol pour la trainee,
+       et en une fois pour le depot de fin de course. Calibre pour qu'un
+       arrosage soutenu d'une zone la fasse passer sous 5,6 (seuil des
+       coliformes) en une dizaine de secondes, mais pas d'un seul tir. */
+    phTrail: 0.30, phDeposit: 0.34,
     /* Sous ces seuils, la flore trinque. Valeurs de docs/01-matrices.md. */
     coliformSlowBelow: 5.6, pseudomonasBurnBelow: 5.2, pseudomonasBurnDps: 3,
     tempC: 8,

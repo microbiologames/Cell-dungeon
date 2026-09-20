@@ -4,8 +4,8 @@
 
 Vous êtes une **bactérie lactique** observée au microscope. Vous survivez à des vagues
 de micro-organismes dans des **matrices réelles** (lait cru, conduite industrielle,
-kombucha, sang), vous tirez de l'**acide lactique**, et vous digérez l'**ADN** de vos
-victimes pour **muter**.
+kombucha, sang), vous tirez de l'**acide lactique**, et vous digérez les **acides aminés**
+de vos victimes pour **muter**.
 
 Roguelite d'arène, vue de dessus, tir automatique, run de 12 minutes par matrice.
 
@@ -44,10 +44,15 @@ Certains mobs (les phages) **restent hors plan** et tirent de loin : ils forcent
 le changement de mise au point. C'est le « saut » de ce jeu : pas de gravité dans
 un bouillon, donc l'axe Z remplace la verticalité.
 
-### 2. Évolution par ADN, pas par boutique
+### 2. Évolution par acides aminés, pas par boutique
 
-Tuer libère de l'**ADN extracellulaire**. On l'absorbe (transformation naturelle),
-on monte de niveau, on choisit **1 évolution parmi 3** tirées selon leur rareté.
+Tuer libère des **acides aminés**. On les absorbe, on monte de niveau, on
+choisit **1 évolution parmi 3** tirées selon leur rareté. Les bactéries
+lactiques sont auxotrophes pour la plupart des acides aminés : les prélever
+dans le milieu est littéralement ce qui les fait croître.
+
+Le rayon de captation est court au départ : il faut **entrer dans la foule**
+pour se nourrir.
 Un **plasmide** (drop rare) accorde une compétence **immédiatement**, sans niveau.
 
 Les évolutions ne changent pas forcément le skin : elles changent les **stats** et
@@ -84,6 +89,28 @@ Règle de production :
   courant, débris de matrice générés par hachage de coordonnées.
 - Teinte par matrice sur le fond noir : lait cru verdâtre, conduite cyan acier,
   kombucha ambre, sang magenta sombre.
+
+## Déviations assumées
+
+Deux endroits où le jeu ment sciemment, parce que la simulation honnête
+serait mauvaise à jouer. Ils sont listés ici plutôt que cachés :
+
+**L'inertie.** À l'échelle d'un procaryote, le nombre de Reynolds est si bas
+qu'il n'y a aucune inertie : une bactérie qui cesse de pousser s'arrête en une
+fraction de son diamètre. Un déplacement sans inertie colle à la touche et ne
+procure aucune sensation. On donne donc à la cellule une mise en train et une
+glisse — et on s'en sert : la **flagellation** pilote ce réglage.
+
+| Profil | Réel | Au toucher |
+|---|---|---|
+| Péritriche (*E. coli*) | flagelles sur toute la surface | vif, tourne sec, pointe plus basse |
+| Polaire en touffe (*Pseudomonas*) | lophotriche à un pôle | lance fort, vire mal |
+
+C'est le principal arbitrage de pilotage, et il est vrai dans son principe :
+une touffe polaire pousse fort en ligne droite et manœuvre mal.
+
+**L'échelle.** Voir `06-heritage-wet-mount.md` : les tailles sont
+relativement plausibles, jamais littérales.
 
 ## Plateformes
 

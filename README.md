@@ -1,8 +1,8 @@
 # Cell Dungeon
 
 Roguelite d'arène microbiologique. Vous êtes une **bactérie lactique** observée
-au microscope, vous tirez de l'acide lactique, vous absorbez l'ADN de vos
-victimes et vous volez leurs gènes.
+au microscope, vous tirez de l'acide lactique, vous absorbez les acides aminés
+de vos victimes et vous volez leurs gènes.
 
 **État : maquette jouable sans assets.** Tout est dessiné procéduralement.
 La matrice 1 (lait cru) est complète ; les matrices 2 à 4 sont spécifiées
@@ -46,6 +46,17 @@ Chaque organisme a une profondeur `z`. Vous réglez votre plan focal.
 
 C'est le « saut » de ce jeu : dans un bouillon il n'y a pas de gravité, donc
 l'axe Z remplace la verticalité.
+
+## Le pH est un terrain
+
+Chaque goutte d'acide se **diffuse en vol** : elle part concentrée et rapide,
+s'étale, ralentit, frappe de plus en plus large et de moins en moins fort,
+puis dépose sa charge. Le pH n'est pas un compteur global mais une **carte**.
+
+Arroser une zone la transforme : les coliformes y ralentissent sous pH 5,6,
+les *Pseudomonas* y brûlent sous 5,2, et votre bactérie lactique — qui est
+chez elle dans l'acide — y gagne en cadence. Le `Senseur de pH` révèle la
+carte en fausses couleurs. Fabriquer son terrain devient une tactique.
 
 ## Documentation de conception
 
