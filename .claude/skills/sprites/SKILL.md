@@ -106,6 +106,35 @@ n'ajoute que le travail de pixel art (liserés, reflets). C'est exactement le
 bon partage : la microbiologie vient de nous, la facture graphique vient de
 lui. C'est donc le SEUL mode à utiliser ici.
 
+### Le balayage de `strength` : le résultat contre-intuitif
+
+Testé sur *S. aureus* (grappe, 28 px en jeu) à 0.45 et 0.75.
+
+| `strength` | En grand (64 px) | **À la taille du jeu (28 px)** |
+|---|---|---|
+| 0.45 | très proche de la source, reflets discrets | séparations entre coques **nettes**, la grappe se lit |
+| 0.75 | joli liseré lumineux, silhouette conservée | le liseré **fusionne les coques** : on voit une masse rouge à halo, plus une grappe |
+
+**Monter `strength` dégrade la lisibilité au format du jeu.** Le liseré que le
+générateur ajoute est exactement ce qui mange l'information identifiant
+l'espèce — la disposition en grappe. À 28 px, la source procédurale est aussi
+bonne que le 0.45, et meilleure que le 0.75.
+
+**Conséquence pratique : l'img2img n'apporte presque rien aux sprites
+in-game**, qui font 4 à 34 px. Réserver le générateur à ce qui n'est PAS
+contraint par cette taille :
+
+- les **illustrations des cartes d'évolution** — elles sont en DOM, donc
+  libres d'être en 64–128 px ;
+- l'**écran-titre** et les portraits de boss ;
+- les éléments de décor larges des matrices 2 à 4 (SCOBY, biofilm).
+
+Toujours juger à la taille réelle, jamais en grand :
+
+```bash
+SIZE=28 node tools/at-size.mjs a.png b.png c.png
+```
+
 ### Les quatre réglages qui comptent
 
 | Paramètre | Pourquoi |

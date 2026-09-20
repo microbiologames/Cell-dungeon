@@ -14,7 +14,8 @@
     "sprites:bake": "node tools/sprites.mjs bake",
     "sprites:import": "node tools/sprites.mjs import",
     "rd:guard": "node tools/rd.mjs guard",
-    "rd:credits": "node tools/rd.mjs credits"
+    "rd:credits": "node tools/rd.mjs credits",
+    "at-size": "node tools/at-size.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0"
