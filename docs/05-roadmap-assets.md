@@ -5,17 +5,48 @@ avec halo de phase). Rien n'est un fichier image. Ajouter des assets ne
 demandera donc aucune refonte : il suffira de remplacer la fonction de rendu
 d'un `kind` par un blit de sprite.
 
-## Point d'insertion unique
+## La chaîne existe
 
-`src/render/organisms.js` expose :
-
-```js
-export function drawOrganism(g, kind, x, y, sizePx, angle, palette, phase)
+```bash
+npm run sheet           # planche de contact : tout, à sa vraie taille
+npm run sprites:bake    # toiles de départ éditables → assets/sprites/
+npm run sprites:import  # PNG → src/render/sprite-data.js
 ```
 
-Un sprite remplace un `kind` en ajoutant une entrée dans `SPRITES` ; tant
-qu'aucune entrée n'existe, la forme procédurale sert de repli. On peut donc
-livrer les assets **un par un**, en jouant entre chaque.
+`bake` rend chaque espèce procéduralement à sa taille native et écrit un PNG.
+C'est une **toile de départ** : on l'ouvre dans Aseprite, on retouche, on
+réimporte. Une image de référence déposée au même nom marche aussi bien.
+
+`import` réduit par moyenne de surface, quantifie sur 11 couleurs plus la
+transparence, et sort des pixels indexés encodés en chaîne. Un sprite de 16×16
+pèse une centaine d'octets ; les treize actuels tiennent en 5 Ko — donc pas de
+requête, pas d'asynchrone, la page reste un seul fichier déployable.
+
+`src/render/sprite-data.js` n'est **pas activé par défaut**. Une ligne dans
+`src/main.js` l'allume :
+
+```js
+import './render/sprite-data.js';
+```
+
+Le registre est consulté par `drawOrganism` : **une espèce sans sprite retombe
+sur sa forme procédurale**. Les assets arrivent donc un par un, et on peut en
+retirer un qui déçoit.
+
+Les conventions détaillées vivent dans le skill `.claude/skills/sprites/`.
+
+## Sprite ou procédural : ce qu'on perd
+
+Le rendu par sprite applique la rotation, pas les déformations.
+
+| Morphologie | Perte si sprite |
+|---|---|
+| `rod`, `rodlong`, `coccus`, `diplo`, `spore`, `phage` | **aucune** — y aller |
+| `chain`, `cluster` | l'ondulation, la grappe qui respire |
+| `amoeba` | **forte** — les pseudopodes. Garder le procédural |
+
+Un sprite pour une amibe est une régression. Un sprite pour un boss `rod` est
+un gain net.
 
 ## Contraintes de production
 

@@ -85,8 +85,9 @@ telles quelles dans `src/data/evolutions.js`.
 | C7 | **Système Opp** | +15 % d'acides aminés, +12 % de captation | 4 | Perméase à oligopeptides : la voie de nutrition réelle des lactiques, auxotrophes |
 | C8 | Chimiotactisme (Che) | +25 % rayon de captation | 4 | Système Che, migration vers un gradient |
 | C9 | Osmorégulation (bétaïne) | +10 PV | 4 | Soluté compatible accumulé en stress osmotique |
-| C10 | Sécrétion Sec | +10 % vitesse de projectile | 4 | Translocon SecYEG |
-| C11 | Diffusion acide | +10 % rayon des tirs | 4 | — |
+| C10 | Sécrétion Sec | +10 % vitesse de projectile, **+8 % de portée** | 4 | Translocon SecYEG : une goutte mieux éjectée part plus vite, donc plus loin |
+| C11 | Diffusion acide | +10 % rayon des tirs, **+12 % de portée** | 4 | L'acide porte plus loin avant dilution |
+| C18 | **Flux glycolytique** | +14 % de portée | 4 | Le débit de la glycolyse fixe la quantité de lactate produite par tir : plus on en produit, plus loin il reste assez concentré pour mordre |
 | C12 | Acidification locale | Aura pH : 2 dps dans 22 px | 3 | L'acide s'accumule autour de la cellule |
 | C13 | Réponse SOS (RecA) | +0.4 PV/s | 4 | Réparation de l'ADN induite par le stress |
 | C14 | Cardiolipine | +6 % résistance | 4 | Phospholipide des pôles, stabilise la membrane |
@@ -133,11 +134,24 @@ telles quelles dans `src/data/evolutions.js`.
 | R11 | **Vésicules membranaires** | +2 projectiles par rang, tirés en gerbe. −18 % de dégâts chacun | 3 | Les Gram + libèrent des vésicules à travers leur paroi : une salve, pas un jet |
 | R12 | **Senseur de pH** | Révèle la carte des pH en fausses couleurs | 1 | Systèmes à deux composants sensibles aux protons |
 
-Les gouttes d'acide **diffusent en vol** : elles partent concentrées et
-rapides, s'étalent, ralentissent, frappent de plus en plus large et de moins
-en moins fort (−50 % de dégâts en fin de course, +160 % de rayon), puis
-déposent leur charge. `Diffusion acide` et `Homofermentaire strict` jouent
-donc sur deux bouts opposés du même compromis.
+### La portée est une stat, et elle part courte
+
+Au départ, la portée vaut **96 px** pour un champ visible de 124 : on touche à
+peine au-delà de son propre voisinage. C'est ce qui oblige à entrer dans la
+foule au lieu de la mitrailler de loin. Trois évolutions la comblent
+(`Diffusion acide`, `Sécrétion Sec`, `Flux glycolytique`) ; un investissement
+complet la porte à **227 px**.
+
+### La vie d'une goutte
+
+Une goutte d'acide lactique n'est pas une balle. Elle part **compacte** et
+brillante, s'étale, ralentit, puis **se sépare en gouttelettes de plus en plus
+fines** qui s'écartent et pâlissent jusqu'à la dilution. En chemin elle frappe
+de plus en plus large et de moins en moins fort (−50 % de dégâts en fin de
+course, +160 % de rayon) et elle acidifie le milieu.
+
+`Diffusion acide` et `Homofermentaire strict` jouent donc sur deux bouts
+opposés du même compromis : porter loin et large, ou concentrer et mordre.
 
 ### Épiques — poids 4
 

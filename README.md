@@ -81,10 +81,13 @@ et la biologie réelle l'explique.
 ## Vérification
 
 ```bash
-npm run balance   # invariants d'equilibrage, 400 runs simules (modele abstrait)
-npm run playtest  # la VRAIE boucle de jeu, 3 runs de 12 min sans rendu
-npm run smoke     # chargement, jeu, cartes, tactile (Playwright)
-npm run visual    # captures : portrait, paysage, vue pH, boss
+npm run balance          # invariants d'equilibrage, 400 runs (modele abstrait)
+npm run playtest         # la VRAIE boucle de jeu, 3 runs de 12 min sans rendu
+npm run smoke            # chargement, jeu, cartes, tactile
+npm run visual           # captures : portrait, paysage, vue pH, boss
+npm run sheet            # planche de contact des organismes
+npm run sprites:bake     # toiles de depart editables -> assets/sprites/
+npm run sprites:import   # PNG -> src/render/sprite-data.js
 ```
 
 `balance` sort en code 1 si le plateau de difficulté ou le décrochage final
