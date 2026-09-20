@@ -9,11 +9,11 @@ import { clamp } from '../core/util.js';
 export const BASE = {
   maxHp: 100,
   regen: 0,
-  speed: 118,        // vitesse de pointe, px/s
+  speed: 68,         // vitesse de pointe, px/s
   /* Acceleration : c'est elle qui porte l'inertie. Une valeur finie donne a
      la cellule une mise en train et une glisse, au lieu d'un deplacement
      collant a la touche. La flagellation la module fortement. */
-  accel: 620,        // px/s^2
+  accel: 400,        // px/s^2
   dmg: 10,
   fireRate: 2.2,     // tirs/s
   /* Une goutte d'acide ejectee n'est pas une balle : elle part lentement et
@@ -25,9 +25,11 @@ export const BASE = {
   projectiles: 1,
   spread: 0,
   aaGain: 1,
-  /* Rayon de captation volontairement court : il faut aller CHERCHER les
-     acides amines. C'est ce qui oblige a entrer dans la foule. */
-  pickup: 22,
+  /* Rayon de captation court : il faut aller CHERCHER les acides amines,
+     c'est ce qui oblige a entrer dans la foule. Cale sur la vitesse du
+     joueur : a 22 px avec une cellule a 68 px/s, la recolte ne suivait plus
+     et le joueur sous-montait en niveau (mesure par tools/playtest.mjs). */
+  pickup: 34,
   pull: 1,           // vivacite de l'attraction
   resist: 0,         // reduction de degats, 0..0.75
   hitbox: 3.4,

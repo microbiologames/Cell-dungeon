@@ -3,7 +3,7 @@
    des degats infliges, du ciblage automatique et de qui peut vous toucher.
 --------------------------------------------------------------------------- */
 
-import { clamp, TAU, hash2 } from '../core/util.js';
+import { clamp, TAU } from '../core/util.js';
 
 /* ------------------------------------------------------------- optique -- */
 
@@ -45,6 +45,11 @@ export function makeEnemy(spec, x, y, z, scale) {
     charge: 0,
     alive: true,
     phaseIndex: 0,
+    /* Generation de descendance. Sans ce compteur, les capacites qui
+       engendrent (bourgeonnement, sporulation puis germination) bouclent
+       sans fin : un Bacillus meurt en spore, la spore germe en Bacillus,
+       qui meurt en spore. Mesure a 123 mobs pour un budget de 21. */
+    gen: 0,
   };
 }
 
@@ -160,6 +165,13 @@ export function updateEnemy(e, dt, game) {
   if (e.touchCd > 0) e.touchCd -= dt;
   if (e.ally > 0) e.ally -= dt;
 
+  /* Les organismes neutres vagabondent en profondeur au lieu de converger :
+     ils entrent et sortent du plan net tout seuls. */
+  if (spec.zWander) {
+    e.zPhase = (e.zPhase || 0) + dt * 0.19;
+    e.z = clamp(Math.sin(e.zPhase + e.uid) * 0.85, -1, 1);
+  }
+
   /* Derive vers le plan du joueur : c'est le telegraphe de la vague. */
   const hold = spec.zHold;
   if (hold !== undefined) {
@@ -190,8 +202,8 @@ export function updateEnemy(e, dt, game) {
 
   applyAbility(e, dt, game);
 
-  /* Contact : seulement dans le plan du joueur. */
-  if (e.ally <= 0 && Math.abs(e.z) < IN_PLANE && e.touchCd <= 0) {
+  /* Contact : seulement dans le plan du joueur, et jamais pour un neutre. */
+  if (!spec.neutral && e.ally <= 0 && Math.abs(e.z) < IN_PLANE && e.touchCd <= 0) {
     const dx = e.x - p.x, dy = e.y - p.y;
     const rr = e.radius + p.radius;
     if (dx * dx + dy * dy < rr * rr) {
@@ -239,7 +251,10 @@ function applyAbility(e, dt, game) {
       e.charge += dt;
       if (e.charge > 14) {
         e.alive = false;
-        game.spawnSpecific('bacillus', e.x, e.y, 0, 0.6);
+        const born = game.spawnSpecific('bacillus', e.x, e.y, 0, 0.6);
+        /* Le Bacillus issu d'une germination ne sporulera plus : la boucle
+           s'arrete a une generation. */
+        if (born) born.gen = e.gen + 1;
         game.spark(e.x, e.y, 6);
       }
       break;
@@ -278,6 +293,7 @@ function updateBossPhases(e, dt, game) {
     case 'dispersion': {
       e.charge = 7;
       for (let i = 0; i < 4; i++) {
+        if (!game.hasRoom()) break;
         const a = (i / 4) * TAU;
         game.spawnSpecific('lactococcus', e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 18, 0, 2.2);
       }
@@ -307,7 +323,7 @@ function updateBossPhases(e, dt, game) {
 export function nearestEnemy(game, x, y, range, exclude) {
   let best = null, bestD = range * range;
   for (const e of game.enemies) {
-    if (!e.alive || e === exclude || e.ally > 0) continue;
+    if (!e.alive || e === exclude || e.ally > 0 || e.spec.neutral) continue;
     const dx = e.x - x, dy = e.y - y;
     const d = dx * dx + dy * dy;
     if (d < bestD) { bestD = d; best = e; }
@@ -324,7 +340,8 @@ export function pickTarget(game) {
   const { stats } = p;
   let best = null, bestScore = 0;
   for (const e of game.enemies) {
-    if (!e.alive || e.ally > 0) continue;
+    /* On ne mitraille pas ce qui ne nous menace pas. */
+    if (!e.alive || e.ally > 0 || e.spec.neutral) continue;
     const dx = e.x - p.x, dy = e.y - p.y;
     const dist = Math.hypot(dx, dy);
     if (dist > stats.range) continue;
@@ -336,36 +353,6 @@ export function pickTarget(game) {
     if (score > bestScore) { bestScore = score; best = e; }
   }
   return best;
-}
-
-/* ------------------------------------------------------------- decor ---- */
-
-/** Globules gras generes par hachage : densite infinie, memoire nulle. */
-export function forEachDecor(matrix, cx, cy, radius, removed, fn) {
-  const cell = 64;
-  const x0 = Math.floor((cx - radius) / cell), x1 = Math.floor((cx + radius) / cell);
-  const y0 = Math.floor((cy - radius) / cell), y1 = Math.floor((cy + radius) / cell);
-  const d = matrix.decor;
-  for (let gy = y0; gy <= y1; gy++) {
-    for (let gx = x0; gx <= x1; gx++) {
-      const n = 1 + Math.floor(hash2(gx, gy) * 2);
-      for (let i = 0; i < n; i++) {
-        const h1 = hash2(gx * 31 + i, gy * 17);
-        const h2 = hash2(gx * 13, gy * 29 + i);
-        const h3 = hash2(gx + i * 101, gy - i * 57);
-        const key = `${gx},${gy},${i}`;
-        if (removed.has(key)) continue;
-        const px = gx * cell + h1 * cell;
-        const py = gy * cell + h2 * cell;
-        const dx = px - cx, dy = py - cy;
-        if (dx * dx + dy * dy > radius * radius) continue;
-        const r = d.minR + h3 * (d.maxR - d.minR);
-        /* Profondeur figee : les globules peuplent toute l'epaisseur. */
-        const z = (hash2(gx - i, gy + i) * 2 - 1) * 0.9;
-        fn(px, py, z, r, key);
-      }
-    }
-  }
 }
 
 export function compact(list) {

@@ -34,7 +34,7 @@ export class Director {
   liveCredits() {
     let c = 0;
     for (const e of this.game.enemies) {
-      if (e.alive && e.ally <= 0 && !e.spec.boss) c += e.spec.cost;
+      if (e.alive && e.ally <= 0 && !e.spec.boss && !e.spec.neutral) c += e.spec.cost;
     }
     return c;
   }
@@ -62,6 +62,8 @@ export class Director {
       this.announcedTier = tier;
     }
 
+    this.keepAmbient();
+
     /* Pendant un boss, la piétaille est reduite au quart. */
     const bossFactor = this.bossActive ? 0.25 : 1;
     const target = threatBudget(p) * this.lullFactor * bossFactor;
@@ -74,6 +76,24 @@ export class Director {
       this.spawnAcc -= 1;
       if (!this.spawnOne(tier)) break;
     }
+  }
+
+  /** Entretient la faune neutre : elle donne au champ sa vie et sa
+   *  profondeur, et ne compte pas dans le budget de menace. */
+  keepAmbient() {
+    const g = this.game;
+    const pool = this.matrix.neutrals;
+    if (!pool || !pool.length) return;
+    let n = 0;
+    for (const e of g.enemies) if (e.alive && e.spec.neutral) n++;
+    if (n >= (this.matrix.ambient || 0)) return;
+    const spec = pool[Math.floor(g.rng() * pool.length)];
+    const a = g.rng() * TAU;
+    const d = 120 + g.rng() * 160;
+    const e = makeEnemy(spec, g.player.x + Math.cos(a) * d, g.player.y + Math.sin(a) * d,
+      (g.rng() * 2 - 1) * 0.85, this.scale());
+    e.zPhase = g.rng() * TAU;
+    g.enemies.push(e);
   }
 
   /** Nombre de mobs vivants pour un role donne. */

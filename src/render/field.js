@@ -6,7 +6,8 @@
 import { Screen, VIEW, fade32, mix32, rgba, bayer } from '../core/pixel.js';
 import { clamp, TAU, hash2 } from '../core/util.js';
 import { drawOrganism, drawPlayer, colorOf } from './organisms.js';
-import { forEachDecor, sharpness } from '../game/entities.js';
+import { sharpness } from '../game/entities.js';
+import { forEachDecor } from '../game/decor.js';
 import { UI } from '../data/palette.js';
 
 const HALO = rgba(210, 255, 235, 150);
@@ -40,17 +41,23 @@ export function renderField(scr, game, pal) {
   const margin = 24;
 
   /* --- decor : globules gras, a toutes les profondeurs ------------------ */
-  forEachDecor(game.matrix, camX, camY, fieldR + margin, game.removedDecor,
-    (wx, wy, z, r) => {
-      const s = sharpness(z, game.focus, dof);
+  forEachDecor(game.matrix, camX, camY, fieldR + margin, game.removedDecor, game.time,
+    (it) => {
+      const s = sharpness(it.z, game.focus, dof);
       const bl = blurLevelOf(s);
-      scr.layer(Screen.layerFor(z, bl));
+      scr.layer(Screen.layerFor(it.z, bl));
       const a = 0.35 + 0.5 * s;
-      if (bl >= 2) {
-        scr.ring(toX(wx), toY(wy), r + 1, 1.4, fade32(pal.debrisRim, 0.5 * a));
+      const sx = toX(it.x), sy = toY(it.y);
+      if (it.kind === 'bubble') {
+        /* Bulle d'air : anneau vif et centre vide. Elle repousse, donc elle
+           doit se distinguer au premier coup d'oeil du globule qui colle. */
+        scr.ring(sx, sy, it.r, 1.3, fade32(UI.shield, 0.55 * a));
+        scr.ring(sx, sy, it.r * 0.45, 1, fade32(UI.shield, 0.25 * a));
+      } else {
+        if (bl >= 2) scr.ring(sx, sy, it.r + 1, 1.4, fade32(pal.debrisRim, 0.5 * a));
+        scr.ring(sx, sy, it.r * 0.85, 1.3, fade32(pal.debrisRim, a));
+        scr.disc(sx, sy, it.r * 0.5, fade32(pal.debris, a * 0.8), 0);
       }
-      scr.disc(toX(wx), toY(wy), r,
-        fade32(pal.debris, a), fade32(pal.debrisRim, a));
     });
 
   /* --- zones ------------------------------------------------------------ */
@@ -161,7 +168,7 @@ export function renderField(scr, game, pal) {
   }
   const blink = p.invuln > 0 && Math.floor(p.phase * 12) % 2 === 0;
   if (!blink) {
-    drawPlayer(scr, toX(p.x), toY(p.y), p.radius, p.ang, p.phase, UI, p.flagellaCount);
+    drawPlayer(scr, toX(p.x), toY(p.y), p.radius, p.ang, p.phase, UI, p.flagellation);
   }
 
   scr.composite();
@@ -189,7 +196,7 @@ function zoneColor(z, pal) {
  */
 function drawPhMap(scr, game, fieldR, camX, camY) {
   const f = game.phField;
-  const [lo, hi] = f.range();
+  const [lo, hi] = f.range(camX, camY, fieldR + 20);
   const span = Math.max(0.25, hi - lo);
   scr.clip = false;
   for (let y = -fieldR; y <= fieldR; y++) {

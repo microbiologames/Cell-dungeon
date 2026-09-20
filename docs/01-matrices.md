@@ -19,6 +19,22 @@ Format commun : **12 minutes**, mini-boss à 4:00 et 8:00, boss à 12:00.
 | Oxygène | microaérophile | Neutre |
 | Encombrement | fort | Globules gras (1–8 µm) : obstacles dérivants qui **bloquent les tirs** et masquent |
 
+**Le décor n'est pas un fond.** Deux éléments remplissent le champ et se
+comportent à l'opposé l'un de l'autre :
+
+| Élément | Comportement | Fondement |
+|---|---|---|
+| **Globule gras** | On s'y **adsorbe** : on ralentit à 42 %, on est retenu, on se détache. Il **arrête les gouttes d'acide** — donc c'est un abri, pour vous comme pour les mobs | Les bactéries s'associent réellement à la phase grasse du lait, retenues par la membrane du globule (MFGM). L'acide lactique est hydrosoluble et ne pénètre pas une phase lipidique |
+| **Bulle d'air** | On **rebondit** dessus | Le lait est aéré pendant le pompage |
+
+Les deux interactions sont volontairement opposées pour que le champ se lise
+d'un coup d'œil : ce qui est doré colle, ce qui est clair repousse.
+
+**La faune neutre.** Des **cellules somatiques** (leucocytes de la vache)
+dérivent dans le champ, souvent floues, et ne vous veulent rien. Leur
+numération cellulaire est un critère réglementaire de qualité du lait : elles
+sont réellement là, et elles donnent au champ sa profondeur.
+
 **Signature — le pH est un terrain, pas un compteur.**
 
 Le pH n'est pas une valeur globale : c'est une **carte** (grille 96 × 96 sur

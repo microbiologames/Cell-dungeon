@@ -5,13 +5,25 @@
    constantes, verifie hors du navigateur.
 --------------------------------------------------------------------------- */
 
-import { MILK_MOBS, MILK_BOSSES } from './bestiary.js';
+import { MILK_MOBS, MILK_NEUTRALS, MILK_BOSSES } from './bestiary.js';
 
 /** Population de menace visee, en credits presents SIMULTANEMENT dans le
  *  champ (ce n'est pas un debit : le directeur maintient ce niveau et
  *  reapprovisionne les morts). C'est la densite qui porte la montee
  *  d'intensite, pas les points de vie. 13 -> 57 credits sur un run. */
-export const threatBudget = (p) => 13 * (1 + 3.4 * Math.pow(p, 2.8));
+export const OPENING = 0.12;   // fraction du run consacree a la mise en jambes
+
+export const threatBudget = (p) => {
+  /* OUVERTURE : on demarre avec trois ou quatre bacteries simples, et la
+     population monte jusqu'a son socle sur les 85 premieres secondes. Sans
+     cette rampe, le joueur est jete dans une foule des la premiere seconde.
+     Elle est une PHASE a part entiere, pas le debut du plateau : le
+     simulateur la mesure separement, sinon elle ferait passer le plateau
+     pour rompu. */
+  const socle = 4.5 + 8.5 * Math.min(1, p / OPENING);
+  /* Puis la courbe validee : plateau long, puis decrochage. */
+  return socle * (1 + 3.4 * Math.pow(p, 2.8));
+};
 /** Multiplicateur de PV des mobs : suit la courbe de degats du joueur. */
 export const hpScale = (p) => 1 + 1.9 * Math.pow(p, 1.20);
 /** Multiplicateur de degats des mobs. */
@@ -32,17 +44,27 @@ export const TIER_WEIGHTS = [
  *  et non pas difficile. */
 export const ROLE_CAPS = { ranged: 2, denier: 3, predator: 2, tank: 6 };
 
-/** Courbe d'experience. Calibree pour atteindre le niveau 26-30 en 12 min
- *  avec le revenu d'acides amines reel : verifie par tools/balance-sim.mjs. */
-export const XP_FOR_LEVEL = (n) => 6 + 5 * n + 0.32 * n * n;
+/** Courbe d'experience.
+ *
+ *  Recalibree sur le JEU REEL (tools/playtest.mjs) et non sur le modele
+ *  abstrait : le simulateur supposait que le joueur tue tout ce qu'il peut,
+ *  alors qu'en pratique il passe une bonne part du temps a se replacer et a
+ *  ramasser. L'ancienne courbe promettait le niveau 26 et en donnait 13. */
+export const XP_FOR_LEVEL = (n) => 5 + 4 * n + 0.20 * n * n;
 
 export const MILK = {
   id: 'milk',
   label: 'LAIT CRU',
   subtitle: 'TANK REFRIGERE, 36 H',
   duration: 720,
-  arenaRadius: 560,
+  /* Le champ visible fait environ 110 px de rayon : a 560, on butait sans
+     arret sur le menisque. A 1600 le monde fait une centaine de fois la
+     surface visible, et le bord redevient un evenement. */
+  arenaRadius: 1600,
   pool: MILK_MOBS,
+  neutrals: MILK_NEUTRALS,
+  /* Nombre d'organismes neutres entretenus autour du joueur. */
+  ambient: 3,
   bosses: MILK_BOSSES,
 
   /* Deverrouillage des roles, en secondes. */

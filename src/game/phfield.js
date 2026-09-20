@@ -17,8 +17,10 @@ import { clamp } from '../core/util.js';
 export class PhField {
   constructor(matrix) {
     this.R = matrix.arenaRadius;
-    this.n = 96;
-    this.cell = (2 * this.R) / this.n;
+    /* Maille CONSTANTE, pas un nombre de cases constant : agrandir l'arene
+       ne doit pas rendre les poches d'acide plus grossieres. */
+    this.cell = 12;
+    this.n = Math.ceil((2 * this.R) / this.cell);
     this.base = matrix.chem.phStart;
     this.floor = matrix.chem.phFloor;
     this.grid = new Float32Array(this.n * this.n).fill(this.base);
@@ -75,13 +77,24 @@ export class PhField {
    * Diffusion et retour lent vers le pH du milieu. Tourne a pas fixe :
    * la chimie n'a pas besoin de suivre la frequence d'affichage.
    */
-  update(dt) {
+  update(dt, cx = 0, cy = 0) {
     this.acc += dt;
     if (this.acc < 0.1) return;
     const step = this.acc;
     this.acc = 0;
 
     const { n, grid, tmp, base } = this;
+    /* On ne fait diffuser que la fenetre autour du joueur. Sur une grande
+       arene, la quasi-totalite de la grille est au pH du milieu et n'a rien
+       a echanger : la faire tourner entierement serait du temps perdu.
+       L'acide loin du joueur reste en place, ce qui est aussi le bon
+       comportement physique a cette echelle de temps. */
+    const HALF = 72;
+    const ci = Math.round((cx + this.R) / this.cell);
+    const cj = Math.round((cy + this.R) / this.cell);
+    const i0 = Math.max(1, ci - HALF), i1 = Math.min(n - 2, ci + HALF);
+    const j0 = Math.max(1, cj - HALF), j1 = Math.min(n - 2, cj + HALF);
+    if (i1 < i0 || j1 < j0) return;
     /* Le lait est visqueux et tamponne par les caseines et les phosphates :
        l'acide s'etale lentement et le milieu revient lentement. Avec une
        diffusion rapide, le joueur n'arrivait jamais a acidifier quoi que ce
@@ -89,30 +102,39 @@ export class PhField {
     const diff = Math.min(0.5, 0.18 * step);  // etalement
     const back = Math.min(0.5, 0.012 * step); // tamponnage du milieu
 
-    for (let j = 0; j < n; j++) {
-      for (let i = 0; i < n; i++) {
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
         const k = j * n + i;
-        const l = grid[i > 0 ? k - 1 : k];
-        const r = grid[i < n - 1 ? k + 1 : k];
-        const u = grid[j > 0 ? k - n : k];
-        const d = grid[j < n - 1 ? k + n : k];
-        const avg = (l + r + u + d) * 0.25;
+        const avg = (grid[k - 1] + grid[k + 1] + grid[k - n] + grid[k + n]) * 0.25;
         let v = grid[k] + (avg - grid[k]) * diff;
         v += (base - v) * back;
         tmp[k] = v;
       }
     }
-    this.grid.set(tmp);
+    for (let j = j0; j <= j1; j++) {
+      grid.set(tmp.subarray(j * n + i0, j * n + i1 + 1), j * n + i0);
+    }
   }
 
-  /** Bornes courantes, pour caler l'echelle de la vue en fausses couleurs. */
-  range() {
+  /**
+   * Bornes autour d'un point, pour caler l'echelle de la vue en fausses
+   * couleurs. Bornees a une fenetre : balayer toute la grille a chaque image
+   * couterait bien plus que de l'afficher.
+   */
+  range(cx = 0, cy = 0, radius = 260) {
+    const { n, grid } = this;
+    const r = Math.ceil(radius / this.cell);
+    const ci = Math.round((cx + this.R) / this.cell);
+    const cj = Math.round((cy + this.R) / this.cell);
     let lo = Infinity, hi = -Infinity;
-    for (let k = 0; k < this.grid.length; k++) {
-      const v = this.grid[k];
-      if (v < lo) lo = v;
-      if (v > hi) hi = v;
+    for (let j = Math.max(0, cj - r); j <= Math.min(n - 1, cj + r); j++) {
+      for (let i = Math.max(0, ci - r); i <= Math.min(n - 1, ci + r); i++) {
+        const v = grid[j * n + i];
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
     }
+    if (lo === Infinity) return [this.base, this.base];
     return [lo, hi];
   }
 }

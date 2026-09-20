@@ -9,7 +9,7 @@ import { renderField } from './render/field.js';
 import { renderHud } from './render/hud.js';
 import { Overlay } from './ui/overlay.js';
 import { MATRICES_PALETTE } from './data/palette.js';
-import { forEachDecor } from './game/entities.js';
+import { forEachDecor } from './game/decor.js';
 
 const canvas = document.getElementById('cv');
 const stage = document.getElementById('stage');
@@ -48,8 +48,8 @@ function applyPendingDecorClear() {
   if (!game.pendingDecorClear) return;
   const { x, y, radius } = game.pendingDecorClear;
   game.pendingDecorClear = null;
-  forEachDecor(game.matrix, x, y, radius, game.removedDecor,
-    (wx, wy, z, r, key) => game.removedDecor.add(key));
+  forEachDecor(game.matrix, x, y, radius, game.removedDecor, game.time,
+    (it) => game.removedDecor.add(it.key));
 }
 
 function frame(now) {

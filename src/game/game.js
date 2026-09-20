@@ -7,11 +7,20 @@ import { MATRICES } from '../data/matrices.js';
 import { BESTIARY } from '../data/bestiary.js';
 import { Player } from './player.js';
 import { PhField } from './phfield.js';
+import { collectDecor, applyDecor, decorBlocksBullet } from './decor.js';
 import { Director } from './director.js';
 import {
   makeEnemy, makeBullet, makePickup, makeZone, updateEnemy, pickTarget,
   sharpness, damageFalloff, compact, IN_PLANE, nearestEnemy,
 } from './entities.js';
+
+/* Coefficient de trainee des gouttes d'acide, en 1/s. La distance parcourue
+   plafonne a vitesse / ce coefficient : le changer change la portee reelle. */
+export const BULLET_DRAG = 0.6;
+
+/* Filet de securite : aucune capacite d'engendrement ne peut faire depasser
+   ce nombre d'ennemis. Le directeur, lui, se regule par son budget. */
+export const MAX_ENEMIES = 150;
 
 export const STATE = {
   MENU: 'menu', PLAYING: 'playing', LEVELUP: 'levelup',
@@ -50,6 +59,7 @@ export class Game {
     this.sharpEnemyCount = 0;
     this.playerSlowFactor = 1;
     this.acidComfort = 0;
+    this.decorNear = [];
     this.flash = 0;
     this.shake = 0;
   }
@@ -93,15 +103,31 @@ export class Game {
     this.updateFocus(dt, input.focusAxis, input.takeFocusImpulse());
     if (input.takeDash()) this.player.dash();
 
+    /* Decor proche, recalcule une fois par image et partage par tout le
+       monde : joueur, mobs et projectiles interrogent la meme liste. */
+    this.decorNear = collectDecor(this.matrix, this.player.x, this.player.y,
+      240, this.removedDecor, this.time);
+
     this.computeZoneEffects();
+    const decorSlow = applyDecor(this.player, this.player.radius, this.decorNear, dt);
+    this.playerSlowFactor = Math.min(this.playerSlowFactor, decorSlow);
     this.player.update(dt, input.move, this);
 
     this.director.update(dt);
 
-    for (const e of this.enemies) if (e.alive) updateEnemy(e, dt, this);
+    for (const e of this.enemies) {
+      if (!e.alive) continue;
+      /* Les mobs collent aux globules et rebondissent sur les bulles comme
+         le joueur : le decor n'est pas un privilege. */
+      if (e.spec.mot !== 'none') {
+        const s = applyDecor(e, e.radius, this.decorNear, dt);
+        if (s < 1) { e.slow = Math.max(e.slow, 1 - s); e.slowTtl = Math.max(e.slowTtl, 0.12); }
+      }
+      updateEnemy(e, dt, this);
+    }
 
     this.updateBullets(dt);
-    this.phField.update(dt);
+    this.phField.update(dt, this.player.x, this.player.y);
     this.applyChemistry(dt);
     this.updateZones(dt);
     this.updatePickups(dt);
@@ -163,8 +189,15 @@ export class Game {
         },
       );
       b.hits = new Set();
-      /* La goutte vit le temps d'atteindre la portee, puis se dissout. */
-      b.life = (p.stats.range / Math.max(40, p.stats.bulletSpeed)) * 1.2;
+      /* Duree de vie calculee pour que la goutte atteigne REELLEMENT la
+         portee de ciblage. Avec une trainee exponentielle, la distance
+         parcourue plafonne a v0/k : une valeur de k trop forte rendait une
+         part des cibles designees physiquement inatteignables, et le tir
+         automatique visait dans le vide. */
+      const k = BULLET_DRAG;
+      const reach = p.stats.bulletSpeed / k;              // portee asymptotique
+      const want = Math.min(p.stats.range, reach * 0.92);
+      b.life = -Math.log(1 - (want * k) / p.stats.bulletSpeed) / k;
       b.ttl = b.life;
       b.r0 = p.stats.bulletRadius;
       b.age = 0;
@@ -199,7 +232,7 @@ export class Game {
         const t = clamp(b.age / b.life, 0, 1);
         b.diffuse = t;
         b.radius = b.r0 * (1 + 1.6 * t);
-        const drag = Math.exp(-1.25 * dt);
+        const drag = Math.exp(-BULLET_DRAG * dt);
         b.vx *= drag; b.vy *= drag;
         const chem = this.matrix.chem;
         this.phField.acidify(b.x, b.y, chem.phTrail * (0.3 + t) * dt, b.radius);
@@ -207,6 +240,16 @@ export class Game {
       if (b.zDrift) b.z -= Math.sign(b.z) * Math.min(Math.abs(b.z), b.zDrift * dt);
 
       if (Math.hypot(b.x, b.y) > this.matrix.arenaRadius) { b.alive = false; continue; }
+
+      /* Un globule gras arrete la goutte : l'acide lactique est
+         hydrosoluble et ne penetre pas la phase grasse. C'est donc un abri,
+         pour le joueur comme pour les mobs. */
+      if (!b.hostile && decorBlocksBullet(b.x, b.y, b.radius, this.decorNear)) {
+        this.phField.acidify(b.x, b.y, this.matrix.chem.phDeposit * 0.5, b.radius * 3);
+        this.spark(b.x, b.y, 2);
+        b.alive = false;
+        continue;
+      }
 
       if (b.hostile) {
         if (Math.abs(b.z) < IN_PLANE) {
@@ -444,15 +487,21 @@ export class Game {
       this.pickups.push(makePickup(e.x, e.y, 0, 0, 'plasmid'));
     }
 
-    /* Capacites a la mort, cote mob. */
-    if (e.spec.ability === 'bourgeonnement') {
+    /* Capacites a la mort, cote mob. Bornees par la generation ET par un
+       plafond global : une chaine de divisions doit s'eteindre, jamais
+       diverger. */
+    const room = this.enemies.length < MAX_ENEMIES;
+    if (e.spec.ability === 'bourgeonnement' && e.gen < 1 && room) {
       for (let i = 0; i < 2; i++) {
         const a = this.rng() * TAU;
-        this.spawnSpecific(e.spec.id, e.x + Math.cos(a) * 9, e.y + Math.sin(a) * 9, 0, 0.35, true);
+        const child = this.spawnSpecific(e.spec.id,
+          e.x + Math.cos(a) * 9, e.y + Math.sin(a) * 9, 0, 0.35, true);
+        if (child) child.gen = e.gen + 1;
       }
     }
-    if (e.spec.ability === 'sporulation') {
-      this.spawnSpecific('spore', e.x, e.y, 0, 1);
+    if (e.spec.ability === 'sporulation' && e.gen < 1 && room) {
+      const spore = this.spawnSpecific('spore', e.x, e.y, 0, 1);
+      if (spore) spore.gen = e.gen;
     }
 
     /* Capacites a la mort, cote joueur. */
@@ -572,6 +621,8 @@ export class Game {
   }
 
   /* ------------------------------------------------------------ divers -- */
+
+  hasRoom() { return this.enemies.length < MAX_ENEMIES; }
 
   spawnSpecific(id, x, y, z, scaleMul = 1, weak = false) {
     const spec = BESTIARY[id];

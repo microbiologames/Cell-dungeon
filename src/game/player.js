@@ -51,7 +51,20 @@ export class Player {
     if (this.hp !== undefined) this.hp = Math.min(this.hp, this.stats.maxHp);
   }
 
-  get flagellaCount() { return this.rankOf('flagelle'); }
+  /**
+   * Flagellation visible. Les deux evolutions de DISPOSITION comptent aussi :
+   * sans ca, prendre 'Flagellation polaire en touffe' ne faisait apparaitre
+   * aucun flagelle, alors que ses effets de stats s'appliquaient bien.
+   */
+  get flagellation() {
+    const base = this.rankOf('flagelle');
+    const peri = this.rankOf('peritriche');
+    const pole = this.rankOf('polaire');
+    let mode = 'bundle';
+    if (peri > pole) mode = 'peritriche';
+    else if (pole > 0) mode = 'polaire';
+    return { count: base + peri * 2 + pole * 2, mode };
+  }
 
   /** Cadence effective : siderophores, plus le confort acide.
    *  Une bacterie lactique fonctionne mieux dans l'acide qu'elle produit. */

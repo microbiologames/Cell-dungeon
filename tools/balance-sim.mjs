@@ -15,20 +15,29 @@ import { computeStats, theoreticalDps, BASE } from '../src/game/stats.js';
 import {
   threatBudget, hpScale, dmgScale, XP_FOR_LEVEL, TIER_WEIGHTS, tierAt, MILK,
 } from '../src/data/matrices.js';
+import { MILK_MOBS } from '../src/data/bestiary.js';
 import { mulberry32, weightedPick } from '../src/core/util.js';
 
 const T = MILK.duration;
 const DT = 0.5;
 const RUNS = 400;
 
-/* Mob de reference pour le TTK : la piétaille moyenne du lait cru. */
-const REF_HP = 18;
-const AVG_COST = 1.35;
-const AVG_AA = 2.2;
-const AVG_CONTACT = 6;
+/* Constantes DERIVEES du bestiaire, jamais recopiees : un second jeu de
+   nombres a tenir a jour finit toujours par diverger de celui du jeu. */
+const CHAFF = MILK_MOBS.filter((m) => m.role === 'chaff');
+const BUYABLE = MILK_MOBS.filter((m) => m.cost > 0);
+const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+const REF_HP = mean(CHAFF.map((m) => m.hp));
+const AVG_COST = mean(BUYABLE.map((m) => m.cost));
+const AVG_AA = mean(BUYABLE.map((m) => m.aa));
+const AVG_CONTACT = mean(BUYABLE.map((m) => m.contact));
+/* Part du temps ou le joueur tue effectivement : mesuree dans le jeu reel
+   (tools/playtest.mjs), ou il passe le reste a se replacer et a ramasser. */
+const ENGAGE_KILL = 0.38;
 /* Fraction du temps ou un mob vivant touche effectivement le joueur.
    Un joueur competent se fait toucher rarement : 7 % du temps de presence. */
-const ENGAGEMENT = 0.07;
+const ENGAGEMENT = 0.085;
 /* Pression 1.0 signifie : dix secondes pour mourir au contact soutenu. */
 const DEATH_WINDOW = 10;
 
@@ -44,15 +53,18 @@ const INVARIANTS = {
   /* 1. TTK plat pour qui choisit bien : le joueur tape toujours aussi fort. */
   ttkWindow: { dps: [0.42, 1.25], random: [0.42, 1.90] },
   ttkUntil: 0.8,
-  /* 2a. Plateau : sur la premiere moitie du run, la pression ne doit pas
-         plus que doubler. C'est la "difficulte plate" pendant que la foule,
-         elle, triple. */
-  plateauFrom: 0.08, plateauTo: 0.50, plateauMaxRatio: 1.9,
-  /* 2b. Decrochage : la derniere ligne droite doit au moins doubler la
+  /* 2a. Ouverture : les premieres secondes doivent etre CALMES. C'est une
+         phase voulue, mesuree a part : la confondre avec le plateau ferait
+         passer une bonne mise en jambes pour une difficulte croissante. */
+  openingAt: 0.03, openingBand: [0.08, 0.42],
+  /* 2b. Plateau, mesure APRES l'ouverture : la pression ne doit pas plus
+         que doubler pendant que la foule, elle, triple. */
+  plateauFrom: 0.15, plateauTo: 0.55, plateauMaxRatio: 1.9,
+  /* 2c. Decrochage : la derniere ligne droite doit au moins doubler la
          pression de mi-parcours. C'est le "trop intense, on perd". */
-  breakFrom: 0.50, breakTo: 1.0, breakMinRatio: 2.0,
-  /* 2c. Garde-fous : ni ennuyeux, ni injuste. */
-  absolute: [0.25, 3.2],
+  breakFrom: 0.55, breakTo: 1.0, breakMinRatio: 2.0,
+  /* 2d. Garde-fous : ni ennuyeux, ni injuste. */
+  absolute: [0.08, 3.2],
   /* 3. La foule doit vraiment grossir : c'est elle qui porte l'intensite. */
   crowdMinRatio: 3.0,
 };
@@ -101,7 +113,7 @@ function simulate(policy, seed) {
     /* Le directeur maintient une population, pas un debit : il remplace les
        morts. Le joueur tue donc a sa capacite, et la foule reste a la cible. */
     const alive = threatBudget(p) / AVG_COST;
-    const kills = dps / mobHp;
+    const kills = (dps / mobHp) * ENGAGE_KILL;
 
     /* Mitigation : la vitesse est une defense reelle (on distance la foule),
        et le controle de foule retire des mobs de l'equation. Sans ce terme
@@ -189,16 +201,24 @@ for (const policy of ['random', 'dps']) {
     }
   }
 
+  const opening = at(acc, INVARIANTS.openingAt).pressure;
   const p0 = at(acc, INVARIANTS.plateauFrom).pressure;
   const pMid = at(acc, INVARIANTS.plateauTo).pressure;
   const pEnd = at(acc, INVARIANTS.breakTo).pressure;
   const plateau = pMid / p0;
   const breakup = pEnd / pMid;
-  const crowd = at(acc, 1.0).alive / at(acc, 0).alive;
+  const crowd = at(acc, 1.0).alive / at(acc, INVARIANTS.plateauFrom).alive;
 
-  console.log(`  plateau  x${plateau.toFixed(2)} (max ${INVARIANTS.plateauMaxRatio})`
+  console.log(`  ouverture ${opening.toFixed(2)} `
+    + `[${INVARIANTS.openingBand[0]};${INVARIANTS.openingBand[1]}]`
+    + `   plateau x${plateau.toFixed(2)} (max ${INVARIANTS.plateauMaxRatio})`
     + `   decrochage x${breakup.toFixed(2)} (min ${INVARIANTS.breakMinRatio})`
     + `   foule x${crowd.toFixed(2)} (min ${INVARIANTS.crowdMinRatio})`);
+
+  const [oLo, oHi] = INVARIANTS.openingBand;
+  if (opening < oLo || opening > oHi) {
+    problems.push(`[${label}] ouverture a ${opening.toFixed(2)}, hors de [${oLo};${oHi}]`);
+  }
 
   if (plateau > INVARIANTS.plateauMaxRatio) {
     problems.push(`[${label}] plateau rompu : pression x${plateau.toFixed(2)} sur la premiere moitie`);

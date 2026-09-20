@@ -160,6 +160,42 @@ Un mob n'apparaît pas au bord de l'écran : il apparaît **hors plan focal**,
 la vague se former avant qu'elle n'existe. C'est le rendu du télégraphe :
 pas d'indicateur de HUD, juste de l'optique.
 
+## Trois phases, pas deux
+
+| Phase | Fraction | Pression | Intention |
+|---|---|---|---|
+| **Ouverture** | 0 → 0.12 (85 s) | 0.24 | Trois ou quatre bactéries simples. On prend ses marques |
+| **Plateau** | 0.15 → 0.55 | × 1.86 | La foule triple, la difficulté ne bouge presque pas |
+| **Décrochage** | 0.55 → 1.0 | × 3.20 | Le sol se dérobe |
+
+L'ouverture est une **phase à part entière**, mesurée séparément. La confondre
+avec le plateau faisait passer une bonne mise en jambes pour une difficulté
+croissante et cassait le test — alors que c'est précisément ce qu'on voulait.
+
+## Deux outils, deux rôles
+
+| Outil | Ce qu'il mesure | Ce qu'il ne voit pas |
+|---|---|---|
+| `npm run balance` | Modèle abstrait, 400 runs, invariants de forme | La récolte, le décor, la portée réelle des tirs |
+| `npm run playtest` | **La vraie boucle de jeu**, sans rendu, avec un pilote automatique | Le ressenti, qui demande des mains |
+
+Le second existe parce que le premier s'est trompé. Le modèle abstrait
+supposait que le joueur tue tout ce qu'il peut : il annonçait le niveau 26,
+le jeu réel en donnait 13. Il a aussi manqué deux bugs que seul le jeu réel
+pouvait montrer :
+
+- les gouttes d'acide n'atteignaient **jamais** la portée de ciblage (avec
+  une traînée exponentielle, la distance plafonne à `vitesse / coefficient`,
+  ici 137 px pour une portée annoncée de 190) ;
+- les chaînes de reproduction **divergeaient** : un *Bacillus* meurt en spore,
+  la spore germe en *Bacillus*, qui meurt en spore. Mesuré à 123 mobs pour un
+  budget de 21. Les descendances sont maintenant bornées par génération, avec
+  un plafond global de sécurité.
+
+Les constantes du simulateur sont désormais **dérivées du bestiaire** et non
+recopiées : un second jeu de nombres à tenir à jour finit toujours par
+diverger.
+
 ## Vérification
 
 `tools/balance-sim.mjs` simule 400 runs pour deux politiques de choix
@@ -167,7 +203,8 @@ pas d'indicateur de HUD, juste de l'optique.
 pression toutes les 30 s, et vérifie les invariants de forme.
 
 ```
-npm run balance      # ou : node tools/balance-sim.mjs
+npm run balance      # modele abstrait, invariants de forme
+npm run playtest     # la vraie boucle de jeu, 3 runs complets sans rendu
 ```
 
 Le script sort en code 1 dès qu'un invariant est rompu, en nommant lequel.

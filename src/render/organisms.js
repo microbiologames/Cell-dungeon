@@ -30,6 +30,7 @@ const ROLE_TINT = {
   splitter: ['yeast', 'yeastRim'],
   denier: ['rod', 'rodRim'],
   predator: ['amoeba', 'amoebaRim'],
+  neutral: ['neutral', 'neutralRim'],
 };
 
 export function colorOf(spec, pal) {
@@ -158,11 +159,23 @@ export function drawOrganism(scr, spec, x, y, r, ang, phase, fill, rim) {
 }
 
 /** Le joueur : coque lactique avec un noyau clair et ses flagelles. */
-export function drawPlayer(scr, x, y, r, ang, phase, pal, flagella = 0) {
-  for (let i = 0; i < Math.min(flagella, 6); i++) {
-    const a = ang + Math.PI + (i - (flagella - 1) / 2) * 0.42;
-    const wav = Math.sin(phase * 9 + i * 1.3) * 0.5;
-    scr.seg(x, y, x + Math.cos(a + wav) * r * 2.3, y + Math.sin(a + wav) * r * 2.3,
+export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null) {
+  const f = flagellation || { count: 0, mode: 'bundle' };
+  const n = Math.min(f.count, 10);
+  for (let i = 0; i < n; i++) {
+    let a;
+    if (f.mode === 'peritriche') {
+      /* Repartis sur toute la surface : c'est ce que veut dire peritriche. */
+      a = (i / n) * TAU + phase * 0.3;
+    } else if (f.mode === 'polaire') {
+      /* Touffe serree a un seul pole : lophotriche. */
+      a = ang + Math.PI + (i - (n - 1) / 2) * 0.16;
+    } else {
+      a = ang + Math.PI + (i - (n - 1) / 2) * 0.42;
+    }
+    const wav = Math.sin(phase * 9 + i * 1.3) * (f.mode === 'polaire' ? 0.22 : 0.5);
+    const len = f.mode === 'polaire' ? r * 2.9 : r * 2.3;
+    scr.seg(x, y, x + Math.cos(a + wav) * len, y + Math.sin(a + wav) * len,
       1.1, pal.playerRim, 0);
   }
   const d = r * 0.5;

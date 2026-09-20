@@ -41,6 +41,9 @@ const COMMON_ORG = {
   phage: hexToRgba('#ff8ad4'), phageRim: hexToRgba('#a32c78'),
   boss: hexToRgba('#ff6b52'), bossRim: hexToRgba('#a32c18'),
   amoeba: hexToRgba('#9fb8ff'), amoebaRim: hexToRgba('#3d5299'),
+  /* Faune neutre : delave a dessein. Elle doit meubler le champ sans jamais
+     se confondre avec une menace. */
+  neutral: hexToRgba('#8d94a8'), neutralRim: hexToRgba('#4a5060'),
 };
 
 export const MATRICES_PALETTE = {

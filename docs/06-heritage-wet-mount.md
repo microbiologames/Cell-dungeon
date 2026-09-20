@@ -103,6 +103,19 @@ saturation**, qui est le cœur de l'équilibrage (voir `04-vagues-equilibrage.md
 **À la place** : arène **bornée** par le ménisque de la goutte, avec une
 poussée de rappel élastique aux bords. On peut être acculé — c'est le but.
 
+> **Révision après test.** L'arène faisait 560 px de rayon pour un champ
+> visible de 110 : on butait sans arrêt sur le bord, et le monde paraissait
+> minuscule. Elle est passée à **1600**, soit une centaine de fois la surface
+> visible. Le bord redevient un événement plutôt qu'une clôture.
+>
+> L'option du monde torique a été réexaminée à cette occasion et écartée à
+> nouveau, pour la même raison qu'au départ : dans une arène qui boucle, fuir
+> indéfiniment est gratuit, ce qui désamorce la mort par saturation sur
+> laquelle repose tout le décrochage final (`04-vagues-equilibrage.md`).
+> Agrandir règle le problème ressenti — l'espace — sans toucher à celui-là.
+> Le coût est nul : le directeur ne peuple que les environs du joueur, et la
+> grille de pH ne fait diffuser qu'une fenêtre autour de lui.
+
 ---
 
 ## ✅ Gardé — et pourquoi ça tient
