@@ -10,6 +10,9 @@ import { renderHud } from './render/hud.js';
 import { Overlay } from './ui/overlay.js';
 import { MATRICES_PALETTE } from './data/palette.js';
 import { forEachDecor } from './game/decor.js';
+/* Active les sprites adoptes. Le registre ne contient que ceux-la ; toute
+   espece absente garde sa forme procedurale et son animation. */
+import './render/sprite-data.js';
 
 const canvas = document.getElementById('cv');
 const stage = document.getElementById('stage');

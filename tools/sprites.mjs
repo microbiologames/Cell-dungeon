@@ -56,6 +56,48 @@ await page.goto('http://localhost:8093/index.html');
 
 await mkdir(SPRITE_DIR, { recursive: true });
 
+/* ------------------------------------------------------------- palette --- */
+/* Ecrit la palette du jeu en image, pour la passer en input_palette a la
+   generation. Sans elle, le generateur sort des couleurs plus saturees que
+   celles du jeu et l'illustration jure avec le reste. */
+if (MODE === 'palette') {
+  const dataUrl = await page.evaluate(async () => {
+    const { MATRICES_PALETTE, UI } = await import('./src/data/palette.js');
+    const pal = MATRICES_PALETTE.milk;
+    const pick = [
+      UI.player, UI.playerRim, UI.playerCore,
+      UI.acid, UI.acidRim, UI.acidCore,
+      UI.aa, UI.aaGlow, UI.plasmid,
+      UI.hostile, UI.damage, UI.heal, UI.gel, UI.shield, UI.ally,
+      pal.bact, pal.bactRim, pal.rod, pal.rodRim, pal.fast, pal.fastRim,
+      pal.yeast, pal.yeastRim, pal.spore, pal.sporeRim,
+      pal.hypha, pal.hyphaRim, pal.phage, pal.phageRim,
+      pal.boss, pal.bossRim, pal.amoeba, pal.amoebaRim,
+      pal.neutral, pal.neutralRim, pal.debris, pal.debrisRim, pal.edge,
+      0xff000000, 0xff0a1410,
+    ];
+    const S = 8;
+    const cols = 8;
+    const rows = Math.ceil(pick.length / cols);
+    const cv = document.createElement('canvas');
+    cv.width = cols * S; cv.height = rows * S;
+    const g = cv.getContext('2d');
+    pick.forEach((c, i) => {
+      const r = c & 255, gg = (c >> 8) & 255, b = (c >> 16) & 255;
+      g.fillStyle = `rgb(${r},${gg},${b})`;
+      g.fillRect((i % cols) * S, Math.floor(i / cols) * S, S, S);
+    });
+    return cv.toDataURL('image/png');
+  });
+  await mkdir(join(ROOT, 'assets/reference'), { recursive: true });
+  const out = join(ROOT, 'assets/reference/palette.png');
+  await writeFile(out, Buffer.from(dataUrl.split(',')[1], 'base64'));
+  console.log(`palette du jeu ecrite dans ${out}`);
+  console.log('Usage : node tools/rd.mjs gen ... --palette assets/reference/palette.png');
+  await browser.close(); srv.close();
+  process.exit(0);
+}
+
 /* --------------------------------------------------------------- bake --- */
 if (MODE === 'bake') {
   const sizeArg = process.argv.indexOf('--size');
@@ -99,17 +141,21 @@ if (MODE === 'bake') {
     return out;
   }, forcedSize);
 
-  const dir = forcedSize ? join(ROOT, 'assets/reference/gen-src') : SPRITE_DIR;
+  /* Les toiles de depart ne vont PLUS dans assets/sprites/. Ce dossier ne
+     contient que les sprites ADOPTES : y deverser les treize toiles faisait
+     perdre a chaque espece son animation procedurale au profit d'une image
+     fixe qui, pour la plupart, n'apportait rien. */
+  const dir = join(ROOT, forcedSize ? 'assets/reference/gen-src' : 'assets/reference/bake');
   await mkdir(dir, { recursive: true });
   for (const f of files) {
     const b64 = f.dataUrl.split(',')[1];
     await writeFile(join(dir, `${f.id}.png`), Buffer.from(b64, 'base64'));
   }
-  console.log(`${files.length} toiles ecrites dans ${forcedSize ? 'assets/reference/gen-src/' : 'assets/sprites/'}`
+  console.log(`${files.length} toiles ecrites dans ${forcedSize ? 'assets/reference/gen-src/' : 'assets/reference/bake/'}`
     + (forcedSize ? ` (${forcedSize}px, avec marge — sources img2img)` : ''));
   console.log(forcedSize
     ? 'Puis : node tools/rd.mjs gen <id> "<prompt>" --from assets/reference/gen-src/<id>.png --w 64 --h 64'
-    : 'Retouche-les, puis : node tools/sprites.mjs import');
+    : 'Retouche, puis COPIE dans assets/sprites/ ce que tu adoptes, et : node tools/sprites.mjs import');
   await browser.close(); srv.close();
   process.exit(0);
 }

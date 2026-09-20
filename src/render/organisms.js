@@ -189,7 +189,31 @@ export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null) {
   const d = r * 0.5;
   /* Liseré sombre : sans lui, le joueur se perd dans la foule lumineuse. */
   scr.disc(x, y, r * 1.55, rgba(0, 0, 0, 190), 0);
-  scr.disc(x - Math.cos(ang) * d, y - Math.sin(ang) * d, r * 0.8, pal.player, pal.playerRim);
-  scr.disc(x + Math.cos(ang) * d, y + Math.sin(ang) * d, r * 0.8, pal.player, pal.playerRim);
-  scr.disc(x, y, r * 0.34, pal.playerCore, 0);
+
+  /* Eclairage FIXE en haut a gauche, independant de l'orientation : la
+     lumiere ne tourne pas avec la cellule. A sept pixels de large, un liseré
+     tout autour se lit comme une tache sombre ; un croissant d'ombre d'un
+     seul cote se lit comme une sphere. C'est la recette classique du pixel
+     art de petite taille, et c'est ce qui donne du volume au joueur qu'on
+     regarde en permanence. */
+  const LX = -0.7, LY = -0.7;
+  const lobe = (cx, cy, rad) => {
+    /* 1. la paroi : disque plein dans la couleur du liseré */
+    scr.disc(cx, cy, rad, pal.playerRim, 0);
+    /* 2. le cytoplasme, DECALE vers la lumiere et nettement plus petit :
+          ce qui depasse du cote oppose est le croissant d'ombre. Avec un
+          decalage trop faible ou un disque trop gros, le croissant
+          disparait et les deux lobes fusionnent en une masse. */
+    scr.disc(cx + LX * rad * 0.24, cy + LY * rad * 0.24, rad * 0.70, pal.player, 0);
+    /* 3. le reflet speculaire : un pixel ou deux, mais c'est lui qui vend
+          la sphere. Chaque lobe a le sien, du meme cote. */
+    scr.disc(cx + LX * rad * 0.42, cy + LY * rad * 0.42, Math.max(0.5, rad * 0.24),
+      pal.playerCore, 0);
+  };
+
+  /* Les deux lobes sont dessines l'un apres l'autre : la paroi du second
+     trace naturellement le septum entre les deux cellules accolees. */
+  const ax = Math.cos(ang) * d, ay = Math.sin(ang) * d;
+  lobe(x - ax, y - ay, r * 0.8);
+  lobe(x + ax, y + ay, r * 0.8);
 }

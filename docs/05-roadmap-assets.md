@@ -41,15 +41,22 @@ Mesuré, pas supposé (voir `.claude/skills/sprites/`) :
 
 | Cible | Taille | Verdict |
 |---|---|---|
-| Sprites in-game | 4 – 34 px | **Le générateur n'apporte rien.** À cette taille tout pixel ajouté en retire un qui portait de l'information. Monter `strength` fusionne les cellules d'une grappe |
+| Sprites in-game, silhouette **complexe** | 26 – 34 px | **Gain réel, à condition de verrouiller la palette** (`input_palette`). Sans elle, le liseré hors palette fusionne les cellules |
+| Sprites in-game, silhouette **lisse** | 4 – 20 px | Le générateur n'apporte rien : une capsule gagne un point blanc |
+| Sprites d'organismes **déformables** (amibe, chaînette) | — | Refuser : le sprite tue l'animation procédurale |
 | **Vignettes de cartes d'évolution** | 96 px, en **DOM** | **C'est là qu'il brille.** Tramage, liserés, reflets — très au-dessus du procédural |
 | Écran-titre, portraits de boss | libre | Même logique |
 
 La contrainte n'était pas le sujet, mais la taille.
 
 ```bash
+node tools/sprites.mjs palette   # palette du jeu -> assets/reference/palette.png
 node tools/rd.mjs gen carte "<prompt>" --w 96 --h 96 --out assets/cards/<id>.png
 ```
+
+**Écrire les prompts en objet, pas en scène.** Le modèle a un seul fort a
+priori pour « microbe » — une boule hérissée — et toute demande de *relation*
+entre deux objets y retombe. Quatre vignettes sur six ont été retenues.
 
 `src/ui/overlay.js` charge `assets/cards/<id_evolution>.png` et retire
 l'image d'elle-même si elle manque : les 55 vignettes peuvent arriver une

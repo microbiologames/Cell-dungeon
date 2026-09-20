@@ -106,6 +106,71 @@ n'ajoute que le travail de pixel art (liserés, reflets). C'est exactement le
 bon partage : la microbiologie vient de nous, la facture graphique vient de
 lui. C'est donc le SEUL mode à utiliser ici.
 
+### `input_palette` : la pièce qui manquait
+
+Le liseré qui fusionnait les cellules à `strength` élevé venait de couleurs
+**hors palette** (un corail vif). En passant la palette du jeu en
+`input_palette`, le problème disparaît : à 0.60 les séparations entre coques
+survivent, et les reflets — pris dans *notre* palette — donnent du volume.
+Le résultat est alors **meilleur que la forme procédurale**.
+
+```bash
+node tools/sprites.mjs palette      # → assets/reference/palette.png
+node tools/rd.mjs gen <id> "<prompt>" --w 64 --h 64 \
+     --from assets/reference/gen-src/<id>.png --strength 0.6 \
+     --palette assets/reference/palette.png
+```
+
+### Le gain dépend de la COMPLEXITÉ de la silhouette
+
+Mesuré sur cinq organismes, tous à 0.60 + palette :
+
+| Organisme | Silhouette | Gain réel |
+|---|---|---|
+| *S. aureus* (grappe de 7 coques) | complexe | **fort** — volume, séparations, adopté |
+| *Listeria* (capsule lisse) | simple | faible — un reflet. Adopté quand même, aucune perte |
+| *Kluyveromyces* (ovale + bourgeon) | simple | nul à 13 px |
+| Cellule somatique (amibe) | complexe mais **animée** | refusé : le sprite tuerait les pseudopodes |
+| Joueur (deux disques plats) | trop simple | **négatif** — n'a ajouté que du bruit |
+
+**Règle** : une silhouette riche gagne du volume, une silhouette lisse gagne
+un point blanc. Ne générer que ce qui a de la structure à éclairer.
+
+### `assets/sprites/` se CURE, ne se déverse pas
+
+`bake` écrit désormais dans `assets/reference/bake/`. On **copie à la main**
+dans `assets/sprites/` ce qu'on adopte, et rien d'autre. Y déverser les treize
+toiles ferait perdre à chaque espèce son animation procédurale au profit d'une
+image fixe qui, pour la plupart, n'apporte rien.
+
+### Le joueur : à la main, pas généré
+
+À 7 px de large, la génération n'a ajouté que des artefacts. Ce qui a marché
+est un **éclairage directionnel fixe en haut à gauche** codé à la main dans
+`drawPlayer` : paroi pleine, cytoplasme décalé vers la lumière (le débord du
+côté opposé fait le croissant d'ombre), un pixel de reflet spéculaire par
+lobe. Les deux lobes dessinés l'un après l'autre tracent naturellement le
+septum.
+
+Deux pièges rencontrés : un décalage trop grand ou un cytoplasme trop gros
+efface le croissant et fond les deux lobes en une masse ; un flagelle dessiné
+en deux segments se lit comme une barre. Les valeurs retenues sont dans le
+code, commentées.
+
+### Ce que le modèle ne sait pas dessiner
+
+Sur six vignettes de cartes, quatre sont utilisables. Le modèle a **un seul
+fort a priori pour « microbe » : une boule hérissée façon coronavirus**, et
+il l'applique partout.
+
+| Demande | Résultat |
+|---|---|
+| Un objet unique (phages sur une cellule, vésicules libérées) | ✅ marche |
+| Une **relation** entre deux objets (une bactérie perçant une autre, un gel de fibrine autour) | ❌ redevient une boule hérissée |
+
+Écrire les prompts en **objet**, pas en scène. Les deux échecs (`coagulase`,
+`predation`) n'ont pas été livrés.
+
 ### Le balayage de `strength` : le résultat contre-intuitif
 
 Testé sur *S. aureus* (grappe, 28 px en jeu) à 0.45 et 0.75.
