@@ -68,14 +68,23 @@ export class Overlay {
       btn.type = 'button';
       const col = RARITY_HEX[evo.rarity] || '#cfe6d8';
       btn.style.borderLeft = `3px solid ${col}`;
+      /* L'illustration est FACULTATIVE : si assets/cards/<id>.png n'existe
+         pas, l'image se retire d'elle-meme et la carte reste identique a
+         avant. Les vignettes peuvent donc arriver une par une. */
       btn.innerHTML = `
-        <div class="top">
-          <span class="name">${i + 1}. ${escapeHtml(evo.label)}</span>
-          <span class="rar" style="color:${col}">${RARITY[evo.rarity].label}</span>
-        </div>
-        <div class="desc">${escapeHtml(evo.desc)}</div>
-        ${rank ? `<div class="rank">RANG ${rank} / ${evo.ranks}</div>` : ''}
-        ${evo.note ? `<div class="note">${escapeHtml(evo.note)}</div>` : ''}`;
+        <div class="body">
+          <img class="art" src="assets/cards/${encodeURIComponent(evo.id)}.png" alt=""
+               onerror="this.remove()">
+          <div class="txt">
+            <div class="top">
+              <span class="name">${i + 1}. ${escapeHtml(evo.label)}</span>
+              <span class="rar" style="color:${col}">${RARITY[evo.rarity].label}</span>
+            </div>
+            <div class="desc">${escapeHtml(evo.desc)}</div>
+            ${rank ? `<div class="rank">RANG ${rank} / ${evo.ranks}</div>` : ''}
+            ${evo.note ? `<div class="note">${escapeHtml(evo.note)}</div>` : ''}
+          </div>
+        </div>`;
       btn.onclick = () => {
         this.hideAll();
         g.chooseEvolution(evo.id);

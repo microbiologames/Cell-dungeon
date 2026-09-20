@@ -8,6 +8,8 @@
      node tools/rd.mjs credits            solde, et donc validite de la cle
      node tools/rd.mjs cost "<prompt>"    estimation GRATUITE, rien n'est genere
      node tools/rd.mjs gen <id> "<prompt>" [--w 32] [--h 32] [--style <id>]
+                                          [--from <src>] [--strength 0.45]
+                                          [--out <fichier>] [--expand]
                                           ecrit assets/sprites/<id>.png, pret
                                           pour node tools/sprites.mjs import
 
@@ -168,7 +170,9 @@ if (cmd === 'cost' || cmd === 'gen') {
     ?? payloadOut?.data?.[0]?.b64_json
     ?? (typeof payloadOut?.images?.[0] === 'string' ? payloadOut.images[0] : null);
   if (b64) {
-    const file = join('assets/sprites', `${id}.png`);
+    /* --out permet d'ecrire ailleurs que dans assets/sprites : les vignettes
+       de cartes d'evolution ne sont pas des sprites de jeu. */
+    const file = arg('out', null) || join('assets/sprites', `${id}.png`);
     await writeFile(file, Buffer.from(b64.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
     console.log(`ecrit ${file}  (${payloadOut.balance_cost ?? '?'} $, solde restant ${payloadOut.remaining_balance ?? '?'})`);
     console.log('puis : node tools/sprites.mjs import');

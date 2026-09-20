@@ -35,6 +35,26 @@ retirer un qui déçoit.
 
 Les conventions détaillées vivent dans le skill `.claude/skills/sprites/`.
 
+## Le générateur sert aux cartes, pas aux sprites
+
+Mesuré, pas supposé (voir `.claude/skills/sprites/`) :
+
+| Cible | Taille | Verdict |
+|---|---|---|
+| Sprites in-game | 4 – 34 px | **Le générateur n'apporte rien.** À cette taille tout pixel ajouté en retire un qui portait de l'information. Monter `strength` fusionne les cellules d'une grappe |
+| **Vignettes de cartes d'évolution** | 96 px, en **DOM** | **C'est là qu'il brille.** Tramage, liserés, reflets — très au-dessus du procédural |
+| Écran-titre, portraits de boss | libre | Même logique |
+
+La contrainte n'était pas le sujet, mais la taille.
+
+```bash
+node tools/rd.mjs gen carte "<prompt>" --w 96 --h 96 --out assets/cards/<id>.png
+```
+
+`src/ui/overlay.js` charge `assets/cards/<id_evolution>.png` et retire
+l'image d'elle-même si elle manque : les 55 vignettes peuvent arriver une
+par une.
+
 ## Sprite ou procédural : ce qu'on perd
 
 Le rendu par sprite applique la rotation, pas les déformations.

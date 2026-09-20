@@ -135,6 +135,34 @@ Toujours juger à la taille réelle, jamais en grand :
 SIZE=28 node tools/at-size.mjs a.png b.png c.png
 ```
 
+### Où le générateur est vraiment bon : les vignettes de cartes
+
+Testé en 96×96 sur `Phage lytique`, en texte seul, sans silhouette source.
+**Résultat très au-dessus de tout ce qu'on obtient à la taille des sprites** :
+tramage, liserés, reflet sur le noyau, structure en anneaux, 63 % de
+transparence, 0 pixel sur le bord.
+
+La contrainte n'était donc **pas le sujet, mais la taille**. À 96 px le
+modèle a la place de dire quelque chose ; à 28 px il n'en a pas.
+
+Les cartes d'évolution sont en **DOM**, pas dans le canvas : rien ne les
+oblige à la résolution du jeu. C'est le meilleur emploi du générateur.
+
+```bash
+node tools/rd.mjs gen carte "<prompt>" --w 96 --h 96 \
+     --out assets/cards/<id_evolution>.png
+```
+
+Le nom du fichier est l'**identifiant de l'évolution** (`lytique`,
+`coagulase`, `vesicules`…). `src/ui/overlay.js` charge
+`assets/cards/<id>.png` et **retire l'image d'elle-même si elle n'existe
+pas** : les vignettes arrivent une par une sans rien casser.
+
+Réserve : la palette générée est plus saturée que celle du jeu. Le paramètre
+`input_palette` (une image de palette) devrait la contraindre — non testé.
+
+Coût : 0,030 $ en 96×96.
+
 ### Les quatre réglages qui comptent
 
 | Paramètre | Pourquoi |

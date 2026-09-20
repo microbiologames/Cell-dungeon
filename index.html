@@ -61,6 +61,14 @@
     transition: border-color .1s, transform .1s;
   }
   .card:hover, .card:focus-visible { border-color: var(--hot); transform: translateX(2px); outline: none; }
+  .card .body { display: flex; gap: 3%; align-items: flex-start; }
+  .card .txt { flex: 1; min-width: 0; }
+  /* Vignette d'evolution : rendue au plus proche voisin, comme le jeu. */
+  .card .art {
+    width: clamp(34px, 13vmin, 62px); height: auto; flex: none;
+    image-rendering: pixelated; image-rendering: crisp-edges;
+    border: 1px solid var(--line); background: #000;
+  }
   .card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
   .card .name { font-size: clamp(9px, 2.7vmin, 14px); letter-spacing: .04em; }
   .card .rar  { font-size: clamp(7px, 1.9vmin, 10px); letter-spacing: .1em; white-space: nowrap; }

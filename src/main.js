@@ -101,6 +101,7 @@ requestAnimationFrame(frame);
 window.__game = game;
 window.__screen = scr;
 window.__view = VIEW;
+window.__overlay = overlay;
 
 /* Pause automatique quand l'onglet part : on ne meurt pas hors de l'ecran. */
 addEventListener('visibilitychange', () => {
