@@ -64,9 +64,7 @@ export class Director {
 
     this.keepAmbient();
 
-    /* Pendant un boss, la piétaille est reduite au quart. */
-    const bossFactor = this.bossActive ? 0.25 : 1;
-    const target = threatBudget(p) * this.lullFactor * bossFactor;
+    const target = this.targetCredits();
     const deficit = target - this.liveCredits();
     if (deficit <= 0) return;
 
@@ -88,13 +86,30 @@ export class Director {
     for (const e of g.enemies) if (e.alive && e.spec.neutral) n++;
     if (n >= (this.matrix.ambient || 0)) return;
     const spec = pool[Math.floor(g.rng() * pool.length)];
-    const a = g.rng() * TAU;
-    const d = 120 + g.rng() * 160;
-    const e = makeEnemy(spec, g.player.x + Math.cos(a) * d, g.player.y + Math.sin(a) * d,
-      (g.rng() * 2 - 1) * 0.85, this.scale());
+    const q = g.arena.spawnNear(g.rng, g.player.x, g.player.y, 120, 280);
+    const e = makeEnemy(spec, q.x, q.y, (g.rng() * 2 - 1) * 0.85, this.scale());
     e.zPhase = g.rng() * TAU;
     g.enemies.push(e);
   }
+
+  /** Population de menace VISEE a cet instant.
+   *
+   *  Expose parce que la matrice peut engendrer en dehors du directeur : une
+   *  plaque de biofilm emet indefiniment, et sans ce garde-fou elle double la
+   *  population sans que personne ne l'ait decide. Toute source d'ennemis
+   *  doit interroger le meme budget, sinon il ne veut plus rien dire. */
+  targetCredits() {
+    /* Pendant un boss, la pietaille est reduite au quart. */
+    const bossFactor = this.bossActive ? 0.25 : 1;
+    /* Un couloir concentre : a budget egal, la pression au metre carre visible
+       y est bien plus forte que dans une goutte. Le facteur est une propriete
+       de la FORME de l'arene, pas un reglage de difficulte. */
+    const forme = this.matrix.budgetScale ?? 1;
+    return threatBudget(this.p) * this.lullFactor * bossFactor * forme;
+  }
+
+  /** Reste-t-il de la place dans le budget de menace ? */
+  hasBudget() { return this.liveCredits() < this.targetCredits(); }
 
   /** Nombre de mobs vivants pour un role donne. */
   countRole(role) {
@@ -116,7 +131,7 @@ export class Director {
       const w = weights[role];
       if (!w) continue;
       if (unlocks[role] !== undefined && g.time < unlocks[role]) continue;
-      const cap = ROLE_CAPS[role];
+      const cap = (this.matrix.roleCaps || ROLE_CAPS)[role];
       if (cap !== undefined && this.countRole(role) >= cap) continue;
       /* Les spores ne s'achetent pas : elles naissent d'un Bacillus. */
       if (spec.cost === 0) continue;
@@ -134,19 +149,13 @@ export class Director {
    *  telegraphe : le joueur voit la vague se former avant qu'elle n'existe. */
   spawnAt(spec) {
     const g = this.game;
-    const a = g.rng() * TAU;
     /* Deux contraintes a la fois :
          - dans le champ visible (rayon ~124 px), sinon la mise au point ne
            telegraphie plus rien ;
          - a portee d'engagement, sinon les especes IMMOBILES apparaissent
            trop loin et n'arrivent jamais : mesure a 125-140 px du joueur
            pour une portee de 96, le joueur ne tirait plus du tout. */
-    const d = 54 + g.rng() * 70;
-    let x = g.player.x + Math.cos(a) * d;
-    let y = g.player.y + Math.sin(a) * d;
-    const R = this.matrix.arenaRadius;
-    const dist = Math.hypot(x, y);
-    if (dist > R) { const k = (R - 8) / dist; x *= k; y *= k; }
+    const { x, y } = g.arena.spawnNear(g.rng, g.player.x, g.player.y, 54, 124);
 
     const sign = g.rng() < 0.5 ? -1 : 1;
     const z = spec.zHold !== undefined
@@ -167,11 +176,10 @@ export class Director {
         const spec = this.matrix.bosses[ev.id];
         if (!spec) break;
         this.bossActive = true;
-        const a = g.rng() * TAU;
         /* Dans le champ visible (rayon 104 px) : a 130 px on ne voyait
            que la barre de vie du boss depasser du bord. */
-        const e = makeEnemy(spec, g.player.x + Math.cos(a) * 86,
-          g.player.y + Math.sin(a) * 86, 0.8, this.scale());
+        const q = g.arena.spawnNear(g.rng, g.player.x, g.player.y, 80, 92);
+        const e = makeEnemy(spec, q.x, q.y, 0.8, this.scale());
         e.isBoss = true;
         g.enemies.push(e);
         g.boss = e;
@@ -181,9 +189,8 @@ export class Director {
       case 'sporewave':
         g.announce('SPORULATION');
         for (let i = 0; i < 6; i++) {
-          const a = (i / 6) * TAU;
-          g.spawnSpecific('bacillus', g.player.x + Math.cos(a) * 140,
-            g.player.y + Math.sin(a) * 140, 0.7, 1);
+          const q = g.arena.spawnNear(g.rng, g.player.x, g.player.y, 130, 150);
+          g.spawnSpecific('bacillus', q.x, q.y, 0.7, 1);
         }
         break;
       default:

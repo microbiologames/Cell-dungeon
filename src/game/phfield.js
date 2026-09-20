@@ -15,23 +15,29 @@
 import { clamp } from '../core/util.js';
 
 export class PhField {
-  constructor(matrix) {
-    this.R = matrix.arenaRadius;
+  /** @param {object} matrix @param {{halfX:number,halfY:number}} arena */
+  constructor(matrix, arena) {
+    /* La grille epouse la FORME de l'arene. Une conduite fait 1400 x 110 :
+       lui allouer un carre de 1400 de cote gaspillerait 92 % des cases et
+       ferait travailler la diffusion sur de l'acier. */
+    this.ox = arena ? arena.halfX : matrix.arenaRadius;
+    this.oy = arena ? arena.halfY : matrix.arenaRadius;
     /* Maille CONSTANTE, pas un nombre de cases constant : agrandir l'arene
        ne doit pas rendre les poches d'acide plus grossieres. */
     this.cell = 12;
-    this.n = Math.ceil((2 * this.R) / this.cell);
+    this.nx = Math.ceil((2 * this.ox) / this.cell);
+    this.ny = Math.ceil((2 * this.oy) / this.cell);
     this.base = matrix.chem.phStart;
     this.floor = matrix.chem.phFloor;
-    this.grid = new Float32Array(this.n * this.n).fill(this.base);
-    this.tmp = new Float32Array(this.n * this.n);
+    this.grid = new Float32Array(this.nx * this.ny).fill(this.base);
+    this.tmp = new Float32Array(this.nx * this.ny);
     this.acc = 0;
   }
 
   _ij(x, y) {
-    const i = clamp(Math.floor((x + this.R) / this.cell), 0, this.n - 1);
-    const j = clamp(Math.floor((y + this.R) / this.cell), 0, this.n - 1);
-    return j * this.n + i;
+    const i = clamp(Math.floor((x + this.ox) / this.cell), 0, this.nx - 1);
+    const j = clamp(Math.floor((y + this.oy) / this.cell), 0, this.ny - 1);
+    return j * this.nx + i;
   }
 
   /** pH au point demande (plus proche voisin). */
@@ -40,14 +46,14 @@ export class PhField {
   /** pH interpole : sans ca, la carte en fausses couleurs montre la grille
    *  sous forme de gros carres, ce qui n'a rien d'un gradient chimique. */
   atSmooth(x, y) {
-    const { n, cell, R, grid } = this;
-    const fx = clamp((x + R) / cell - 0.5, 0, n - 1);
-    const fy = clamp((y + R) / cell - 0.5, 0, n - 1);
+    const { nx, ny, cell, grid } = this;
+    const fx = clamp((x + this.ox) / cell - 0.5, 0, nx - 1);
+    const fy = clamp((y + this.oy) / cell - 0.5, 0, ny - 1);
     const i0 = Math.floor(fx), j0 = Math.floor(fy);
-    const i1 = Math.min(i0 + 1, n - 1), j1 = Math.min(j0 + 1, n - 1);
+    const i1 = Math.min(i0 + 1, nx - 1), j1 = Math.min(j0 + 1, ny - 1);
     const tx = fx - i0, ty = fy - j0;
-    const a = grid[j0 * n + i0], b = grid[j0 * n + i1];
-    const c = grid[j1 * n + i0], d = grid[j1 * n + i1];
+    const a = grid[j0 * nx + i0], b = grid[j0 * nx + i1];
+    const c = grid[j1 * nx + i0], d = grid[j1 * nx + i1];
     return (a + (b - a) * tx) + ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
   }
 
@@ -59,15 +65,15 @@ export class PhField {
       return;
     }
     const r = Math.ceil(radius / this.cell);
-    const ci = clamp(Math.floor((x + this.R) / this.cell), 0, this.n - 1);
-    const cj = clamp(Math.floor((y + this.R) / this.cell), 0, this.n - 1);
+    const ci = clamp(Math.floor((x + this.ox) / this.cell), 0, this.nx - 1);
+    const cj = clamp(Math.floor((y + this.oy) / this.cell), 0, this.ny - 1);
     for (let dj = -r; dj <= r; dj++) {
       for (let di = -r; di <= r; di++) {
         const i = ci + di, j = cj + dj;
-        if (i < 0 || j < 0 || i >= this.n || j >= this.n) continue;
+        if (i < 0 || j < 0 || i >= this.nx || j >= this.ny) continue;
         const d = Math.hypot(di, dj) / r;
         if (d > 1) continue;
-        const k = j * this.n + i;
+        const k = j * this.nx + i;
         this.grid[k] = Math.max(this.floor, this.grid[k] - amount * (1 - d));
       }
     }
@@ -83,17 +89,17 @@ export class PhField {
     const step = this.acc;
     this.acc = 0;
 
-    const { n, grid, tmp, base } = this;
+    const { nx, ny, grid, tmp, base } = this;
     /* On ne fait diffuser que la fenetre autour du joueur. Sur une grande
        arene, la quasi-totalite de la grille est au pH du milieu et n'a rien
        a echanger : la faire tourner entierement serait du temps perdu.
        L'acide loin du joueur reste en place, ce qui est aussi le bon
        comportement physique a cette echelle de temps. */
     const HALF = 72;
-    const ci = Math.round((cx + this.R) / this.cell);
-    const cj = Math.round((cy + this.R) / this.cell);
-    const i0 = Math.max(1, ci - HALF), i1 = Math.min(n - 2, ci + HALF);
-    const j0 = Math.max(1, cj - HALF), j1 = Math.min(n - 2, cj + HALF);
+    const ci = Math.round((cx + this.ox) / this.cell);
+    const cj = Math.round((cy + this.oy) / this.cell);
+    const i0 = Math.max(1, ci - HALF), i1 = Math.min(nx - 2, ci + HALF);
+    const j0 = Math.max(1, cj - HALF), j1 = Math.min(ny - 2, cj + HALF);
     if (i1 < i0 || j1 < j0) return;
     /* Le lait est visqueux et tamponne par les caseines et les phosphates :
        l'acide s'etale lentement et le milieu revient lentement. Avec une
@@ -104,15 +110,15 @@ export class PhField {
 
     for (let j = j0; j <= j1; j++) {
       for (let i = i0; i <= i1; i++) {
-        const k = j * n + i;
-        const avg = (grid[k - 1] + grid[k + 1] + grid[k - n] + grid[k + n]) * 0.25;
+        const k = j * nx + i;
+        const avg = (grid[k - 1] + grid[k + 1] + grid[k - nx] + grid[k + nx]) * 0.25;
         let v = grid[k] + (avg - grid[k]) * diff;
         v += (base - v) * back;
         tmp[k] = v;
       }
     }
     for (let j = j0; j <= j1; j++) {
-      grid.set(tmp.subarray(j * n + i0, j * n + i1 + 1), j * n + i0);
+      grid.set(tmp.subarray(j * nx + i0, j * nx + i1 + 1), j * nx + i0);
     }
   }
 
@@ -122,14 +128,14 @@ export class PhField {
    * couterait bien plus que de l'afficher.
    */
   range(cx = 0, cy = 0, radius = 260) {
-    const { n, grid } = this;
+    const { nx, ny, grid } = this;
     const r = Math.ceil(radius / this.cell);
-    const ci = Math.round((cx + this.R) / this.cell);
-    const cj = Math.round((cy + this.R) / this.cell);
+    const ci = Math.round((cx + this.ox) / this.cell);
+    const cj = Math.round((cy + this.oy) / this.cell);
     let lo = Infinity, hi = -Infinity;
-    for (let j = Math.max(0, cj - r); j <= Math.min(n - 1, cj + r); j++) {
-      for (let i = Math.max(0, ci - r); i <= Math.min(n - 1, ci + r); i++) {
-        const v = grid[j * n + i];
+    for (let j = Math.max(0, cj - r); j <= Math.min(ny - 1, cj + r); j++) {
+      for (let i = Math.max(0, ci - r); i <= Math.min(nx - 1, ci + r); i++) {
+        const v = grid[j * nx + i];
         if (v < lo) lo = v;
         if (v > hi) hi = v;
       }

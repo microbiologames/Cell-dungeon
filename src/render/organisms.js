@@ -41,6 +41,9 @@ export function colorOf(spec, pal) {
      la spore doit sauter aux yeux, le decor doit s'effacer. */
   if (spec.kind === 'spore') return [pal.spore, pal.sporeRim];
   if (spec.kind === 'globule') return [pal.debris, pal.debrisRim];
+  /* Une plaque de biofilm n'est pas un organisme : c'est de la matrice. Elle
+     porte donc la couleur du gel, pas celle d'un role. */
+  if (spec.kind === 'plaque') return [pal.eps || pal.gel, pal.epsRim || pal.hypha];
   const t = ROLE_TINT[spec.role];
   if (t) return [pal[t[0]], pal[t[1]]];
   return [pal.bact, pal.bactRim];
@@ -151,6 +154,21 @@ export function drawOrganism(scr, spec, x, y, r, ang, phase, fill, rim) {
         scr.disc(x + Math.cos(a) * d, y + Math.sin(a) * d, r * 0.5, fill, rim);
       }
       scr.disc(x, y, r * 0.6, fill, 0);
+      break;
+    }
+    case 'plaque': {
+      /* Plaque de biofilm : une masse d'EPS accrochee a la paroi. Ni disque
+         ni cercle — un biofilm mur est grumeleux, avec des canaux d'eau. La
+         forme est figee par la phase de l'entite, donc elle ne clignote pas :
+         elle RESPIRE. */
+      for (let i = 0; i < 9; i++) {
+        const a = (i / 9) * TAU + ang;
+        const d = r * (0.28 + 0.46 * ((i * 5 + 3) % 7) / 7);
+        const rr = r * (0.36 + 0.26 * ((i * 3 + 1) % 5) / 5)
+          * (1 + 0.06 * Math.sin(phase * 0.7 + i));
+        scr.disc(x + Math.cos(a) * d, y + Math.sin(a) * d, rr, fill, 0);
+      }
+      scr.disc(x, y, r * 0.42, rim, 0);
       break;
     }
     case 'globule':

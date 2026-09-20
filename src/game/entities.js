@@ -213,19 +213,21 @@ export function updateEnemy(e, dt, game) {
     const foe = nearestEnemy(game, e.x, e.y, 160, e);
     if (foe) { tx = foe.x; ty = foe.y; }
   }
-  motility(e, dt, tx, ty, game.rng);
+  /* Enkystement : la forme de resistance est immobile et encaisse. C'est
+     une vraie etape du cycle de l'amibe, pas une invulnerabilite gratuite —
+     elle dure, elle se voit, et elle finit. */
+  if (e.cyst > 0) {
+    e.cyst -= dt;
+    e.vx *= 0.02; e.vy *= 0.02;
+  } else {
+    motility(e, dt, tx, ty, game.rng);
+  }
 
   e.x += e.vx * dt;
   e.y += e.vy * dt;
 
-  /* Ménisque de la goutte : rappel elastique, on peut etre accule. */
-  const d = Math.hypot(e.x, e.y);
-  const R = game.matrix.arenaRadius;
-  if (d > R) {
-    const k = R / d;
-    e.x *= k; e.y *= k;
-    e.vx *= -0.3; e.vy *= -0.3;
-  }
+  /* Bord de l'arene : rappel elastique, on peut etre accule. */
+  game.arena.confine(e, 0, -0.3);
 
   applyAbility(e, dt, game);
 
@@ -274,11 +276,14 @@ function applyAbility(e, dt, game) {
       break;
     }
     case 'germination':
-      /* Laisser une spore en vie, c'est rendre le Bacillus. */
+      /* Laisser une spore en vie, c'est rendre le Bacillus.
+         La germination demande un milieu favorable : quand le champ est deja
+         sature, la spore attend. C'est aussi le garde-fou qui empeche une
+         spore achetee 0,8 credit de rendre gratuitement un tank a 3,2. */
       e.charge += dt;
-      if (e.charge > 14) {
+      if (e.charge > 14 && game.director.hasBudget()) {
         e.alive = false;
-        const born = game.spawnSpecific('bacillus', e.x, e.y, 0, 0.6);
+        const born = game.spawnSpecific(e.spec.germinatesInto || 'bacillus', e.x, e.y, 0, 0.6);
         /* Le Bacillus issu d'une germination ne sporulera plus : la boucle
            s'arrete a une generation. */
         if (born) born.gen = e.gen + 1;
@@ -288,6 +293,35 @@ function applyAbility(e, dt, game) {
     case 'hyphes':
       /* Geotrichum ne bouge pas : ses hyphes bloquent les tirs. */
       e.vx = 0; e.vy = 0;
+      break;
+    case 'emission': {
+      /* Plaque de biofilm : elle disperse. La dispersion est la derniere
+         etape reelle du cycle du biofilm, et elle est active — la plaque
+         ne perd pas des cellules, elle en lache. */
+      e.vx = 0; e.vy = 0;
+      e.emitCd = (e.emitCd ?? 3) - dt;
+      if (e.emitCd > 0) break;
+      const p = game.progress;
+      e.emitCd = 7.5 - 3.5 * p;
+      if (Math.hypot(e.x - game.player.x, e.y - game.player.y) > 300) break;
+      if (!game.hasRoom()) break;
+      /* Une plaque emet DANS le budget de menace, pas a cote : sans ca, trois
+         plaques doublaient la population et le budget ne voulait plus rien
+         dire. Mesure : 113 mobs vivants pour un budget de 38. */
+      if (!game.director.hasBudget()) break;
+      const id = game.rng() < 0.62 ? 'swarmer' : 'sphingomonas';
+      const a = game.rng() * TAU;
+      game.spawnSpecific(id, e.x + Math.cos(a) * 12, e.y + Math.sin(a) * 12, 0.35, 1);
+      break;
+    }
+    case 'adhesion':
+      /* Sphingomonas tient la paroi : elle rampe vers le mur le plus proche
+         plutot que de nager au centre. */
+      e.vy += Math.sign(e.y || 1) * 12 * dt;
+      break;
+    case 'alginate':
+      /* L'alginate est rendu par la Conduite (il fait repousser les plaques) :
+         rien a simuler ici, la capacite est un ETAT, pas une action. */
       break;
     default:
       break;
@@ -319,10 +353,13 @@ function updateBossPhases(e, dt, game) {
       break;
     case 'dispersion': {
       e.charge = 7;
+      /* Ce que le boss disperse depend de l'espece : un staphylocoque lache
+         des cocci, un biofilm lache des cellules en swarming. */
+      const petit = e.spec.disperseInto || 'lactococcus';
       for (let i = 0; i < 4; i++) {
         if (!game.hasRoom()) break;
         const a = (i / 4) * TAU;
-        game.spawnSpecific('lactococcus', e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 18, 0, 2.2);
+        game.spawnSpecific(petit, e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 18, 0, 2.2);
       }
       break;
     }
@@ -339,6 +376,61 @@ function updateBossPhases(e, dt, game) {
       e.charge = 5;
       game.zones.push(makeZone(e.x, e.y, 74, 'llo', 2.4, { dps: 14 }));
       game.clearDecor(e.x, e.y, 120);
+      break;
+    case 'alginate':
+      /* Le mucoide tapisse le sol d'EPS : on y ralentit, et les gouttes s'y
+         perdent. C'est exactement ce que fait une souche mucA mutee. */
+      e.charge = 5;
+      for (let i = 0; i < 3; i++) {
+        const a = game.rng() * TAU, d = 30 + game.rng() * 60;
+        game.zones.push(makeZone(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d, 24,
+          'eps', 7, { slow: 0.45 }));
+      }
+      break;
+    case 'quorumboss':
+      /* Quorum sensing las/rhl : au-dela d'un seuil de densite, la population
+         passe en mode virulent. Ici, elle appelle du renfort — DANS le budget
+         de menace. Sans ce garde-fou, le boss pompait une cinquantaine de
+         renforts par run et faisait a lui seul 93 % des degats subis. */
+      e.charge = 6;
+      for (let i = 0; i < 3; i++) {
+        if (!game.hasRoom() || !game.director.hasBudget()) break;
+        const a = (i / 3) * TAU;
+        game.spawnSpecific('aeruginosa', e.x + Math.cos(a) * 20, e.y + Math.sin(a) * 20, 0, 1.6);
+      }
+      break;
+    case 'phagocytose':
+      /* L'amibe broute : elle happe ce qui passe a portee. Le joueur s'en
+         sort par l'endolysine, sinon il subit. */
+      e.charge = 5.5;
+      game.zones.push(makeZone(e.x, e.y, 46, 'phagocytose', 1.6, { dps: 11, slow: 0.4 }));
+      break;
+    case 'broutage':
+      /* Elle mange le biofilm : elle se soigne sur les plaques. */
+      e.charge = 3;
+      e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.015);
+      e.vx += (game.player.x - e.x) * 0.4;
+      e.vy += (game.player.y - e.y) * 0.4;
+      break;
+    case 'enkystement':
+      /* Le kyste est une vraie forme de resistance : elle s'immobilise et
+         encaisse, puis repart. C'est la fenetre pour la mettre a terre. */
+      e.charge = 6;
+      e.cyst = 2.2;
+      break;
+    case 'essaimage':
+      e.charge = 4.2;
+      for (let i = 0; i < 4; i++) {
+        if (!game.hasRoom() || !game.director.hasBudget()) break;
+        const a = game.rng() * TAU;
+        game.spawnSpecific('swarmer', e.x + Math.cos(a) * 24, e.y + Math.sin(a) * 24, 0, 1.4);
+      }
+      break;
+    case 'retraction':
+      /* Un biofilm acidifie se retracte reellement : la masse se tasse et
+         l'acide y penetre moins. Il faut le NEP pour rouvrir la fenetre. */
+      e.charge = 5;
+      game.zones.push(makeZone(e.x, e.y, 52, 'eps', 6, { slow: 0.5 }));
       break;
     default:
       e.charge = 3;

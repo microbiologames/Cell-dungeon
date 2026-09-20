@@ -160,3 +160,44 @@ Pathogène emblématique du lait cru.
 - Rendre *Listeria* mobile à 37 °C — donc en matrice 4 (sang), la *Listeria*
   qu'on recroise est **immobile**. Le détail paie : le joueur qui le remarque
   a appris quelque chose de vrai.
+
+
+---
+
+## Matrice 2 — Conduite industrielle (implémentée)
+
+Toutes ces espèces sont réellement isolées des lignes laitières : des joints,
+des coudes morts et des rayures d'inox après un NEP mal conduit. Même règle
+que pour le lait cru : **aucune capacité qui ne soit documentée chez l'espèce
+réelle**.
+
+| id | Espèce | Rôle | Capacité | Fondement |
+|---|---|---|---|---|
+| `sphingomonas` | *Sphingomonas* | chaff | `adhesion` — rampe vers la paroi, tolère l'abri au NEP | Membrane externe à glycosphingolipides au lieu du LPS : adhésion très forte, tolérance aux désinfectants. Colonisateur classique des réseaux d'eau |
+| `aeruginosa` | *P. aeruginosa* | runner | `alginate` — fait repousser les plaques détruites | Exopolysaccharide qui donne le phénotype mucoïde. Flagelle polaire unique, quorum sensing las/rhl |
+| `listeriaPers` | *L. monocytogenes* persistante | tank | `persistance` — 30 % de résistance, abri au NEP | Souches réellement réisolées des mêmes ateliers pendant des années ; tolèrent des doses sublétales de désinfectant |
+| `sporeAdh` | Spore adhérée | chaff | `germination` → *B. cereus* ; **immunisée au NEP** | Les endospores de *Bacillus* adhèrent à l'inox et survivent à un cycle complet : c'est le problème industriel de fond |
+| `acanthamoeba` | *Acanthamoeba castellanii* | predator | `phagocytose` | Amibe libre des réseaux d'eau : broute le biofilm, phagocyte les bactéries, s'enkyste et traverse les biocides |
+| `swarmer` | Cellules en *swarming* | chaff | — | La dispersion est la dernière étape du cycle du biofilm, et elle est **active** |
+| `plaque` | Plaque de biofilm | source | `emission` | Un biofilm est un mode de vie, pas un dépôt : matrice d'EPS, canaux d'eau, dispersion active |
+| `methylo` | *Methylobacterium* | **neutre** | — | Méthylotrophe facultative rose, habitante ordinaire des réseaux d'eau et des rinçages. Elle ne doit rien à une bactérie lactique |
+
+**Boss** : `mucoid` *P. aeruginosa* mucoïde (mutation `mucA`, alginate, quorum
+sensing, dispersion) · `amibe` *Acanthamoeba* géante (phagocytose, broutage,
+enkystement) · `biofilmMur` le biofilm mature.
+
+### Règle de budget : toute source d'ennemis interroge le même budget
+
+Trois choses engendrent des mobs **en dehors** du directeur : une plaque de
+biofilm, une capacité de boss (`quorumboss`, `essaimage`, `dispersion`), et
+une spore qui germe. Chacune doit appeler `director.hasBudget()`.
+
+Mesuré quand elles ne le faisaient pas : **20 *P. aeruginosa* vivants en
+moyenne pour un budget de 13 crédits**, et 96 % des dégâts subis venant de
+cette seule espèce. C'est exactement la divergence déjà rencontrée avec la
+chaîne *Bacillus* → spore → *Bacillus* dans le lait cru. Le budget de menace
+n'est une garantie que si **personne ne le contourne**.
+
+Corollaire : une spore achetée 0,8 crédit ne peut pas rendre gratuitement un
+tank à 3,2. La germination attend que le champ ait de la place — ce qui est
+d'ailleurs la vérité biologique : une spore germe en milieu favorable.

@@ -232,14 +232,9 @@ export class Player {
       }
     }
 
-    const R = game.matrix.arenaRadius - 6;
-    const d = Math.hypot(this.x, this.y);
-    if (d > R) {
-      const kk = R / d;
-      this.x *= kk; this.y *= kk;
-      /* On rebondit mollement sur le menisque au lieu d'y coller. */
-      this.vx *= -0.25; this.vy *= -0.25;
-    }
+    /* On rebondit mollement sur la paroi au lieu d'y coller. La forme de
+       la paroi appartient a la matrice : menisque ou acier. */
+    game.arena.confine(this, 6, -0.25);
   }
 
   /** Twitching : une impulsion breve, pas un multiplicateur de vitesse.

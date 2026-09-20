@@ -1,7 +1,10 @@
 /* ---------------------------------------------------------------------------
-   Interfaces en DOM : menus et cartes d'evolution.
+   Interfaces en DOM : titre, cartes d'evolution, pause, fin de partie.
    Le jeu est en pixels dans le canvas, les textes longs sont en HTML :
    une fonte 3x5 ne peut pas porter une description d'evolution.
+
+   La partie en cours change au fil des scenes : l'overlay ne garde donc
+   PAS de reference a une partie, il en demande une quand il en a besoin.
 --------------------------------------------------------------------------- */
 
 import { RARITY } from '../data/evolutions.js';
@@ -12,32 +15,35 @@ import { CARD_ART } from './card-art.js';
 const $ = (id) => document.getElementById(id);
 
 export class Overlay {
-  constructor(game, onStart) {
-    this.game = game;
-    this.onStart = onStart;
+  /**
+   * @param {() => void} onExit  retour au lobby
+   */
+  constructor(onExit) {
+    this.onExit = onExit;
+    this.getGame = () => null;
     this.els = {
       menu: $('ovMenu'), level: $('ovLevel'), pause: $('ovPause'), end: $('ovEnd'),
       cards: $('lvCards'), title: $('lvTitle'), reroll: $('btnReroll'),
       endTitle: $('endTitle'), endStats: $('endStats'), pauseStats: $('pauseStats'),
       menuKeys: $('menuKeys'),
     };
-    $('btnStart').onclick = () => onStart();
-    $('btnRetry').onclick = () => onStart();
+    $('btnStart').onclick = () => this.hideAll();
+    $('btnRetry').onclick = () => onExit();
     $('btnResume').onclick = () => this.resume();
-    $('btnQuit').onclick = () => { this.hideAll(); this.show('menu'); };
-    this.els.reroll.onclick = () => { if (game.reroll()) this.showLevelUp(); };
+    $('btnQuit').onclick = () => onExit();
+    this.els.reroll.onclick = () => {
+      const g = this.getGame();
+      if (g && g.reroll()) this.showLevelUp();
+    };
 
-    this.els.menuKeys.textContent = game.input && game.input.hasTouch
+    this.els.menuKeys.textContent = matchMedia('(pointer: coarse)').matches
       ? 'GAUCHE : DEPLACER — DROITE : MISE AU POINT'
       : 'WASD/ZQSD DEPLACER — MOLETTE OU R/F MISE AU POINT — ESPACE DASH';
 
     addEventListener('keydown', (e) => {
       if (this.current !== 'level') return;
       const n = Number(e.key);
-      if (n >= 1 && n <= 9) {
-        const btn = this.els.cards.children[n - 1];
-        if (btn) btn.click();
-      }
+      if (n >= 1 && n <= 9) this.els.cards.children[n - 1]?.click();
     });
   }
 
@@ -53,12 +59,14 @@ export class Overlay {
   }
 
   resume() {
+    const g = this.getGame();
     this.hideAll();
-    this.game.state = 'playing';
+    if (g) g.state = 'playing';
   }
 
   showLevelUp() {
-    const g = this.game;
+    const g = this.getGame();
+    if (!g) return;
     const p = g.player;
     this.els.title.textContent = `NIVEAU ${p.level}`;
     this.els.cards.innerHTML = '';
@@ -113,7 +121,8 @@ export class Overlay {
   }
 
   statBlock() {
-    const g = this.game;
+    const g = this.getGame();
+    if (!g) return '';
     const p = g.player;
     const evos = p.summary()
       .map(({ evo, rank }) => `${escapeHtml(evo.label)}${rank > 1 ? ` x${rank}` : ''}`)

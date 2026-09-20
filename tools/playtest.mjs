@@ -6,7 +6,7 @@
    mesure ce que le modele ne voit pas : la recolte, qui depend du
    deplacement et du rayon de captation, et tout ce que le decor change.
 
-     node tools/playtest.mjs [nb_de_runs]
+     node tools/playtest.mjs [nb_de_runs] [matrice]
 --------------------------------------------------------------------------- */
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
@@ -15,6 +15,7 @@ import { existsSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 
 const RUNS = Number(process.argv[2] || 3);
+const MATRICE = process.argv[3] || 'milk';
 const ROOT = process.cwd();
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript' };
 const srv = createServer(async (q, r) => {
@@ -33,12 +34,12 @@ page.on('pageerror', (e) => errs.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
 await page.goto('http://localhost:8096/');
 
-const result = await page.evaluate(async (runs) => {
+const result = await page.evaluate(async ({ runs, matrice }) => {
   const { Game } = await import('./src/game/game.js');
   const out = [];
 
   for (let run = 0; run < runs; run++) {
-    const g = new Game('milk', 4242 + run * 977);
+    const g = new Game(matrice, 4242 + run * 977);
     g.start();
 
     /* Entree simulee : le pilote la remplit a chaque pas. */
@@ -129,8 +130,9 @@ const result = await page.evaluate(async (runs) => {
     out.push({ run, deaths, deathPhase, marks, niveauFinal: g.player.level, tues: g.player.kills });
   }
   return out;
-}, RUNS);
+}, { runs: RUNS, matrice: MATRICE });
 
+console.log(`matrice : ${MATRICE}`);
 for (const r of result) {
   console.log(`--- run ${r.run} : niveau ${r.niveauFinal}, ${r.tues} tues, `
     + `${r.deaths} mort(s) [debut ${r.deathPhase[0]} / milieu ${r.deathPhase[1]} / fin ${r.deathPhase[2]}] ---`);

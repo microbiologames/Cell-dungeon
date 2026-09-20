@@ -121,6 +121,18 @@ export const MATRICES_PALETTE = {
     debris: hexToRgba('#26363d'), debrisRim: hexToRgba('#4d6a75'),
     edge: hexToRgba('#1b4250'),
     tint: hexToRgba('#08191f', 40),
+    /* Acier 316L : froid, mat, et ses rayures plus sombres encore — ce sont
+       elles qui servent d'abri au NEP, donc elles doivent se voir. */
+    steel: hexToRgba('#7d95a3'), steelDim: hexToRgba('#35505c'),
+    flow: hexToRgba('#8fd6ff'),
+    /* La couleur dit le produit, donc l'evolution qui sauve. */
+    biocide: {
+      alcalin: hexToRgba('#8f7dff'),
+      acide: hexToRgba('#ffb03d'),
+      oxydant: hexToRgba('#6affe0'),
+    },
+    /* Matrice d'EPS : un gel, pas une membrane. */
+    eps: hexToRgba('#4e7a6a'), epsRim: hexToRgba('#8fd6b5'),
   },
   kombucha: {
     name: 'KOMBUCHA',

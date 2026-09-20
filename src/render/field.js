@@ -41,6 +41,9 @@ export function renderField(scr, game, pal) {
   if (p.flags.has('phsense')) drawPhMap(scr, game, fieldR, camX, camY, pal);
   else drawHaze(scr, game, pal, fieldR, camX, camY);
 
+  /* Le courant se peint SOUS les organismes : c'est le milieu qui bouge. */
+  if (game.conduite) drawCourant(scr, game, pal, fieldR, camX, camY);
+
   const dof = p.stats.dof;
   const margin = 24;
 
@@ -223,6 +226,12 @@ export function renderField(scr, game, pal) {
 
   scr.composite();
 
+  /* L'acier et la lame de biocide passent PAR-DESSUS tout : une paroi est
+     opaque, et un NEP n'est pas un objet observe mais le milieu qui change. */
+  if (game.conduite) {
+    drawParois(scr, game, pal, fieldR, camX, camY);
+    drawNep(scr, game, pal, fieldR, camX, camY);
+  }
   drawEdge(scr, game, pal, fieldR);
   if (game.flash > 0) tintField(scr, fieldR, pal.damage, game.flash * 0.35);
 }
@@ -392,6 +401,127 @@ function drawHaze(scr, game, pal, fieldR, camX, camY) {
   scr.clip = true;
 }
 
+/* ------------------------------------------------------------ conduite --- */
+
+/**
+ * Filets de courant, sous les organismes.
+ *
+ * Deux informations doivent se lire sans texte : dans quel sens ca coule, et
+ * ou le courant est faible. Les filets sont donc plus longs et plus rapides
+ * au centre du tube qu'a la paroi — c'est le profil laminaire lui-meme,
+ * dessine. Sans etat : leur position est une fonction du temps et de leur
+ * identifiant, comme tout le reste du decor.
+ */
+function drawCourant(scr, game, pal, fieldR, camX, camY) {
+  const c = game.conduite;
+  const hy = game.arena.halfY;
+  const t = game.time;
+
+  /* Nets : un filet de courant flou ne se lit pas, et le courant n'est pas
+     un objet observe a une profondeur — c'est le milieu qui bouge. */
+  scr.layer(Screen.layerFor(0.2, 0));
+  for (let i = 0; i < 70; i++) {
+    const y0 = (hash2(i, 3) * 2 - 1) * hy * 0.97;
+    const v = c.flowAt(y0);
+    if (v < 1) continue;
+    const span = 900;
+    const wx = ((hash2(i, 7) * span + t * v * 3.1) % span) - span / 2 + camX;
+    const sx = VIEW.CX + (wx - camX), sy = VIEW.CY + (y0 - camY);
+    if (sx < -20 || sx > VIEW.W + 20) continue;
+    const len = 2 + (v / c.flow) * 7;
+    const a = 0.22 + 0.42 * (v / c.flow);
+    for (let k = 0; k < len; k++) scr.plot(sx - k, sy, fade32(pal.flow, a * (1 - k / len)));
+  }
+}
+
+/**
+ * Les parois d'acier, et l'acier lui-meme.
+ *
+ * Au-dela de la paroi il n'y a pas de milieu : il y a du 316L. On masque donc
+ * tout ce que le champ a dessine hors du tube — sinon le decor flottait dans
+ * le metal et le couloir ne se lisait plus comme un couloir.
+ *
+ * Les rayures sont dessinees vers l'INTERIEUR : ce sont des anfractuosites,
+ * donc des abris contre le NEP, et un abri doit se voir.
+ */
+function drawParois(scr, game, pal, fieldR, camX, camY) {
+  const hy = game.arena.halfY;
+  const acier = fade32(pal.steelDim, 0.92);
+
+  for (let y = -fieldR; y <= fieldR; y++) {
+    const wy = camY + y;
+    const dehors = Math.abs(wy) > hy;
+    if (!dehors) continue;
+    const w = Math.floor(Math.sqrt(Math.max(0, fieldR * fieldR - y * y)));
+    const py = VIEW.CY + y;
+    for (let x = -w; x <= w; x++) {
+      const px = VIEW.CX + x;
+      /* Grain du metal : un aplat parfait ne ressemble pas a de l'inox. */
+      const g = hash2(Math.floor((camX + x) / 3), Math.floor(wy / 3));
+      scr.direct(px, py, g > 0.88 ? fade32(pal.steel, 0.22) : acier);
+    }
+  }
+
+  /* Les deux parois, leurs rayures, et le lisere de couche limite. */
+  for (const s of [-1, 1]) {
+    const py = Math.round(VIEW.CY + (s * hy - camY));
+    if (py < -8 || py > VIEW.H + 8) continue;
+    for (let x = -fieldR; x <= fieldR; x++) {
+      const px = VIEW.CX + x;
+      if (x * x + (py - VIEW.CY) * (py - VIEW.CY) > fieldR * fieldR) continue;
+      scr.direct(px, py, pal.steel);
+      const wx = camX + x;
+      if (hash2(Math.floor(wx / 7), s) > 0.72) {
+        const prof = 2 + Math.floor(hash2(Math.floor(wx / 7), s + 9) * 4);
+        for (let k = 1; k < prof; k++) scr.direct(px, py - s * k, fade32(pal.steelDim, 0.75));
+      }
+    }
+    /* Couche limite : au-dela, le courant est nul. Le refuge doit se voir,
+       sinon le joueur ne saura jamais qu'il existe. */
+    const ly = Math.round(VIEW.CY + (s * (hy - 11) - camY));
+    for (let x = -fieldR; x <= fieldR; x += 3) {
+      if (x * x + (ly - VIEW.CY) * (ly - VIEW.CY) > fieldR * fieldR) continue;
+      scr.direct(VIEW.CX + x, ly, fade32(pal.flow, 0.22));
+    }
+  }
+}
+
+/**
+ * Le Nettoyage En Place : telegraphe puis lame de biocide.
+ *
+ * La couleur dit le produit — alcalin, acide, oxydant — parce que c'est elle
+ * qui dit au joueur quelle evolution va le sauver.
+ */
+function drawNep(scr, game, pal, fieldR, camX, camY) {
+  const c = game.conduite;
+  const bio = c.biocide;
+  const teinte = pal.biocide[bio.couleur] || pal.textHot;
+  const hy = game.arena.halfY;
+
+  if (c.cip.etat === 'telegraphe') {
+    /* Le champ vire et bat de plus en plus vite a mesure que ca approche. */
+    const k = 1 - c.cip.t / 8;
+    const bat = 0.5 + 0.5 * Math.sin(game.time * (5 + 16 * k));
+    tintField(scr, fieldR, teinte, (0.06 + 0.16 * k) * bat);
+    return;
+  }
+  if (c.cip.etat !== 'vague') return;
+
+  /* La lame elle-meme, dans le tube et pas dans le metal. */
+  for (let x = -fieldR; x <= fieldR; x++) {
+    const k = c.intensite(camX + x);
+    if (k <= 0) continue;
+    const px = VIEW.CX + x;
+    const w = Math.floor(Math.sqrt(Math.max(0, fieldR * fieldR - x * x)));
+    for (let y = -w; y <= w; y++) {
+      if (Math.abs(camY + y) > hy) continue;
+      const py = VIEW.CY + y;
+      if (bayer(px, py) > k * 0.85) continue;
+      scr.direct(px, py, fade32(teinte, 0.30 + 0.45 * k));
+    }
+  }
+}
+
 /** Bord du champ : diaphragme du fond noir, plus le menisque de la goutte. */
 function drawEdge(scr, game, pal, fieldR) {
   const p = game.player;
@@ -402,12 +532,11 @@ function drawEdge(scr, game, pal, fieldR) {
     scr.direct(VIEW.CX + Math.cos(a) * (fieldR - 1), VIEW.CY + Math.sin(a) * (fieldR - 1),
       fade32(pal.edge, 0.4));
   }
-  /* Approche du menisque : le bord s'allume du cote ou l'on est accule. */
-  const d = Math.hypot(p.x, p.y);
-  const R = game.matrix.arenaRadius;
-  if (d > R - 90) {
-    const k = clamp((d - (R - 90)) / 90, 0, 1);
-    const dir = Math.atan2(p.y, p.x);
+  /* Approche de la paroi : le bord s'allume du cote ou l'on est accule.
+     Menisque de goutte ou acier de conduite, c'est l'arene qui repond. */
+  const k = game.arena.edgeCloseness(p.x, p.y);
+  if (k > 0) {
+    const dir = game.arena.edgeDir(p.x, p.y);
     for (let a = -0.9; a <= 0.9; a += 0.01) {
       const x = VIEW.CX + Math.cos(dir + a) * fieldR;
       const y = VIEW.CY + Math.sin(dir + a) * fieldR;

@@ -43,6 +43,8 @@ else console.log('chargement: aucune erreur');
 await page.screenshot({ path: process.env.SHOT_DIR ? process.env.SHOT_DIR + '/01-menu.png' : '01-menu.png' });
 
 await page.click('#btnStart');
+/* Le bouton mene au LOBBY : on entre explicitement dans la matrice. */
+await page.evaluate(() => window.__startMatrice('milk'));
 await page.waitForTimeout(400);
 
 // simule du jeu : deplacement + mise au point
@@ -87,8 +89,9 @@ const mp = await mobile.newPage();
 const mErrs = [];
 mp.on('pageerror', (e) => mErrs.push(e.message));
 await mp.goto('http://localhost:8099/');
-const touchDetected = await mp.evaluate(() => window.__game.input.hasTouch);
+const touchDetected = await mp.evaluate(() => window.__input.hasTouch);
 await mp.tap('#btnStart');
+await mp.evaluate(() => window.__startMatrice('milk'));
 await mp.waitForTimeout(300);
 /* manche virtuel a gauche, mise au point a droite */
 await mp.touchscreen.tap(90, 600);

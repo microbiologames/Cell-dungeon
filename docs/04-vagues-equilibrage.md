@@ -211,3 +211,52 @@ Le script sort en code 1 dès qu'un invariant est rompu, en nommant lequel.
 Il partage ses constantes avec `src/data/matrices.js` et `src/game/stats.js` :
 il n'y a **pas** de second jeu de nombres à tenir à jour, donc le test ne peut
 pas diverger du jeu.
+
+---
+
+## La forme de l'arène est un paramètre d'équilibrage
+
+Le budget de menace compte des **crédits présents**, pas une densité. Tant
+qu'il n'y avait qu'une goutte de 2800 px, la distinction ne coûtait rien. Avec
+la conduite — un couloir de 2800 × 224 — elle devient centrale : à budget
+égal, la pression au pixel visible y est bien plus forte, et surtout **on n'y
+décroche pas**. Un nageur rapide reste collé, faute de place pour le semer.
+
+Deux leviers, tous deux déclarés par la matrice :
+
+| Champ | Rôle |
+|---|---|
+| `budgetScale` | Multiplie le budget commun. `0.68` pour la conduite |
+| `roleCaps` | Remplace `ROLE_CAPS` pour cette matrice. `runner 4`, `tank 3`, `predator 1` |
+
+Ce ne sont pas des réglages de difficulté : ce sont des propriétés de la
+**forme**. Une arène qui empêche de décrocher doit porter moins de coureurs,
+sinon le rôle « coureur » cesse d'être une menace parmi d'autres pour devenir
+la seule.
+
+### Mesures
+
+| État | Morts (3 runs, pilote auto) | Part du premier coupable |
+|---|---|---|
+| Conduite, sans garde-fous | 146 à 494 par run | *P. aeruginosa* : **96 %** |
+| Conduite, budget et plafonds posés | 39 / 63 / 119 par tiers | répartie sur 5 espèces |
+| Lait cru, référence | 16 / 24 / 34 par tiers | *B. cereus* : 62 % |
+
+La conduite reste plus dure que le lait cru — c'est la deuxième matrice, et le
+pilote automatique y est bien plus mauvais qu'un humain puisqu'il ne sait ni
+se mettre à l'abri du NEP ni longer la couche limite. Ce qui compte est la
+**forme** de la courbe : les morts montent jusqu'à la fin, elles ne font pas
+une bosse au milieu.
+
+## Toute source d'ennemis passe par le budget
+
+`Director.hasBudget()` existe pour ça. Trois appelants hors directeur :
+
+- la plaque de biofilm (`emission`),
+- les capacités de boss qui appellent du renfort (`quorumboss`, `essaimage`),
+- la germination d'une spore.
+
+Sans ces appels, la population double sans que personne ne l'ait décidé —
+mesuré à 20 coureurs vivants pour un budget de 13 crédits. C'est la même
+divergence que la chaîne *Bacillus* → spore → *Bacillus*, sous un autre nom.
+Le budget n'est une garantie que si **personne ne le contourne**.

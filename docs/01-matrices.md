@@ -90,18 +90,40 @@ et n'en bougent pas).
 
 ---
 
-## 2 — Conduite industrielle (acier 316L, biofilm)
+## 2 — Conduite industrielle (acier 316L, biofilm) — **implémentée**
 
 > Ce n'est pas une arène, c'est un **couloir**. On n'y tourne pas autour de la
 > horde : on l'affronte de face, dos au courant.
 
-| Paramètre | Valeur | Effet de jeu |
+**Valeurs réellement codées** (`src/data/matrices.js`, `src/game/pipe.js`) :
+
+| Constante | Valeur | Où |
 |---|---|---|
-| Forme de l'arène | tube : ±1400 px en X, **±110 px en Y** | Le déplacement est **essentiellement gauche-droite** |
-| Écoulement | 0.8 m/s, laminaire au centre | Poussée permanente ; remonter le courant coûte 45 % de vitesse |
-| Couche limite | le long des parois | Le courant y tombe à zéro : les bords sont des refuges |
-| Surface | inox rayé + EPS | Les rayures sont des anfractuosités : abri contre le NEP |
-| Nettoyage | **NEP toutes les 150 s** | Voir plus bas |
+| Forme de l'arène | tube `halfX 1400`, `halfY 112` | `PIPE.arena` |
+| Écoulement | 34 px/s au centre, profil `1 − (y/hy)²` | `PIPE.pipe.flow` |
+| Période du NEP | 150 s, dont 8 s de télégraphe | `PERIODE`, `TELEGRAPHE` |
+| Vitesse du front | 230 px/s, demi-lame 64 px | `VITESSE_NEP`, `DEMI_FRONT` |
+| Plaques | tous les 230 px, alternées haut/bas, repousse 45 s | `PAS_PLAQUE`, `REPOUSSE` |
+| pH | 5.4 → 3.6 | `PIPE.chem` |
+| Budget de menace | ×0.68 du budget commun | `PIPE.budgetScale` |
+| Plafonds de rôle | `runner 4`, `tank 3`, `predator 1` | `PIPE.roleCaps` |
+
+**Pourquoi le budget est réduit et les plafonds abaissés.** Un couloir de
+224 px de large concentre : à budget égal, la pression au pixel visible y est
+bien plus forte que dans une goutte de 2800 px, et surtout **on n'y décroche
+pas** — un nageur rapide reste collé, faute de place pour le semer. Mesuré
+sans ces deux garde-fous : *P. aeruginosa* faisait à lui seul **96 % des
+dégâts subis** et le pilote automatique mourait 3 à 12 fois plus que dans le
+lait cru. Ce ne sont pas des réglages de difficulté, ce sont des propriétés
+de la **forme** de l'arène.
+
+| Paramètre | Effet de jeu |
+|---|---|
+| Forme de l'arène | Le déplacement est **essentiellement gauche-droite** |
+| Écoulement laminaire | Poussée permanente ; remonter le courant coûte cher. Le courant emporte aussi les gouttes d'acide (à 60 %) et les acides aminés libres (à 45 %) : rien ne reste où on l'a laissé |
+| Couche limite | Le courant y tombe à zéro : les 11 px le long de chaque paroi sont un refuge, matérialisé par un liseré pointillé |
+| Surface | Inox rayé + EPS. Les rayures sont des anfractuosités : abri contre le NEP |
+| Nettoyage | **NEP toutes les 150 s**, voir plus bas |
 
 ### L'axe Z devient la stratification du biofilm
 
@@ -120,6 +142,16 @@ mais c'est là que la population est la plus dense et que les persistants
 vivent. Remonter dans le flux (`z < 0`) dégage le champ, mais vous expose.
 La molette n'est donc plus seulement une arme de ciblage : c'est un
 **déplacement**.
+
+> **Écart d'implémentation, assumé.** La molette reste pour l'instant un plan
+> d'*observation*, pas un déplacement : le joueur n'a pas de coordonnée `z`.
+> Les plaques vivent à `z = +0.55`, donc il faut **descendre la mise au point
+> pour les voir et les toucher** — la profondeur sert déjà, et c'est déjà une
+> décision. Mais l'abri (courant, NEP) est calculé en 2D : on est protégé si
+> l'on est *dans* le rayon d'une plaque, ou dans les 11 px de couche limite
+> contre la paroi. Donner un `z` au joueur change le modèle de collision du
+> jeu entier ; ce sera un chantier à part, pas un effet de bord de la
+> conduite.
 
 ### Logique de biofilm
 
@@ -162,13 +194,26 @@ Avec, vous le tuez de l'intérieur — c'est le moment où l'évolution paie.
 
 **Flore** : *Pseudomonas aeruginosa* (alginate, quorum sensing) ·
 *Listeria monocytogenes* persistante · *Sphingomonas* (adhésion) ·
-spores de *Bacillus* adhérées · *Acanthamoeba castellanii*
+spores de *Bacillus* adhérées · *Acanthamoeba castellanii* ·
+cellules en *swarming* lâchées par les plaques.
+Neutre : *Methylobacterium*, méthylotrophe rose des réseaux d'eau.
+
+**Mini-boss 4:00** — *P. aeruginosa* mucoïde (mutation `mucA`).
+**Mini-boss 8:00** — *Acanthamoeba* géante (phagocytose, broutage, kyste).
 
 **Boss 12:00** — **Le biofilm mature** : une masse immobile occupant tout le
 fond du couloir, quatre points d'ancrage à détruire. Elle se rétracte quand on
 l'acidifie et envoie des essaims. Fenêtre de dégâts pendant le NEP.
 
-## 3 — Kombucha (jarre, jour 7)
+> **Écart d'implémentation, assumé.** Le boss est pour l'instant une **masse
+> unique** (3200 PV, trois phases : essaimage, rétraction, dispersion), pas
+> quatre ancrages indépendants. La fenêtre de dégâts pendant le NEP est bien
+> là : le NEP inflige 26 dps au boss au lieu des 95 qu'il inflige à la flore
+> ordinaire — il l'entame sans le tuer, donc il ouvre une fenêtre au lieu de
+> faire le travail. Les quatre ancrages demandent un boss multi-entités, ce
+> que le moteur ne sait pas encore faire.
+
+## 3 — Kombucha (jarre, jour 7) — *spécifiée, pas encore jouable*
 
 > Vous entrez en territoire hostile : à pH 2.8, une bactérie lactique n'a rien
 > à faire là. C'est le stage « survie chimique ».
@@ -197,7 +242,7 @@ qu'un tisseur est vivant.
 
 ---
 
-## 4 — Sang (in vivo)
+## 4 — Sang (in vivo) — *spécifiée, pas encore jouable*
 
 > La matrice où tout ce que vous avez volé aux autres se retourne contre vous.
 

@@ -40,6 +40,24 @@ export function renderHud(scr, game, pal) {
   if (game.input && game.input.hasTouch) renderTouchControls(scr, game.input);
 }
 
+/**
+ * Compteur de Nettoyage En Place.
+ *
+ * C'est la seule menace PROGRAMMEE du jeu : le joueur doit pouvoir la lire
+ * sans la chercher, et la ligne du dessous lui dit quoi faire — pas quel
+ * produit arrive, mais ce qui le sauve. C'est une consigne, pas une fiche
+ * technique.
+ *
+ * Elle vit dans le noir du pourtour, jamais sur le champ : ecrite en haut du
+ * disque, la paroi d'acier de la conduite passait dessus.
+ */
+function renderNep(scr, game, x, y) {
+  const h = game.conduite.hud;
+  const col = h.urgence === 2 ? UI.damage : (h.urgence === 1 ? UI.textHot : UI.textDim);
+  drawText(scr, h.texte, x, y, col, 1, h.urgence ? 2 : 1);
+  drawText(scr, h.sous, x, y + (h.urgence ? 12 : 8), UI.textDim, 1, 1);
+}
+
 /* ------------------------------------------------------------- portrait -- */
 
 function renderBottom(scr, game, pal) {
@@ -71,6 +89,7 @@ function renderBottom(scr, game, pal) {
 
   drawText(scr, dominantWay(p), 3, sy, UI.textDim, 1, 1);
   drawTextRight(scr, `${p.kills} TUES`, W - 3, sy, UI.textDim, 1, 1);
+  if (game.conduite) renderNep(scr, game, 3, sy - 22);
 
   gauge(scr, game, { x: 16, y: gy, len: W - 32, vertical: false });
 
@@ -105,7 +124,9 @@ function renderSides(scr, game, pal) {
     game.ph < 5.6 ? UI.acid : UI.textDim, 1, 1);
   drawText(scr, `${p.kills} TUES`, lx, 104, UI.textDim, 1, 1);
   drawText(scr, dominantWay(p), lx, 114, UI.textDim, 1, 1);
-  chips(scr, p, lx, 126, colW, VIEW.H - 4);
+  let cy = 126;
+  if (game.conduite) { renderNep(scr, game, lx, cy); cy += 24; }
+  chips(scr, p, lx, cy, colW, VIEW.H - 4);
 
   /* Jauge de profondeur, verticale, centree dans la colonne de droite */
   gauge(scr, game, {

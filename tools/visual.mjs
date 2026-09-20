@@ -41,6 +41,8 @@ async function shot(name, viewport, steps) {
   page.on('console', (m) => { if (m.type() === 'error') errs.push(`${name}: ${m.text()}`); });
   await page.goto('http://localhost:8098/');
   await page.click('#btnStart');
+/* Le bouton mene au LOBBY : on entre explicitement dans la matrice. */
+await page.evaluate(() => window.__startMatrice('milk'));
   await page.evaluate(FFWD);
   await page.waitForTimeout(5000);
   if (steps) await steps(page);

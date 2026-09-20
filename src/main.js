@@ -1,5 +1,10 @@
 /* ---------------------------------------------------------------------------
-   Point d'entree : boucle principale, cablage entree / jeu / rendu.
+   Point d'entree : scenes, boucle principale, cablage entree / jeu / rendu.
+
+   Trois scenes partagent le meme ecran et le meme moteur de rendu :
+     lobby      une boite de Petri ou l'on choisit sa matrice en y nageant
+     bestiaire  la flore en vitrine, fond noir
+     jeu        une matrice en cours
 --------------------------------------------------------------------------- */
 
 import { Screen, VIEW, computeLayout } from './core/pixel.js';
@@ -10,50 +15,109 @@ import { renderHud } from './render/hud.js';
 import { Overlay } from './ui/overlay.js';
 import { MATRICES_PALETTE } from './data/palette.js';
 import { forEachDecor } from './game/decor.js';
+import { Lobby } from './scenes/lobby.js';
+import { Bestiary } from './scenes/bestiary.js';
 /* Active les sprites adoptes. Le registre ne contient que ceux-la ; toute
    espece absente garde sa forme procedurale et son animation. */
 import './render/sprite-data.js';
 
 const canvas = document.getElementById('cv');
 const stage = document.getElementById('stage');
+const panel = document.getElementById('specPanel');
+
+const SCENE = { LOBBY: 'lobby', BESTIAIRE: 'bestiaire', JEU: 'jeu' };
+
+const scr = new Screen(canvas, computeLayout(innerWidth, innerHeight));
+const input = new Input(canvas);
+
+let scene = SCENE.LOBBY;
+let game = null;
+let bestiaire = null;
+let lobby = null;
+let prevState = null;
+let hintsUntil = 0;
+let lastPanelId = null;
 
 /* Le champ doit remplir l'ecran : en portrait il touche le haut, la gauche
-   et la droite ; en paysage, le haut et le bas. La taille du tampon interne
-   suit donc l'orientation, et le HUD change de colonne avec elle. */
+   et la droite ; en paysage, le haut et le bas. */
 function relayout() {
   const L = computeLayout(innerWidth, innerHeight);
   scr.applyLayout(L);
   stage.style.aspectRatio = `${L.W} / ${L.H}`;
   stage.style.height = `min(100dvh, calc(100vw * ${L.H} / ${L.W}))`;
   stage.style.width = `min(100vw, calc(100dvh * ${L.W} / ${L.H}))`;
+  /* La colonne laterale libre, en pourcentage du stage : le panneau du
+     bestiaire s'y loge en paysage au lieu de manger le bas du disque. */
+  stage.dataset.mode = L.mode;
+  stage.style.setProperty('--col', `${((L.CX - L.R) / L.W) * 100}%`);
 }
 
-const scr = new Screen(canvas, computeLayout(innerWidth, innerHeight));
-const input = new Input(canvas);
-const game = new Game('milk', (Math.random() * 0xffffffff) >>> 0);
-game.input = input;
-game.showHints = true;
+function goLobby() {
+  scene = SCENE.LOBBY;
+  game = null;
+  bestiaire = null;
+  hidePanel();
+  lobby = new Lobby((choix) => {
+    if (choix.bestiaire) {
+      bestiaire = new Bestiary(goLobby);
+      scene = SCENE.BESTIAIRE;
+    } else {
+      startMatrice(choix.matrice);
+    }
+  });
+  overlay.hideAll();
+}
 
-const overlay = new Overlay(game, () => {
-  game.start();
+function startMatrice(id) {
+  game = new Game(id, (Math.random() * 0xffffffff) >>> 0);
   game.input = input;
   game.showHints = true;
+  game.start();
+  prevState = game.state;
   hintsUntil = 8;
+  scene = SCENE.JEU;
+  hidePanel();
   overlay.hideAll();
-});
+}
 
-const pal = MATRICES_PALETTE[game.matrix.id];
-let last = performance.now();
-let hintsUntil = 8;
-let prevState = game.state;
+const overlay = new Overlay(() => { goLobby(); overlay.hideAll(); });
+overlay.getGame = () => game;
+
+function hidePanel() {
+  if (!panel) return;
+  panel.classList.remove('on');
+  lastPanelId = null;
+}
+
+function syncPanel(info) {
+  if (!panel) return;
+  if (!info) { hidePanel(); return; }
+  if (info.id !== lastPanelId) {
+    lastPanelId = info.id;
+    const stats = (info.stats || [])
+      .map(([k, v]) => `<em><i>${escapeHtml(k)}</i>${escapeHtml(String(v))}</em>`)
+      .join('');
+    panel.innerHTML = `<b>${escapeHtml(info.label)}</b>`
+      + `<div class="stats">${stats}</div>`
+      + `<span>${escapeHtml(info.note)}</span>`;
+  }
+  panel.classList.add('on');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 function applyPendingDecorClear() {
-  if (!game.pendingDecorClear) return;
+  if (!game || !game.pendingDecorClear) return;
   const { x, y, radius } = game.pendingDecorClear;
   game.pendingDecorClear = null;
   forEachDecor(game.matrix, x, y, radius, game.removedDecor, game.time,
     (it) => game.removedDecor.add(it.key));
 }
+
+let last = performance.now();
 
 function frame(now) {
   /* Pas de temps borne : un onglet en arriere-plan ne doit pas teleporter
@@ -64,32 +128,39 @@ function frame(now) {
 
   input.sample();
 
-  if (input.takePause() && game.state === STATE.PLAYING) {
-    game.state = STATE.PAUSED;
-    overlay.showPause();
-  }
-
-  if (game.state === STATE.PLAYING) {
-    game.update(dt, input);
-    applyPendingDecorClear();
-    if (hintsUntil > 0) {
-      hintsUntil -= dt;
-      game.showHints = hintsUntil > 0;
+  if (scene === SCENE.LOBBY) {
+    input.takePause();
+    lobby.update(dt, input);
+    lobby.render(scr);
+  } else if (scene === SCENE.BESTIAIRE) {
+    bestiaire.update(dt, input);
+    bestiaire.render(scr);
+    syncPanel(bestiaire.info);
+  } else {
+    if (input.takePause() && game.state === STATE.PLAYING) {
+      game.state = STATE.PAUSED;
+      overlay.showPause();
     }
+    if (game.state === STATE.PLAYING) {
+      game.update(dt, input);
+      applyPendingDecorClear();
+      if (hintsUntil > 0) {
+        hintsUntil -= dt;
+        game.showHints = hintsUntil > 0;
+      }
+    }
+    if (game.state !== prevState) {
+      if (game.state === STATE.LEVELUP) overlay.showLevelUp();
+      else if (game.state === STATE.DEAD) overlay.showEnd(false);
+      else if (game.state === STATE.WON) overlay.showEnd(true);
+      prevState = game.state;
+    }
+    const pal = MATRICES_PALETTE[game.matrix.id];
+    renderField(scr, game, pal);
+    renderHud(scr, game, pal);
   }
 
-  /* Transitions d'etat vers l'interface DOM. */
-  if (game.state !== prevState) {
-    if (game.state === STATE.LEVELUP) overlay.showLevelUp();
-    else if (game.state === STATE.DEAD) overlay.showEnd(false);
-    else if (game.state === STATE.WON) overlay.showEnd(true);
-    prevState = game.state;
-  }
-
-  renderField(scr, game, pal);
-  renderHud(scr, game, pal);
   scr.present();
-
   requestAnimationFrame(frame);
 }
 
@@ -97,18 +168,27 @@ relayout();
 addEventListener('resize', relayout);
 addEventListener('orientationchange', () => setTimeout(relayout, 120));
 
+goLobby();
+/* Le lobby tourne DERRIERE l'ecran-titre : on voit deja les puits vivre. */
+overlay.show('menu');
 requestAnimationFrame(frame);
 
 /* Accroche de mise au point : inspection depuis la console et tests
    automatises (tools/smoke.mjs). */
-window.__game = game;
+window.__game = null;
+window.__input = input;
 window.__screen = scr;
 window.__view = VIEW;
 window.__overlay = overlay;
+Object.defineProperty(window, '__game', { get: () => game, configurable: true });
+Object.defineProperty(window, '__scene', { get: () => scene, configurable: true });
+Object.defineProperty(window, '__lobby', { get: () => lobby, configurable: true });
+Object.defineProperty(window, '__bestiaire', { get: () => bestiaire, configurable: true });
+window.__startMatrice = startMatrice;
 
 /* Pause automatique quand l'onglet part : on ne meurt pas hors de l'ecran. */
 addEventListener('visibilitychange', () => {
-  if (document.hidden && game.state === STATE.PLAYING) {
+  if (document.hidden && scene === SCENE.JEU && game && game.state === STATE.PLAYING) {
     game.state = STATE.PAUSED;
     overlay.showPause();
   }

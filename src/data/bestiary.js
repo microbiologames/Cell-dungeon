@@ -126,10 +126,125 @@ export const MILK_BOSSES = {
   }),
 };
 
+/* -------------------------------------------------------- MATRICE 2 -----
+   Conduite industrielle. Flore reelle des lignes laitieres : ce sont les
+   especes qu'on isole des joints, des coudes morts et des rayures d'inox
+   apres un NEP mal conduit. Meme regle que pour le lait : aucune capacite
+   qui ne soit documentee chez l'espece.
+-------------------------------------------------------------------------- */
+
+export const PIPE_MOBS = [
+  M({
+    id: 'sphingomonas', label: 'SPHINGOMONAS', role: 'chaff',
+    kind: 'rod', mot: 'brown', gram: '-',
+    hp: 24, speed: 16, contact: 5, radius: 2.8, aa: 3,
+    resist: 0.15, ability: 'adhesion', cipShelter: true,
+    note: "Colonisateur classique des reseaux d'eau. Sa membrane externe porte des glycosphingolipides a la place du LPS, d'ou une adhesion tres forte et une tolerance aux desinfectants. Peu mobile : elle tient la paroi plus qu'elle ne nage.",
+  }),
+  M({
+    id: 'aeruginosa', label: 'P. AERUGINOSA', role: 'runner',
+    kind: 'rod', mot: 'swim', gram: '-',
+    hp: 34, speed: 88, contact: 8, radius: 3.1, aa: 5,
+    ability: 'alginate',
+    note: "Flagelle polaire unique. Secrete de l'alginate, l'exopolysaccharide qui donne le phenotype mucoide : c'est lui qui reforme la plaque de biofilm. Quorum sensing las/rhl.",
+  }),
+  M({
+    id: 'listeriaPers', label: 'L. MONOCYTOGENES PERS.', role: 'tank',
+    kind: 'rod', mot: 'tumble', gram: '+',
+    hp: 130, speed: 46, contact: 13, radius: 4.2, aa: 9,
+    resist: 0.30, ability: 'persistance', cipShelter: true,
+    note: "Souches persistantes reellement isolees des memes ateliers pendant des annees : elles tiennent l'inox raye et tolerent des doses sublethales de desinfectant. Mobile par flagelles peritriches sous 30 C.",
+  }),
+  M({
+    id: 'sporeAdh', label: 'SPORE ADHEREE', role: 'chaff', cost: 0.8,
+    kind: 'spore', mot: 'none', gram: '+',
+    hp: 60, speed: 0, contact: 11, radius: 3, aa: 5, zSpeed: 0.4,
+    resist: 0.60, cipImmune: true, ability: 'germination',
+    germinatesInto: 'bacillus',
+    note: "Les endospores de Bacillus adherent a l'inox et survivent a un cycle de NEP complet : c'est le probleme industriel de fond. Il faut un tir direct, la zone ne suffit pas.",
+  }),
+  M({
+    id: 'acanthamoeba', label: 'ACANTHAMOEBA', role: 'predator',
+    kind: 'amoeba', mot: 'brown', gram: null,
+    hp: 210, speed: 30, contact: 16, radius: 8, aa: 16, zSpeed: 0.18,
+    ability: 'phagocytose',
+    note: "Amibe libre des reseaux d'eau : elle broute le biofilm et phagocyte les bacteries. Ses acanthopodes sont son marqueur. Elle s'enkyste et traverse les biocides.",
+  }),
+  M({
+    id: 'swarmer', label: 'ESSAIM', role: 'chaff', cost: 0.7,
+    kind: 'rod', mot: 'swim', gram: '-',
+    hp: 16, speed: 118, contact: 6, radius: 2.2, aa: 2,
+    note: "Cellules en swarming detachees d'une plaque de biofilm mur : la dispersion est la derniere etape du cycle du biofilm, et elle est active.",
+  }),
+];
+
+/** Source du couloir : une plaque accrochee a la paroi, qui emet sans fin.
+ *  Elle n'est pas achetee par le directeur — c'est la conduite qui la pose. */
+export const PIPE_PLAQUE = M({
+  id: 'plaque', label: 'PLAQUE DE BIOFILM', role: 'denier', cost: 0,
+  kind: 'plaque', mot: 'none', gram: null,
+  hp: 200, speed: 0, contact: 9, radius: 11, aa: 14,
+  zSpeed: 0, zHold: 0.55, resist: 0.25, immobile: true,
+  ability: 'emission', cipShelter: true,
+  note: "Un biofilm est un mode de vie, pas un depot : la matrice d'EPS protege du courant et des biocides, et la plaque disperse activement des cellules pour coloniser plus loin. Elle se reforme tant qu'un secreteur d'alginate vit a cote.",
+});
+
+export const PIPE_NEUTRALS = [
+  M({
+    id: 'methylo', label: 'METHYLOBACTERIUM', role: 'neutral', cost: 0,
+    kind: 'rod', mot: 'brown', gram: '-', neutral: true,
+    hp: 140, speed: 9, contact: 0, radius: 4, aa: 3, zSpeed: 0, zWander: true,
+    note: "Methylotrophe facultative rose, habitante ordinaire des reseaux d'eau et des rincages. Elle colonise l'inox sans rien devoir a personne, et surtout pas a une bacterie lactique.",
+  }),
+];
+
+export const PIPE_BOSSES = {
+  mucoid: M({
+    id: 'mucoid', label: 'P. AERUGINOSA MUCOIDE', role: 'boss', cost: 0,
+    kind: 'rodlong', mot: 'swim', gram: '-',
+    hp: 1000, speed: 52, contact: 16, radius: 12, aa: 110, zSpeed: 0.3,
+    boss: true, dropsPlasmid: true,
+    phases: [
+      { at: 1.00, ability: 'alginate', label: 'ALGINATE' },
+      { at: 0.55, ability: 'quorumboss', label: 'QUORUM SENSING' },
+      { at: 0.25, ability: 'dispersion', label: 'DISPERSION' },
+    ],
+    disperseInto: 'swarmer',
+    note: "Conversion mucoide par mutation de mucA : surproduction d'alginate, le phenotype des souches installees a demeure. Pyocyanine et rhamnolipides completent l'arsenal.",
+  }),
+  amibe: M({
+    id: 'amibe', label: 'ACANTHAMOEBA GEANTE', role: 'boss', cost: 0,
+    kind: 'amoeba', mot: 'brown', gram: null,
+    hp: 1400, speed: 34, contact: 18, radius: 15, aa: 150, zSpeed: 0.22,
+    boss: true, dropsPlasmid: true,
+    phases: [
+      { at: 1.00, ability: 'phagocytose', label: 'PHAGOCYTOSE' },
+      { at: 0.55, ability: 'broutage', label: 'BROUTAGE' },
+      { at: 0.25, ability: 'enkystement', label: 'ENKYSTEMENT' },
+    ],
+    note: "Trophozoite gorge de biofilm. Les amibes sont un reservoir reel de bacteries dans les reseaux : ce qu'elles avalent en ressort vivant.",
+  }),
+  biofilm: M({
+    id: 'biofilmMur', label: 'BIOFILM MUR', role: 'boss', cost: 0,
+    kind: 'plaque', mot: 'none', gram: null,
+    hp: 3200, speed: 0, contact: 22, radius: 26, aa: 320,
+    boss: true, dropsPlasmid: true, zSpeed: 0, immobile: true,
+    phases: [
+      { at: 1.00, ability: 'essaimage', label: 'ESSAIMAGE' },
+      { at: 0.60, ability: 'retraction', label: 'RETRACTION' },
+      { at: 0.28, ability: 'dispersion', label: 'DISPERSION' },
+    ],
+    disperseInto: 'swarmer',
+    note: "Un biofilm mur n'est pas un organisme mais un consortium : matrice d'EPS, canaux d'eau, gradients internes. Il se disperse activement quand le milieu se degrade, et c'est pendant le NEP qu'il est le plus expose.",
+  }),
+};
+
 export const BESTIARY = Object.fromEntries(
-  [...MILK_MOBS, ...MILK_NEUTRALS, ...Object.values(MILK_BOSSES)].map((m) => [m.id, m]),
+  [...MILK_MOBS, ...MILK_NEUTRALS, ...Object.values(MILK_BOSSES),
+    ...PIPE_MOBS, PIPE_PLAQUE, ...PIPE_NEUTRALS,
+    ...Object.values(PIPE_BOSSES)].map((m) => [m.id, m]),
 );
 
-/* Les matrices 2 a 4 sont specifiees dans docs/02-bestiaire.md mais ne sont
-   pas encore implementees : la maquette ne fait tourner que le lait cru. */
-export const IMPLEMENTED_MATRICES = ['milk'];
+/* Les matrices 3 et 4 sont specifiees dans docs/02-bestiaire.md mais ne sont
+   pas encore implementees. */
+export const IMPLEMENTED_MATRICES = ['milk', 'pipe'];

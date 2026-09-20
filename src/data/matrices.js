@@ -5,7 +5,10 @@
    constantes, verifie hors du navigateur.
 --------------------------------------------------------------------------- */
 
-import { MILK_MOBS, MILK_NEUTRALS, MILK_BOSSES } from './bestiary.js';
+import {
+  MILK_MOBS, MILK_NEUTRALS, MILK_BOSSES,
+  PIPE_MOBS, PIPE_NEUTRALS, PIPE_BOSSES,
+} from './bestiary.js';
 
 /** Population de menace visee, en credits presents SIMULTANEMENT dans le
  *  champ (ce n'est pas un debit : le directeur maintient ce niveau et
@@ -56,6 +59,7 @@ export const MILK = {
   id: 'milk',
   label: 'LAIT CRU',
   subtitle: 'TANK REFRIGERE, 36 H',
+  playable: true,
   duration: 720,
   /* Le champ visible fait environ 110 px de rayon : a 560, on butait sans
      arret sur le menisque. A 1600 le monde fait une centaine de fois la
@@ -104,7 +108,88 @@ export const MILK = {
   },
 };
 
-export const MATRICES = { milk: MILK };
+/* La conduite est jouable ; le kombucha et le sang sont encore des ebauches.
+   Elles existent ici pour que le lobby les montre — un puits grise dit mieux
+   "a venir" qu'une absence. Specification : docs/01-matrices.md. */
+
+export const PIPE = {
+  id: 'pipe',
+  label: 'CONDUITE',
+  subtitle: 'ACIER 316L, BIOFILM',
+  playable: true,
+  duration: 720,
+  /* Ce n'est pas un disque : c'est un tube. Le deplacement y est
+     essentiellement gauche-droite, et les parois sont a portee. */
+  arena: { kind: 'tube', halfX: 1400, halfY: 112 },
+  arenaRadius: 1400,
+  pool: PIPE_MOBS,
+  neutrals: PIPE_NEUTRALS,
+  ambient: 2,
+  bosses: PIPE_BOSSES,
+
+  /* Un couloir de 224 px de large concentre la horde : a budget egal, la
+     pression y est bien plus forte que dans une goutte de 2800 px. Mesure sans
+     ce facteur : 3 a 12 fois plus de morts que dans le lait cru. */
+  budgetScale: 0.68,
+  /* Dans un couloir on ne decroche pas : un nageur rapide reste colle. Les
+     plafonds y sont donc plus bas que dans la goutte, sinon le seul role
+     "runner" faisait 96 % des degats subis. */
+  roleCaps: { chaff: 14, runner: 4, tank: 3, denier: 3, predator: 1 },
+
+  /* Ecoulement laminaire, en px/s au centre du tube. Il vaut la moitie de la
+     vitesse de depart du joueur : remonter le courant est penible sans etre
+     impossible, et la couche limite devient un vrai choix. */
+  pipe: { flow: 34 },
+
+  unlocks: { chaff: 0, runner: 25, tank: 110, predator: 210, denier: 0 },
+
+  events: [
+    { t: 240, type: 'boss', id: 'mucoid' },
+    { t: 400, type: 'lull', dur: 18, budget: 0.12 },
+    { t: 480, type: 'boss', id: 'amibe' },
+    { t: 690, type: 'lull', dur: 15, budget: 0.10 },
+    { t: 720, type: 'boss', id: 'biofilm' },
+  ],
+
+  /* Une conduite laitiere en service tourne acide : le rincage acide et les
+     residus de lactose fermente laissent un milieu bien plus bas que le lait.
+     Le plancher est plus bas aussi, l'acide n'a pas de caseine a tamponner. */
+  chem: {
+    phStart: 5.4, phFloor: 3.6,
+    phTrail: 0.30, phDeposit: 0.34,
+    coliformSlowBelow: 4.6, pseudomonasBurnBelow: 4.2, pseudomonasBurnDps: 3,
+    tempC: 20,
+  },
+
+  /* Decor : pas de globules gras ici mais des amas d'EPS et des bulles du
+     circuit. On reutilise la meme generation par hachage : ce qui est dore
+     colle, ce qui est clair repousse. */
+  decor: {
+    kind: 'globule', minR: 1.5, maxR: 11, skew: 2.8,
+    bubbleMinR: 1.6, bubbleMaxR: 9, bubbleSkew: 2.2,
+    blocksBullets: true,
+  },
+};
+
+export const KOMBUCHA = {
+  id: 'kombucha', label: 'KOMBUCHA', subtitle: 'JARRE, JOUR 7',
+  playable: false, duration: 720, arenaRadius: 1600, pool: [], bosses: {},
+  unlocks: {}, events: [],
+  chem: { phStart: 2.8, phFloor: 2.4, phTrail: 0.3, phDeposit: 0.34, tempC: 24 },
+  decor: { kind: 'globule', minR: 1.5, maxR: 14, skew: 2.4,
+    bubbleMinR: 1.8, bubbleMaxR: 12, bubbleSkew: 2.0, blocksBullets: true },
+};
+
+export const BLOOD = {
+  id: 'blood', label: 'SANG', subtitle: 'IN VIVO, 37 C',
+  playable: false, duration: 720, arenaRadius: 1600, pool: [], bosses: {},
+  unlocks: {}, events: [],
+  chem: { phStart: 7.4, phFloor: 6.8, phTrail: 0.3, phDeposit: 0.34, tempC: 37 },
+  decor: { kind: 'globule', minR: 2, maxR: 16, skew: 2.2,
+    bubbleMinR: 1.8, bubbleMaxR: 10, bubbleSkew: 2.0, blocksBullets: true },
+};
+
+export const MATRICES = { milk: MILK, pipe: PIPE, kombucha: KOMBUCHA, blood: BLOOD };
 
 /** Palier courant (0 a 4) pour une fraction de run. */
 export function tierAt(p) {

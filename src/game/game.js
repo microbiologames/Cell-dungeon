@@ -6,9 +6,11 @@ import { clamp, mulberry32, TAU } from '../core/util.js';
 import { MATRICES } from '../data/matrices.js';
 import { BESTIARY } from '../data/bestiary.js';
 import { Player } from './player.js';
+import { makeArena } from './arena.js';
 import { PhField } from './phfield.js';
 import { collectDecor, applyDecor, decorBlocksBullet, convection } from './decor.js';
 import { Director } from './director.js';
+import { Conduite } from './pipe.js';
 import {
   makeEnemy, makeBullet, makePickup, makeZone, updateEnemy, pickTarget,
   sharpness, damageFalloff, compact, IN_PLANE, nearestEnemy,
@@ -37,6 +39,9 @@ export class Game {
 
   reset() {
     this.time = 0;
+    /* La forme de l'arene est une donnee de la matrice : goutte pour le lait,
+       couloir pour la conduite. Tout le monde interroge cet objet. */
+    this.arena = makeArena(this.matrix);
     this.state = STATE.MENU;
     this.enemies = [];
     this.bullets = [];
@@ -46,6 +51,9 @@ export class Game {
     this.removedDecor = new Set();
     this.player = new Player(this);
     this.director = new Director(this);
+    /* Mecaniques propres a la matrice. Seule la conduite en a pour l'instant :
+       courant, plaques de biofilm et Nettoyage En Place. */
+    this.conduite = this.matrix.id === 'pipe' ? new Conduite(this) : null;
     this.focus = 0;
     this.focusTarget = 0;
     this.boss = null;
@@ -53,7 +61,7 @@ export class Game {
     this.bannerTtl = 0;
     this.hand = null;
     this.pendingLevels = 0;
-    this.phField = new PhField(this.matrix);
+    this.phField = new PhField(this.matrix, this.arena);
     this.ph = this.matrix.chem.phStart;
     this.shots = 0;
     this.sharpEnemyCount = 0;
@@ -114,6 +122,9 @@ export class Game {
     this.player.update(dt, input.move, this);
 
     this.director.update(dt);
+    /* Apres le directeur (les plaques posent leurs entites) et avant les
+       mobs : le courant deplace ce que la trame vient de creer. */
+    if (this.conduite) this.conduite.update(dt);
 
     for (const e of this.enemies) {
       if (!e.alive) continue;
@@ -239,7 +250,7 @@ export class Game {
       }
       if (b.zDrift) b.z -= Math.sign(b.z) * Math.min(Math.abs(b.z), b.zDrift * dt);
 
-      if (Math.hypot(b.x, b.y) > this.matrix.arenaRadius) { b.alive = false; continue; }
+      if (!this.arena.contains(b.x, b.y)) { b.alive = false; continue; }
 
       /* Un globule gras arrete la goutte : l'acide lactique est
          hydrosoluble et ne penetre pas la phase grasse. C'est donc un abri,
@@ -285,7 +296,10 @@ export class Game {
 
         /* Plus la goutte s'est diffusee, moins elle concentre. */
         const spent = 1 - 0.5 * (b.diffuse || 0);
-        e.hp -= p.damageAgainst(e, fall * spent) * (e.spec.resist ? 1 - e.spec.resist : 1);
+        /* Le kyste encaisse : trois quarts des degats passent a la trappe
+           tant qu'il tient. */
+        const blindage = (e.spec.resist ? 1 - e.spec.resist : 1) * (e.cyst > 0 ? 0.25 : 1);
+        e.hp -= p.damageAgainst(e, fall * spent) * blindage;
         this.spark(b.x, b.y, 2);
         /* La goutte creve sur la cellule : elle y laisse sa charge. Sans ca,
            presque aucune goutte n'atteignait sa fin de course et le pH ne

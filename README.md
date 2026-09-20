@@ -4,9 +4,25 @@ Roguelite d'arène microbiologique. Vous êtes une **bactérie lactique** observ
 au microscope, vous tirez de l'acide lactique, vous absorbez les acides aminés
 de vos victimes et vous volez leurs gènes.
 
-**État : maquette jouable sans assets.** Tout est dessiné procéduralement.
-La matrice 1 (lait cru) est complète ; les matrices 2 à 4 sont spécifiées
-mais pas implémentées.
+**État : maquette jouable.** Tout est dessiné procéduralement, avec quelques
+sprites pour les silhouettes que le procédural ne rend pas.
+Deux matrices jouables — le **lait cru** (goutte, fond clair) et la
+**conduite** (couloir d'acier, courant, biofilm, NEP) — plus un **lobby** et
+un **bestiaire vivant**. Le kombucha et le sang sont spécifiés dans
+`docs/01-matrices.md` mais pas encore implémentés.
+
+## Le lobby et le bestiaire
+
+On ne démarre pas sur un menu : on nage dans une **boîte de Petri** et on
+choisit sa matrice en restant dans un puits. Les puits verrouillés sont
+grisés, les autres montrent leur propre milieu et trois organismes de leur
+flore qui dérivent dedans.
+
+Le puits central ouvre le **bestiaire vivant** : chaque espèce dérive sur
+place avec *sa* motilité — le lactocoque tremble, *Escherichia* file en ligne
+brisée, *Listeria* culbute. C'est déjà la moitié de l'information. En
+s'approchant, l'espèce se détache et ses caractéristiques s'affichent, avec
+son fondement microbiologique. Les neutres y sont aussi.
 
 ## Jouer
 
@@ -46,6 +62,30 @@ Chaque organisme a une profondeur `z`. Vous réglez votre plan focal.
 
 C'est le « saut » de ce jeu : dans un bouillon il n'y a pas de gravité, donc
 l'axe Z remplace la verticalité.
+
+Dans la conduite, la profondeur sert une deuxième fois : les **plaques de
+biofilm** vivent à `z = +0.55`, contre l'acier. Il faut descendre la mise au
+point pour les voir, et donc pour les détruire.
+
+## La conduite : un couloir, pas une arène
+
+La deuxième matrice change la forme du jeu, pas seulement son décor.
+
+- **L'arène est un tube** (±1400 px en X, ±112 px en Y). On n'y tourne pas
+  autour de la horde, on lui fait face.
+- **Le courant est laminaire** : maximal au centre, nul contre la paroi. La
+  couche limite est un vrai refuge, et le courant emporte aussi vos gouttes
+  d'acide et les acides aminés libres.
+- **Les plaques de biofilm** émettent indéfiniment. Les détruire tarit la
+  source — mais elles se reforment en 45 s si un *P. aeruginosa* survit à
+  côté : c'est lui qui sécrète l'alginate. Tuer la plaque ne suffit pas, il
+  faut tuer la cause.
+- **Le Nettoyage En Place** traverse le couloir toutes les 150 s, et les
+  biocides **tournent** : soude, acide nitrique, hypochlorite, acide
+  peracétique. Chacun a un contre différent — s'abriter, `Tolérance à
+  l'acide`, `Catalase`, `Catalase` **et** `Efflux`. C'est là que le build
+  monté dans le lait cru se révèle bon ou mauvais. La flore y passe aussi :
+  bien placé, le NEP est une arme.
 
 ## Le pH est un terrain
 
