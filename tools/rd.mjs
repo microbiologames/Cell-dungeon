@@ -13,7 +13,7 @@
 
    API : https://api.retrodiffusion.ai/v2, en-tete X-RD-Token.
 --------------------------------------------------------------------------- */
-import { writeFile } from 'node:fs/promises';
+import { writeFile, readFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
@@ -64,13 +64,15 @@ if (!KEY.startsWith('rdpk-')) {
 }
 const masked = `${KEY.slice(0, 9)}...`;
 
-async function call(path, { method = 'GET', body } = {}) {
+async function call(path, { method = 'GET', body, idempotent = false } = {}) {
   const res = await fetch(BASE + path, {
     method,
     headers: {
       'X-RD-Token': KEY,
       'Content-Type': 'application/json',
-      ...(method === 'POST' ? { 'Idempotency-Key': randomUUID() } : {}),
+      /* L'API refuse Idempotency-Key en execution synchrone
+         (idempotency_async_required) : on ne l'envoie qu'en mode async. */
+      ...(idempotent ? { 'Idempotency-Key': randomUUID() } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -112,10 +114,31 @@ if (cmd === 'cost' || cmd === 'gen') {
     width: Number(arg('w', 32)),
     height: Number(arg('h', 32)),
     num_images: 1,
+    /* Par defaut un LLM enrichit le prompt, et il ne sait pas ce qu'est une
+       bacterie : "one single short rod shaped bacterium" est ressorti en
+       torche enflammee. On le court-circuite. */
+    bypass_prompt_expansion: !process.argv.includes('--expand'),
+    /* Fond transparent natif : evite d'avoir a detourer un carre noir. */
+    remove_bg: !process.argv.includes('--keep-bg'),
     ...(isGen ? {} : { check_cost: true }),
   };
 
-  const out = await call('/inferences', { method: 'POST', body: payload });
+  /* --from <fichier> : on RETEXTURE une silhouette existante au lieu d'en
+     laisser inventer une. C'est le mode qui compte pour ce projet, puisque
+     les formes procedurales sont deja microbiologiquement justes. */
+  const from = arg('from', null);
+  if (from) {
+    payload.input_image = (await readFile(from)).toString('base64');
+    payload.strength = Number(arg('strength', 0.45));
+  }
+  const palette = arg('palette', null);
+  if (palette) payload.input_palette = (await readFile(palette)).toString('base64');
+  const seed = arg('seed', null);
+  if (seed) payload.seed = Number(seed);
+
+  const useAsync = process.argv.includes('--async');
+  if (useAsync) payload.async = true;
+  const out = await call('/inferences', { method: 'POST', body: payload, idempotent: useAsync });
 
   if (!isGen) {
     console.log('estimation (rien n\'a ete genere) :');
@@ -123,26 +146,37 @@ if (cmd === 'cost' || cmd === 'gen') {
     process.exit(0);
   }
 
-  /* Le schema exact de reponse n'a pas encore ete confirme contre l'API
-     reelle : on couvre les formes courantes, et sinon on affiche le JSON
-     brut pour s'y adapter en une ligne. */
-  const b64 = out?.base64_images?.[0] ?? out?.images?.[0]?.base64
-    ?? out?.data?.[0]?.b64_json ?? (typeof out?.images?.[0] === 'string' ? out.images[0] : null);
+  /* L'API met TOUJOURS en file, meme sans --async : la premiere reponse
+     porte un task_id et il faut interroger jusqu'a 'succeeded'. */
+  let payloadOut = out;
+  if (out?.task_id && !out?.base64_images) {
+    process.stdout.write(`tache ${out.task_id} `);
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const t = await call(`/inferences/tasks/${out.task_id}`);
+      if (t?.status === 'succeeded') { payloadOut = t.result ?? t; break; }
+      if (t?.status === 'failed' || t?.status === 'cancelled') {
+        console.error(`\nla tache a echoue : ${JSON.stringify(t).slice(0, 400)}`);
+        process.exit(1);
+      }
+      process.stdout.write('.');
+    }
+    process.stdout.write('\n');
+  }
+
+  const b64 = payloadOut?.base64_images?.[0] ?? payloadOut?.images?.[0]?.base64
+    ?? payloadOut?.data?.[0]?.b64_json
+    ?? (typeof payloadOut?.images?.[0] === 'string' ? payloadOut.images[0] : null);
   if (b64) {
     const file = join('assets/sprites', `${id}.png`);
     await writeFile(file, Buffer.from(b64.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
-    console.log(`ecrit ${file}`);
+    console.log(`ecrit ${file}  (${payloadOut.balance_cost ?? '?'} $, solde restant ${payloadOut.remaining_balance ?? '?'})`);
     console.log('puis : node tools/sprites.mjs import');
     process.exit(0);
   }
-  if (out?.task_id) {
-    console.log(`tache ${out.task_id} en file. Interroger :`);
-    console.log(`  curl -H "X-RD-Token: $RETRODIFFUSION_API_KEY" ${BASE}/inferences/tasks/${out.task_id}`);
-    process.exit(0);
-  }
   console.log('reponse inattendue, a mapper :');
-  console.log(JSON.stringify(out, null, 2).slice(0, 1200));
-  process.exit(0);
+  console.log(JSON.stringify(payloadOut, null, 2).slice(0, 1200));
+  process.exit(1);
 }
 
 console.error('commande inconnue. Voir l\'entete de tools/rd.mjs.');

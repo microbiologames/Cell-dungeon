@@ -7,6 +7,13 @@
                                      DEPART : on l'ouvre dans Aseprite, on
                                      retouche, on reimporte.
 
+     node tools/sprites.mjs bake --size 64
+                                     meme chose mais sur une toile de 64 px
+                                     avec de la MARGE, dans
+                                     assets/reference/gen-src/. C'est ce
+                                     qu'on envoie en img2img : sans marge, le
+                                     generateur rogne le sujet au cadre.
+
      node tools/sprites.mjs import   lit assets/sprites/<id>.png, redimensionne
                                      a la taille de l'espece, quantifie sur une
                                      palette courte, et ecrit
@@ -51,7 +58,9 @@ await mkdir(SPRITE_DIR, { recursive: true });
 
 /* --------------------------------------------------------------- bake --- */
 if (MODE === 'bake') {
-  const files = await page.evaluate(async () => {
+  const sizeArg = process.argv.indexOf('--size');
+  const forcedSize = sizeArg > -1 ? Number(process.argv[sizeArg + 1]) : 0;
+  const files = await page.evaluate(async (forced) => {
     const { Screen } = await import('./src/core/pixel.js');
     const { drawOrganism, drawPlayer, colorOf } = await import('./src/render/organisms.js');
     const { MILK_MOBS, MILK_NEUTRALS, MILK_BOSSES } = await import('./src/data/bestiary.js');
@@ -77,21 +86,30 @@ if (MODE === 'bake') {
       out.push({ id, dataUrl: cv.toDataURL('image/png') });
     };
 
-    bake('player', 16, (s, x, y, r) => drawPlayer(s, x, y, 3.4, 0, 1.2, UI, { count: 4, mode: 'bundle' }));
+    /* Avec --size, l'organisme occupe 70 % de la toile et reste centre :
+       il faut de la marge, sinon le generateur rogne au cadre. */
+    const fit = (native) => (forced ? (forced * 0.70) / (native * 2) : 1);
+
+    bake('player', forced || 16, (s, x, y) => drawPlayer(s, x, y, 3.4 * fit(3.4), 0, 1.2, UI, { count: 4, mode: 'bundle' }));
     for (const spec of [...MILK_MOBS, ...MILK_NEUTRALS, ...Object.values(MILK_BOSSES)]) {
-      const size = Math.max(6, Math.ceil(spec.radius * 2) + 2);
+      const size = forced || Math.max(6, Math.ceil(spec.radius * 2) + 2);
       const [fill, rim] = colorOf(spec, pal);
-      bake(spec.id, size, (s, x, y) => drawOrganism(s, spec, x, y, spec.radius, 0, 1.1, fill, rim));
+      bake(spec.id, size, (s, x, y) => drawOrganism(s, spec, x, y, spec.radius * fit(spec.radius), 0, 1.1, fill, rim));
     }
     return out;
-  });
+  }, forcedSize);
 
+  const dir = forcedSize ? join(ROOT, 'assets/reference/gen-src') : SPRITE_DIR;
+  await mkdir(dir, { recursive: true });
   for (const f of files) {
     const b64 = f.dataUrl.split(',')[1];
-    await writeFile(join(SPRITE_DIR, `${f.id}.png`), Buffer.from(b64, 'base64'));
+    await writeFile(join(dir, `${f.id}.png`), Buffer.from(b64, 'base64'));
   }
-  console.log(`${files.length} toiles de depart ecrites dans assets/sprites/`);
-  console.log('Retouche-les, puis : node tools/sprites.mjs import');
+  console.log(`${files.length} toiles ecrites dans ${forcedSize ? 'assets/reference/gen-src/' : 'assets/sprites/'}`
+    + (forcedSize ? ` (${forcedSize}px, avec marge — sources img2img)` : ''));
+  console.log(forcedSize
+    ? 'Puis : node tools/rd.mjs gen <id> "<prompt>" --from assets/reference/gen-src/<id>.png --w 64 --h 64'
+    : 'Retouche-les, puis : node tools/sprites.mjs import');
   await browser.close(); srv.close();
   process.exit(0);
 }

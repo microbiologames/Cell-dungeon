@@ -91,7 +91,58 @@ C'est faisable et c'est le chemin le plus fiable :
 L'étape 3 n'est pas optionnelle : à 8–30 px, la seule façon de juger est de
 regarder le résultat dans le jeu, pas le code.
 
-## Génération assistée (Retro Diffusion)
+## Génération assistée (Retro Diffusion) — testé le 20/09/2026
+
+### Ce que l'essai a montré
+
+**Le texte seul ne marche pas pour des micro-organismes.** Le prompt
+« one single short rod shaped bacterium » a produit une **torche enflammée**.
+Le modèle a de fortes attentes de personnages et d'objets de RPG, et aucune
+notion de morphologie bactérienne.
+
+**L'img2img sur nos propres silhouettes marche.** En envoyant la forme
+procédurale en `input_image`, le générateur **conserve la silhouette** et
+n'ajoute que le travail de pixel art (liserés, reflets). C'est exactement le
+bon partage : la microbiologie vient de nous, la facture graphique vient de
+lui. C'est donc le SEUL mode à utiliser ici.
+
+### Les quatre réglages qui comptent
+
+| Paramètre | Pourquoi |
+|---|---|
+| `input_image` + `strength` | Retexturer notre silhouette. 0.45 est très conservateur (on reconnaît la source presque à l'identique) ; monter vers 0.6–0.7 pour plus de traitement |
+| `bypass_prompt_expansion: true` | **Indispensable.** Par défaut un LLM enrichit le prompt, et c'est lui qui transforme une bactérie en torche |
+| `remove_bg: true` | Fond transparent natif, vérifié : 55 % de pixels transparents |
+| source **rembourrée** | Sans marge, le sujet est rogné au cadre (77 pixels sur le bord mesurés). `bake --size 64` produit des sources centrées à 70 % de la toile |
+
+### Pièges d'API rencontrés
+
+- L'en-tête REST est **`X-RD-Token`**, pas `Authorization: Bearer` (le Bearer,
+  c'est pour le MCP).
+- `Idempotency-Key` déclenche `idempotency_async_required` en mode synchrone :
+  ne l'envoyer qu'avec `async`.
+- L'API **met toujours en file**, même sans `async` : la première réponse
+  porte un `task_id` et il faut interroger `/inferences/tasks/{id}` jusqu'à
+  `status: "succeeded"`, puis lire `result.base64_images[0]`.
+- Il n'y a pas d'endpoint `/inferences/styles`.
+
+### Coût mesuré
+
+0,027 $ par image, identique en 32×32 et en 64×64. Donc **générer en 64 et
+laisser l'import réduire** : même prix, bien meilleur résultat.
+
+### La chaîne complète
+
+```bash
+node tools/sprites.mjs bake --size 64     # sources rembourrees -> assets/reference/gen-src/
+npm run rd:credits                        # solde
+node tools/rd.mjs cost "<prompt>" --w 64 --h 64 --from assets/reference/gen-src/<id>.png
+node tools/rd.mjs gen <id> "<prompt>" --w 64 --h 64 \
+     --from assets/reference/gen-src/<id>.png --strength 0.55
+node tools/sprites.mjs import             # -> src/render/sprite-data.js
+```
+
+## Hygiène de la clé
 
 La clé **ne vit jamais dans le dépôt**. Elle est lue dans
 `RETRODIFFUSION_API_KEY`, définie dans les réglages d'environnement de
