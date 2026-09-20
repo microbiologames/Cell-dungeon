@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Cell Dungeon — maquette</title>
+<meta name="description" content="Roguelite d'arene microbiologique : une bacterie lactique dans du lait cru.">
+<meta name="theme-color" content="#02060a">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='5' fill='%237dff9b'/></svg>">
+<style>
+  :root {
+    --bg: #02060a;
+    --ink: #cfe6d8;
+    --dim: #5d7a68;
+    --hot: #ffd479;
+    --line: #172b21;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--ink);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    overflow: hidden; overscroll-behavior: none;
+  }
+  #wrap {
+    position: relative;
+    height: 100dvh; width: 100vw;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #stage {
+    position: relative;
+    aspect-ratio: 256 / 352;
+    height: min(100dvh, calc(100vw * 352 / 256));
+    max-width: 100vw;
+  }
+  canvas {
+    display: block; width: 100%; height: 100%;
+    image-rendering: pixelated; image-rendering: crisp-edges;
+    touch-action: none; background: var(--bg);
+  }
+  .overlay {
+    position: absolute; inset: 0;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 2.2%; padding: 5% 6%;
+    background: rgba(2, 6, 10, 0.88);
+    backdrop-filter: blur(2px);
+  }
+  .overlay.on { display: flex; }
+  h1 { font-size: clamp(14px, 5.2vmin, 26px); margin: 0 0 1vmin; letter-spacing: .12em; color: var(--ink); }
+  h2 { font-size: clamp(11px, 3.4vmin, 17px); margin: 0; letter-spacing: .1em; color: var(--hot); }
+  p  { font-size: clamp(9px, 2.5vmin, 13px); line-height: 1.5; margin: 0; color: var(--dim); text-align: center; }
+  .card {
+    width: 100%; border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(18,34,26,.92), rgba(6,12,9,.92));
+    padding: 2.6% 3.2%; cursor: pointer; text-align: left;
+    color: inherit; font: inherit; display: block;
+    transition: border-color .1s, transform .1s;
+  }
+  .card:hover, .card:focus-visible { border-color: var(--hot); transform: translateX(2px); outline: none; }
+  .card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+  .card .name { font-size: clamp(9px, 2.7vmin, 14px); letter-spacing: .04em; }
+  .card .rar  { font-size: clamp(7px, 1.9vmin, 10px); letter-spacing: .1em; white-space: nowrap; }
+  .card .desc { font-size: clamp(8px, 2.2vmin, 11px); color: var(--ink); margin-top: 2%; }
+  .card .note { font-size: clamp(7px, 1.9vmin, 10px); color: var(--dim); margin-top: 1.5%; font-style: italic; }
+  .card .rank { font-size: clamp(7px, 1.9vmin, 10px); color: var(--dim); }
+  .btn {
+    border: 1px solid var(--line); background: transparent; color: var(--ink);
+    font: inherit; font-size: clamp(9px, 2.6vmin, 13px); letter-spacing: .1em;
+    padding: 2.4% 6%; cursor: pointer;
+  }
+  .btn:hover, .btn:focus-visible { border-color: var(--hot); color: var(--hot); outline: none; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .keys { font-size: clamp(7px, 2vmin, 10px); color: var(--dim); letter-spacing: .06em; }
+  .stat { font-size: clamp(8px, 2.2vmin, 11px); color: var(--dim); }
+  .stat b { color: var(--ink); font-weight: normal; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+
+    <div class="overlay on" id="ovMenu">
+      <h1>CELL DUNGEON</h1>
+      <p>Vous etes <i>Lactococcus lactis</i> dans du lait cru.<br>
+         Tirez de l'acide, absorbez l'ADN, volez des genes.</p>
+      <p class="keys" id="menuKeys"></p>
+      <button class="btn" id="btnStart">COMMENCER</button>
+      <p class="keys">MAQUETTE SANS ASSETS &mdash; MATRICE 1 SUR 4</p>
+    </div>
+
+    <div class="overlay" id="ovLevel">
+      <h2 id="lvTitle">NIVEAU</h2>
+      <div id="lvCards" style="width:100%;display:flex;flex-direction:column;gap:2.2%"></div>
+      <button class="btn" id="btnReroll" style="display:none">TRANSPOSON : RELANCER</button>
+    </div>
+
+    <div class="overlay" id="ovPause">
+      <h2>PAUSE</h2>
+      <div id="pauseStats"></div>
+      <button class="btn" id="btnResume">REPRENDRE</button>
+      <button class="btn" id="btnQuit">ABANDONNER</button>
+    </div>
+
+    <div class="overlay" id="ovEnd">
+      <h2 id="endTitle">LYSE</h2>
+      <div id="endStats"></div>
+      <button class="btn" id="btnRetry">RECOMMENCER</button>
+    </div>
+  </div>
+</div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

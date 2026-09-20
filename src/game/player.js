@@ -1,0 +1,213 @@
+/* ---------------------------------------------------------------------------
+   Le joueur : une bacterie lactique qui vole des genes a tout le monde.
+   Le transfert horizontal (plasmides, phages, ilots) est la justification
+   diegetique du fait qu'en fin de run elle ne ressemble plus a rien de connu.
+--------------------------------------------------------------------------- */
+
+import { computeStats } from './stats.js';
+import { EVOLUTIONS, EVO_BY_ID, rarityWeight } from '../data/evolutions.js';
+import { XP_FOR_LEVEL } from '../data/matrices.js';
+import { clamp, weightedPick, TAU } from '../core/util.js';
+
+export class Player {
+  constructor(game) {
+    this.game = game;
+    this.x = 0; this.y = 0;
+    this.ang = -Math.PI / 2;
+    this.phase = 0;
+    this.taken = new Map();
+    this.level = 1;
+    this.dna = 0;
+    this.recompute();
+    this.hp = this.stats.maxHp;
+    this.fireCd = 0;
+    this.dashCd = 0;
+    this.dashTtl = 0;
+    this.invuln = 0;
+    this.dot = 0; this.dotTtl = 0;
+    this.sporeUsed = false;
+    this.stillTime = 0;
+    this.shield = 0;
+    this.sideroStacks = 0; this.sideroTtl = 0;
+    this.crisprBonus = 0;
+    this.phageCd = 0;
+    this.conjugationCd = 30;
+    this.epsCd = 0;
+    this.hypermutTimer = 45;
+    this.rerollUsed = false;
+    this.phagocytosedBy = null;
+    this.phagoTimer = 0;
+    this.satellites = [];
+    this.kills = 0;
+  }
+
+  recompute() {
+    const r = computeStats(this.taken);
+    this.stats = r.stats;
+    this.flags = r.flags;
+    this.rankOf = r.rank;
+    this.radius = this.stats.hitbox;
+    if (this.hp !== undefined) this.hp = Math.min(this.hp, this.stats.maxHp);
+  }
+
+  get flagellaCount() { return this.rankOf('flagelle'); }
+
+  /** Cadence effective, siderophores compris. */
+  get fireRate() {
+    const sid = this.sideroTtl > 0 ? 1 + 0.02 * this.sideroStacks : 1;
+    return this.stats.fireRate * sid;
+  }
+
+  /** Degats effectifs : quorum sensing et CRISPR s'ajoutent ici. */
+  damageAgainst(enemy, sharpFactor) {
+    let d = this.stats.dmg * sharpFactor;
+    if (this.flags.has('quorum')) {
+      d *= 1 + Math.min(0.60, 0.06 * this.game.sharpEnemyCount);
+    }
+    if (this.crisprBonus) d *= 1 + this.crisprBonus;
+    if (enemy) {
+      if (enemy.spec.gram === '+' && this.stats.gramPierce) {
+        d *= 1 + this.stats.gramPierce;
+      }
+      if (enemy.spec.gram === 'fungi' && this.stats.fungiDmg) {
+        d *= 1 + this.stats.fungiDmg;
+      }
+    }
+    return d;
+  }
+
+  gainDna(amount) {
+    let a = amount * this.stats.dnaGain;
+    /* Transformation naturelle : la competence monte sous stress. */
+    if (this.flags.has('transformation') && this.hp < this.stats.maxHp * 0.4) a *= 2;
+    this.dna += a;
+    let levels = 0;
+    while (this.dna >= XP_FOR_LEVEL(this.level) && levels < 5) {
+      this.dna -= XP_FOR_LEVEL(this.level);
+      this.level++;
+      levels++;
+    }
+    return levels;
+  }
+
+  /* -------------------------------------------------------- evolutions -- */
+
+  handSize() { return this.flags.has('hypermutateur') ? 4 : 3; }
+
+  /** Tire une main sans doublon, hors evolutions deja au rang maximal. */
+  draw(minRarity = null) {
+    const hyper = this.flags.has('hypermutateur');
+    const order = ['commune', 'peucommune', 'rare', 'epique', 'legendaire'];
+    const minIdx = minRarity ? order.indexOf(minRarity) : 0;
+    const pool = EVOLUTIONS.filter((e) => (this.taken.get(e.id) || 0) < e.ranks
+      && order.indexOf(e.rarity) >= minIdx);
+    const hand = [];
+    const used = new Set();
+    const n = minRarity ? 1 : this.handSize();
+    for (let i = 0; i < n; i++) {
+      const cands = pool.filter((e) => !used.has(e.id));
+      if (!cands.length) break;
+      const pick = weightedPick(this.game.rng, cands, (e) => rarityWeight(e.rarity, hyper));
+      if (!pick) break;
+      used.add(pick.id);
+      hand.push(pick);
+    }
+    return hand;
+  }
+
+  take(id) {
+    const evo = EVO_BY_ID[id];
+    if (!evo) return;
+    const cur = this.taken.get(id) || 0;
+    if (cur >= evo.ranks) return;
+    this.taken.set(id, cur + 1);
+    const before = this.stats.maxHp;
+    this.recompute();
+    /* Un gain de PV max soigne d'autant : sinon prendre du PV punit. */
+    if (this.stats.maxHp > before) this.hp += this.stats.maxHp - before;
+    this.hp = clamp(this.hp, 1, this.stats.maxHp);
+    if (id === 'transposon') this.rerollUsed = false;
+  }
+
+  /** Liste triee pour le HUD. */
+  summary() {
+    return [...this.taken.entries()]
+      .map(([id, rank]) => ({ evo: EVO_BY_ID[id], rank }))
+      .filter((e) => e.evo)
+      .sort((a, b) => a.evo.label.localeCompare(b.evo.label));
+  }
+
+  /* ------------------------------------------------------------ update -- */
+
+  update(dt, move, game) {
+    this.phase += dt;
+    if (this.invuln > 0) this.invuln -= dt;
+    if (this.dashCd > 0) this.dashCd -= dt;
+    if (this.dashTtl > 0) this.dashTtl -= dt;
+    if (this.fireCd > 0) this.fireCd -= dt;
+    if (this.sideroTtl > 0) { this.sideroTtl -= dt; if (this.sideroTtl <= 0) this.sideroStacks = 0; }
+    if (this.phageCd > 0) this.phageCd -= dt;
+    if (this.epsCd > 0) this.epsCd -= dt;
+    if (this.conjugationCd > 0) this.conjugationCd -= dt;
+    if (this.dotTtl > 0) { this.dotTtl -= dt; this.hp -= this.dot * dt; }
+    if (this.stats.regen) this.hp = Math.min(this.stats.maxHp, this.hp + this.stats.regen * dt);
+
+    /* Hypermutateur : une stat derive toutes les 45 s. Instable par nature. */
+    if (this.flags.has('hypermutateur')) {
+      this.hypermutTimer -= dt;
+      if (this.hypermutTimer <= 0) {
+        this.hypermutTimer = 45;
+        game.hypermutate();
+      }
+    }
+
+    /* Phagocyte : sans endolysine, on ne peut rien faire. */
+    if (this.phagocytosedBy) {
+      this.phagoTimer -= dt;
+      if (this.flags.has('endolysine') && this.phagoTimer <= 2.5) {
+        const host = this.phagocytosedBy;
+        host.hp = 0;
+        game.announce('ENDOLYSINE');
+        this.phagocytosedBy = null;
+      } else if (this.phagoTimer <= 0) {
+        this.phagocytosedBy = null;
+      }
+      return;
+    }
+
+    const speed = this.stats.speed * (this.dashTtl > 0 ? 3.2 : 1) * game.playerSlowFactor;
+    const mx = move.x, my = move.y;
+    if (mx || my) {
+      this.x += mx * speed * dt;
+      this.y += my * speed * dt;
+      this.ang = Math.atan2(my, mx);
+      this.stillTime = 0;
+      this.shield = 0;
+      /* EPS : la trainee visqueuse ne se depose qu'en mouvement. */
+      if (this.flags.has('eps') && this.epsCd <= 0) {
+        this.epsCd = 0.35;
+        game.dropEps(this.x, this.y);
+      }
+    } else {
+      this.stillTime += dt;
+      /* Biofilm inductible : passage planctonique -> sessile sous stress. */
+      if (this.flags.has('biofilm') && this.stillTime > 1.5) {
+        this.shield = Math.min(60, this.shield + 30 * dt);
+      }
+    }
+
+    const R = game.matrix.arenaRadius - 6;
+    const d = Math.hypot(this.x, this.y);
+    if (d > R) { const k = R / d; this.x *= k; this.y *= k; }
+  }
+
+  dash() {
+    if (!this.flags.has('dash') || this.dashCd > 0) return false;
+    this.dashCd = 6;
+    this.dashTtl = 0.16;
+    this.invuln = Math.max(this.invuln, 0.2);
+    return true;
+  }
+}
+
+export { TAU };

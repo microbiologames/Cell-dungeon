@@ -1,0 +1,16 @@
+{
+  "name": "cell-dungeon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Roguelite d'arene microbiologique jouable au navigateur",
+  "scripts": {
+    "balance": "node tools/balance-sim.mjs",
+    "smoke": "node tools/smoke.mjs",
+    "visual": "node tools/visual.mjs",
+    "serve": "python3 -m http.server 8080"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
