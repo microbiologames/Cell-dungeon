@@ -150,7 +150,10 @@ export function renderField(scr, game, pal) {
       fade32(fill, alpha), fade32(rim, alpha),
       /* Le halo de phase suit l'opacite de l'objet : un organisme tres
          defocalise ne doit pas garder un lisere net. */
-      { pal: { phase: fade32(pal.phase, alpha * 0.9) }, drive: driveOf(e) });
+      {
+        pal: { phase: fade32(pal.phase, alpha * 0.9) },
+        drive: driveOf(e), sillage: e.sillage, trouble: e.trouble,
+      });
 
     /* Barre de vie des boss uniquement : le reste se lit a la forme. */
     if (e.spec.boss && e.hp < e.maxHp) {
@@ -226,7 +229,7 @@ export function renderField(scr, game, pal) {
   const blink = p.invuln > 0 && Math.floor(p.phase * 12) % 2 === 0;
   if (!blink) {
     drawPlayer(scr, toX(p.x), toY(p.y), p.radius, p.ang, p.phase, pal, p.flagellation,
-      { drive: p.drive, bend: p.bend });
+      { drive: p.drive, bend: p.bend, lean: p.lean, sillage: p.sillage, trouble: p.trouble });
   }
 
   scr.composite();

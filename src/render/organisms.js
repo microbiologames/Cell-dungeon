@@ -430,6 +430,7 @@ export function drawOrganism(scr, spec, x, y, r, ang, phase, fill, rim, opts = n
       count: fl.count, mode: fl.mode, phase,
       drive: o.drive ?? 0.55,
       splay: 1 - (o.drive ?? 0.55),
+      sillage: o.sillage, trouble: o.trouble,
       len: hw * (fl.mode === 'polaire' ? 3.6 : 3.0),
       /* Discrets : a quarante mobs dans le champ, des flagelles trop
          contrastes font une toile d'araignee et on ne voit plus les corps. */
@@ -465,13 +466,16 @@ export function drawOrganism(scr, spec, x, y, r, ang, phase, fill, rim, opts = n
  *                preparation se lit comme un corps qui se cambre — c'est la
  *                seule facon de rendre l'axe Z en deux dimensions.
  *
- * @param {object} [opts] {drive, bend} — effort de nage et cambrure, 0 a 1.
+ * @param {object} [opts] {drive, bend, lean, sillage, trouble} — effort de
+ *   nage, cambrure de profondeur, inclinaison de virage, memoire de cap et
+ *   desordre du faisceau.
  */
 export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null, opts = null) {
   const f = flagellation || { count: 0, mode: 'bundle' };
   const o = opts || {};
   const drive = clamp(o.drive ?? 0, 0, 1);
   const bend = clamp(o.bend ?? 0, -1, 1);
+  const lean = clamp(o.lean ?? 0, -1, 1);
 
   /* Proportions d'un lactobacille : long, mince, bouts arrondis. Un
      Lactobacillus fait trois a huit fois plus long que large ; en deca de
@@ -488,6 +492,7 @@ export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null, o
     count: f.count, mode: f.mode, phase, drive,
     /* Le faisceau s'ouvre quand on ne pousse pas : c'est la culbute. */
     splay: 1 - drive,
+    sillage: o.sillage, trouble: o.trouble,
     /* Un flagelle fait plusieurs fois la longueur de la cellule : le
        raccourcir pour "faire propre" lui enlevait justement l'allure de
        flagelle. */
@@ -503,9 +508,14 @@ export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null, o
     /* Onde qui court vers la queue. Un lactobacille ne nage pas en ligne
        droite comme une fleche : il se dandine. */
     const dandine = Math.sin(phase * (7 + 9 * drive) - u * 1.4) * hh * 0.5 * drive;
-    /* Cambrure : un arc, maximal au milieu, nul aux poles. */
+    /* Cambrure de PROFONDEUR : un arc, maximal au milieu, nul aux poles.
+       C'est le changement de plan focal qui la pilote. */
     const cambre = bend * hh * 0.95 * (1 - u * u);
-    const lat = dandine + cambre;
+    /* Inclinaison de VIRAGE : la queue chasse vers l'exterieur du tournant.
+       Ponderee vers l'arriere, pas symetrique — c'est la queue qui balaie,
+       la tete mene. C'est ce qui fait lire un virage comme un virage. */
+    const chasse = -lean * hh * 1.45 * Math.pow((1 - u) / 2, 1.5);
+    const lat = dandine + cambre + chasse;
     /* Profil de largeur : plat au centre, arrondi aux deux bouts. */
     const c = 1 - hh / hw;
     const t = clamp((Math.abs(u) - c) / Math.max(1e-3, 1 - c), 0, 1);

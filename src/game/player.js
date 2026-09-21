@@ -7,21 +7,39 @@
 import { computeStats } from './stats.js';
 import { EVOLUTIONS, EVO_BY_ID, rarityWeight } from '../data/evolutions.js';
 import { XP_FOR_LEVEL } from '../data/matrices.js';
-import { clamp, weightedPick, girer, angDelta, TAU } from '../core/util.js';
+import { clamp, weightedPick, girer, TAU } from '../core/util.js';
+import { Sillage } from '../render/flagella.js';
 
 /**
- * Part du cap du CORPS dans la direction de poussee, de 0 a 1.
+ * Reglages de NAGE, regroupes pour pouvoir les balayer.
  *
- * A zero, la cellule glisse instantanement dans la direction demandee et
- * l'orientation n'est qu'une decoration : le corps pivote pendant que la
- * trajectoire, elle, tourne au carre. Ca se lit comme une patinoire.
- * A un, on ne pousse QUE selon l'axe du corps — physiquement juste pour un
- * flagelle, mais on perd le controle fin de l'esquive.
+ * Ils sont exportes et mutables parce qu'ils se choisissent en REGARDANT des
+ * trajectoires, pas en raisonnant : `node tools/trajectoire.mjs` rejoue la
+ * meme sequence de touches pour plusieurs valeurs et trace les chemins.
  *
- * A un demi, la trajectoire s'incurve visiblement sans qu'on cesse d'aller
- * ou on demande. Valeur retenue apres mesure au pilote automatique.
+ * `alignement` — part du cap du corps dans la direction de poussee.
+ *   A zero, la cellule glisse instantanement ou on demande et l'orientation
+ *   n'est qu'une decoration : la trajectoire tourne au carre, ca se lit comme
+ *   une patinoire. A un, on ne pousse que selon l'axe du corps — juste pour
+ *   un flagelle, mais on perd l'esquive et une cellule peu agile s'ENROULE au
+ *   lieu de suivre l'intention. Mesure a 0,5 : la flagellation polaire
+ *   bouclait sur elle-meme.
+ *
+ * `traineeRotation` — le temps de giration vaut ce nombre DIVISE PAR
+ *   L'AGILITE. L'agilite seule, pas `vitesse / agilite` comme pour la
+ *   translation : la flagellation polaire monte la vitesse ET baisse
+ *   l'agilite, si bien que le temps de translation s'etale d'un facteur six.
+ *   Reporte tel quel sur la giration, ca donnait 4,75 s pour un demi-tour.
+ *
+ * `tauAngMax` — plafond du temps de giration. Virer mal est un caractere,
+ *   perdre le controle est un defaut.
  */
-const ALIGNEMENT = 0.5;
+export const NAGE = {
+  alignement: 0.34,
+  traineeRotation: 80,
+  tauAngMax: 0.34,
+  tauAngMin: 0.07,
+};
 
 export class Player {
   constructor(game) {
@@ -65,6 +83,10 @@ export class Player {
     /* Inclinaison de virage : la queue chasse vers l'exterieur du tournant,
        comme chez un poisson. Derivee de la vitesse angulaire. */
     this.lean = 0;
+    /* Memoire de cap : les flagelles suivent le chemin de la cellule. */
+    this.sillage = new Sillage();
+    /* Desordre du faisceau, apres un arret brutal ou un virage sec. */
+    this.trouble = 0;
   }
 
   recompute() {
@@ -232,13 +254,29 @@ export class Player {
     const k = 1 - Math.exp(-dt / Math.max(tau, 0.016));
 
     /* --- giration ------------------------------------------------------ */
-    /* Le cap suit l'intention avec la MEME constante de temps que la
-       translation : une cellule agile vire sec, une cellule lancee vire
-       large. La flagellation pilote donc les deux d'un coup. */
+    /* Le cap suit l'intention avec la meme AGILITE que la translation : une
+       cellule vive vire sec, une cellule lancee vire large. Les evolutions
+       de flagellation pilotent donc les deux d'un coup, ce qui est la bonne
+       place pour ce reglage — c'est deja la stat qui dit comment on nage.
+       Le cas qui rend le clavier brusque est celui-la : huit directions
+       seulement, donc une cible qui saute de 45 degres d'un coup. Au
+       joystick l'angle balaie en continu et le probleme ne se pose pas.
+
+       Tourner coute PLUS cher qu'accelerer : la trainee de rotation d'un
+       corps allonge dans un fluide visqueux est bien superieure a sa trainee
+       de translation, et une bacterie se reoriente d'ailleurs surtout en
+       culbutant, pas en braquant. D'ou un temps de giration multiple du
+       temps de mise en train, et non egal. */
     const intention = Math.hypot(move.x, move.y);
     if (intention > 0.02) this.angCible = Math.atan2(move.y, move.x);
-    const omegaMax = clamp(1.15 / Math.max(tau, 0.05), 2.4, 11);
-    girer(this, dt, this.angCible, Math.max(tau, 0.05), omegaMax);
+    /* Le plafond n'est pas cosmetique : mesure a 0,75 s, la flagellation
+       polaire faisait BOUCLER la trajectoire — la cellule ne suivait plus
+       l'intention du tout, elle tournait en rond. Virer mal est un caractere,
+       perdre le controle est un defaut. */
+    const tauAng = clamp(NAGE.traineeRotation / Math.max(60, this.stats.accel),
+      NAGE.tauAngMin, NAGE.tauAngMax);
+    const omegaMax = clamp(1.15 / tauAng, 1.8, 11);
+    girer(this, dt, this.angCible, tauAng, omegaMax);
     /* Ce qui sert au rendu : la queue chasse d'autant plus que ca tourne. */
     const leanCible = clamp(this.omega / omegaMax, -1, 1);
     this.lean += (leanCible - this.lean) * Math.min(1, dt * 12);
@@ -251,8 +289,9 @@ export class Player {
     if (intention > 0.02) {
       const dx = move.x / intention, dy = move.y / intention;
       const bx = Math.cos(this.ang), by = Math.sin(this.ang);
-      let px = dx * (1 - ALIGNEMENT) + bx * ALIGNEMENT;
-      let py = dy * (1 - ALIGNEMENT) + by * ALIGNEMENT;
+      const A = NAGE.alignement;
+      let px = dx * (1 - A) + bx * A;
+      let py = dy * (1 - A) + by * A;
       const pl = Math.hypot(px, py);
       if (pl > 1e-4) { px /= pl; py /= pl; }
       /* On ne pousse pas de travers : le rendement tombe quand le corps
@@ -273,7 +312,17 @@ export class Player {
        contre un globule bat des flagelles sans avancer, et c'est ce qu'on
        veut voir. */
     const effort = Math.min(1, Math.hypot(move.x, move.y));
+    const avant = this.drive;
     this.drive += (effort - this.drive) * Math.min(1, dt * 9);
+
+    /* Desordre du faisceau. Deux causes, toutes deux physiques : un ARRET
+       BRUTAL (les filaments continuent sur leur lancee et se dephasent avant
+       de se recaler) et un VIRAGE SEC (le faisceau s'ouvre — c'est le
+       mecanisme meme de la culbute). Il retombe en une demi-seconde. */
+    const freinage = Math.max(0, (avant - this.drive) / Math.max(dt, 1e-3)) * 0.22;
+    const vrille = Math.abs(this.omega) / Math.max(omegaMax, 1e-3) * 0.9;
+    this.trouble = clamp(Math.max(this.trouble * Math.exp(-dt / 0.45), freinage, vrille), 0, 1);
+    this.sillage.pousser(this.ang, dt);
     /* Cambrure : la VITESSE de la mise au point, pas sa valeur. On ne se
        cambre que pendant qu'on change de plan. */
     const vFocus = clamp((game.focusTarget - game.focus) * 3.2, -1, 1);

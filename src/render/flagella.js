@@ -25,7 +25,62 @@
    du run and tumble, et il se voit.
 --------------------------------------------------------------------------- */
 
-import { TAU, clamp } from '../core/util.js';
+import { TAU, clamp, angDelta, hash2 } from '../core/util.js';
+
+/**
+ * Sillage : la memoire de cap d'une cellule.
+ *
+ * A tres bas nombre de Reynolds, un filament passif tracte ne fait pas ce
+ * qu'il veut : il SUIT LE CHEMIN DE SA BASE. Les forces visqueuses dominent
+ * tellement l'inertie que chaque troncon se range dans la trace laissee par
+ * le troncon precedent. Un flagelle est donc, litteralement, l'historique
+ * recent de l'orientation de la cellule — exactement comme la queue d'un
+ * serpent repasse la ou est passee sa tete.
+ *
+ * On garde donc quelques dixiemes de seconde de cap, en valeur DEROULEE
+ * (jamais ramenee dans [-PI, PI]) pour que l'interpolation entre deux
+ * instants ne fasse pas le tour du cadran.
+ */
+export class Sillage {
+  constructor(n = 30, pas = 1 / 60) {
+    this.buf = new Float32Array(n);
+    this.n = n;
+    this.pas = pas;
+    this.i = 0;
+    this.acc = 0;
+    this.cont = 0;
+    this.amorce = false;
+  }
+
+  /** A appeler une fois par pas de simulation. */
+  pousser(ang, dt) {
+    this.cont += angDelta(this.cont, ang);
+    if (!this.amorce) { this.buf.fill(this.cont); this.amorce = true; return; }
+    this.acc += dt;
+    /* Pas fixe : sinon la longueur de memoire depend de la frequence
+       d'affichage, et le flagelle traine plus sur un ecran lent. */
+    let garde = 0;
+    while (this.acc >= this.pas && garde++ < this.n) {
+      this.acc -= this.pas;
+      this.i = (this.i + 1) % this.n;
+      this.buf[this.i] = this.cont;
+    }
+  }
+
+  /** Cap qu'avait la cellule il y a `retard` secondes. */
+  cap(retard) {
+    const f = clamp(retard / this.pas, 0, this.n - 1);
+    const a = Math.floor(f);
+    const b = Math.min(a + 1, this.n - 1);
+    const t = f - a;
+    const ia = (this.i - a + this.n * 2) % this.n;
+    const ib = (this.i - b + this.n * 2) % this.n;
+    return this.buf[ia] + (this.buf[ib] - this.buf[ia]) * t;
+  }
+}
+
+/** Duree de memoire utilisee par la pointe du filament, en secondes. */
+const RETARD = 0.24;
 
 /**
  * Trait d'un pixel de large entre deux points.
@@ -84,11 +139,22 @@ export function drawFlagella(scr, o) {
   const col = o.col;
   const w = o.width ?? 1;
 
-  /* Une cellule qui pousse bat vite et large ; a l'arret, ca traine. */
-  const omega = 9 + 30 * drive;
+  /* Une cellule qui pousse bat vite ; a l'arret, le moteur s'ARRETE et le
+     filament ne fait plus que retomber. Un battement residuel a l'arret
+     donnait a la cellule immobile l'air de pedaler dans le vide. */
+  const omega = 1.4 + 32 * drive;
+  /* Desordre : juste apres un arret brutal ou un virage sec, les filaments
+     n'ont pas encore repris un battement commun. Ils se dephasent et le
+     faisceau s'ouvre, puis tout se recale. */
+  const trouble = clamp(o.trouble ?? 0, 0, 1);
+  const ouvre = clamp(splay + trouble, 0, 1);
   /* Amplitude tres contenue : mesure a hh x 2, six flagelles peritriches
      formaient une pelote ou la direction de nage n'etait plus lisible. */
-  const amp = hh * (0.16 + 0.42 * drive);
+  /* Une amplitude residuelle meme a l'arret : un filament au repos est
+     MOU, il retombe en courbe. A amplitude quasi nulle il sortait comme un
+     trait rigide, ce qui est le contraire de l'effet voulu. C'est la
+     FREQUENCE, pas l'amplitude, qui dit si le moteur tourne. */
+  const amp = hh * (0.30 + 0.30 * drive + 0.34 * trouble);
   /* Le faisceau peritriche se resserre quand on nage droit et s'ouvre
      quand on culbute : c'est le run and tumble, dessine. */
   /* Peu d'ondes sur un long filament : a cette resolution, une sinusoide
@@ -99,10 +165,14 @@ export function drawFlagella(scr, o) {
      plus tendu par la propulsion. */
   const lon = len * (0.66 + 0.34 * drive);
   const nPas = Math.max(8, Math.ceil(lon / PAS_PX));
+  const pasLong = lon / nPas;
+
+  const sillage = o.sillage;
+  const capActuel = sillage ? sillage.cap(0) : 0;
 
   for (let i = 0; i < n; i++) {
     /* --- ancrage, en repere cellule ---------------------------------- */
-    let bx, by, dx, dy, dephase;
+    let bx, by, dx, dy, dephase;   // eslint-disable-line prefer-const
     if (o.mode === 'peritriche') {
       /* Repartis sur tout le pourtour : c'est ce que veut dire peritriche.
          L'ancrage est sur l'ELLIPSE du corps, la direction est la normale
@@ -126,42 +196,56 @@ export function drawFlagella(scr, o) {
          six flagelles peritriches d'une cellule a l'arret rayonnaient tout
          autour et dessinaient un anneau parfait autour du corps. Une
          bacterie n'a pas d'aureole. */
-      const k = 0.74 + 0.23 * (1 - splay);
+      const k = 0.74 + 0.23 * (1 - ouvre);
       dx = nx * (1 - k) - k; dy = ny * (1 - k);
-      dephase = i * 0.9 * splay;
+      /* Pendant une course, les ancrages eux-memes se RASSEMBLENT vers le
+         pole arriere : un faisceau peritriche n'est pas six filaments qui
+         pointent dans le meme sens, c'est six filaments qui se rejoignent.
+         Sans ca, la course sortait comme une touffe et pas comme une corde. */
+      const rassemble = (1 - ouvre) * 0.78;
+      bx += (-hw * 0.9 - bx) * rassemble;
+      by += (0 - by) * rassemble;
+      dephase = i * 0.9 * ouvre + hash2(i, 17) * TAU * trouble;
     } else if (o.mode === 'polaire') {
       /* Monotriche ou lophotriche : un seul pole, faisceau serre. */
       const ec = n === 1 ? 0 : (i - (n - 1) / 2) * 0.18;
       bx = -hw; by = Math.sin(ec) * hh * 0.7;
       dx = -Math.cos(ec); dy = Math.sin(ec);
-      dephase = i * 0.5;
+      dephase = i * 0.5 + hash2(i, 17) * TAU * trouble;
     } else {
       /* Faisceau arriere ouvert. */
-      const ec = n === 1 ? 0 : (i - (n - 1) / 2) * (0.10 + 0.42 * splay);
+      const ec = n === 1 ? 0 : (i - (n - 1) / 2) * (0.10 + 0.42 * ouvre);
       bx = -hw * 0.92; by = Math.sin(ec) * hh;
       dx = -Math.cos(ec); dy = Math.sin(ec);
-      dephase = i * 0.7 * splay;
+      dephase = i * 0.7 * ouvre + hash2(i, 17) * TAU * trouble;
     }
     const dn = Math.hypot(dx, dy) || 1;
     dx /= dn; dy /= dn;
-    /* Perpendiculaire a la direction du filament : c'est dans ce plan que
-       l'helice se projette. */
-    const px = -dy, py = dx;
-
-    /* --- l'onde, echantillonnee puis reliee -------------------------- */
+    /* --- l'onde, integree le long du sillage ------------------------- */
+    /* On n'avance pas en ligne droite depuis l'ancrage : a chaque pas, la
+       direction est celle qu'avait la cellule il y a `t x RETARD` secondes.
+       Le filament trace donc le chemin de sa base — quand la cellule vire,
+       la queue suit avec un temps de retard, comme celle d'un serpent. */
     let ox = null, oy = null;
+    let lx = bx, ly = by;
     for (let k = 0; k <= nPas; k++) {
       const t = k / nPas;
+      const dA = sillage ? sillage.cap(t * RETARD) - capActuel : 0;
+      const cA = Math.cos(dA), sA = Math.sin(dA);
+      const ddx = dx * cA - dy * sA, ddy = dx * sA + dy * cA;
+      if (k > 0) { lx += ddx * pasLong; ly += ddy * pasLong; }
+      /* Perpendiculaire a la direction LOCALE : l'helice se projette dans
+         ce plan-la, pas dans celui de l'ancrage. */
+      const nx2 = -ddy, ny2 = ddx;
       /* Le crochet proximal est rigide : l'amplitude monte depuis zero.
          Sans ca le flagelle a l'air decroche de la cellule. */
       const rampe = Math.min(1, t / 0.28);
       const onde = Math.sin(t * ondes * TAU - o.phase * omega + dephase)
         * amp * rampe;
-      const lx = bx + dx * t * lon + px * onde;
-      const ly = by + dy * t * lon + py * onde;
+      const fx = lx + nx2 * onde, fy = ly + ny2 * onde;
       /* Repere cellule -> ecran. */
-      const sx = o.x + lx * ca - ly * sa;
-      const sy = o.y + lx * sa + ly * ca;
+      const sx = o.x + fx * ca - fy * sa;
+      const sy = o.y + fx * sa + fy * ca;
       if (ox !== null) trait(scr, ox, oy, sx, sy, col);
       else scr.plot(sx, sy, col);
       ox = sx; oy = sy;

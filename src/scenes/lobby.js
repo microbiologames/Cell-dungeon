@@ -110,7 +110,8 @@ export class Lobby {
     scr.layer(Screen.layerFor(-0.1, 0));
     drawPlayer(scr, toX(this.swim.x), toY(this.swim.y), this.swim.radius,
       this.swim.ang, this.swim.phase, MATRICES_PALETTE.milk, { count: 2, mode: 'bundle' },
-      { drive: this.swim.drive ?? 0.6, bend: 0 });
+      { drive: this.swim.drive, bend: 0, lean: this.swim.lean,
+        sillage: this.swim.sillage, trouble: this.swim.trouble });
 
     scr.composite();
     drawRim(scr, fieldR, rgba(150, 146, 128, 255));

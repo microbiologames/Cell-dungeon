@@ -16,6 +16,9 @@ import { extname, join, normalize } from 'node:path';
 
 const RUNS = Number(process.argv[2] || 3);
 const MATRICE = process.argv[3] || 'milk';
+/* Permet de balayer un reglage de nage sans toucher au code :
+     NAGE='{"alignement":0.2}' node tools/playtest.mjs 3 pipe               */
+const NAGE_OVR = process.env.NAGE ? JSON.parse(process.env.NAGE) : null;
 const ROOT = process.cwd();
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript' };
 const srv = createServer(async (q, r) => {
@@ -34,8 +37,12 @@ page.on('pageerror', (e) => errs.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
 await page.goto('http://localhost:8096/');
 
-const result = await page.evaluate(async ({ runs, matrice }) => {
+const result = await page.evaluate(async ({ runs, matrice, nageOvr }) => {
   const { Game } = await import('./src/game/game.js');
+  if (nageOvr) {
+    const { NAGE } = await import('./src/game/player.js');
+    Object.assign(NAGE, nageOvr);
+  }
   const out = [];
 
   for (let run = 0; run < runs; run++) {
@@ -130,9 +137,9 @@ const result = await page.evaluate(async ({ runs, matrice }) => {
     out.push({ run, deaths, deathPhase, marks, niveauFinal: g.player.level, tues: g.player.kills });
   }
   return out;
-}, { runs: RUNS, matrice: MATRICE });
+}, { runs: RUNS, matrice: MATRICE, nageOvr: NAGE_OVR });
 
-console.log(`matrice : ${MATRICE}`);
+console.log(`matrice : ${MATRICE}${NAGE_OVR ? '  nage ' + JSON.stringify(NAGE_OVR) : ''}`);
 for (const r of result) {
   console.log(`--- run ${r.run} : niveau ${r.niveauFinal}, ${r.tues} tues, `
     + `${r.deaths} mort(s) [debut ${r.deathPhase[0]} / milieu ${r.deathPhase[1]} / fin ${r.deathPhase[2]}] ---`);

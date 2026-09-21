@@ -55,10 +55,16 @@ un **axe**, et c'est ce qui rend ses animations possibles :
 
 - il se **dandine** en nageant, d'une onde qui court de la tête à la queue et
   dont l'amplitude suit l'effort ;
+- il **vire** au lieu de pivoter : le cap a de l'inertie, et la queue chasse
+  vers l'extérieur du tournant. La vitesse de virage est celle de la stat
+  **agilité** — donc les évolutions de flagellation la règlent déjà ;
 - il se **cambre** quand on change de plan focal — monter ou descendre dans
   l'épaisseur de la préparation se lit comme un corps qui s'arque ;
-- ses **flagelles** se rassemblent en faisceau quand il pousse et se séparent
-  quand il tourne : c'est le run and tumble, dessiné.
+- ses **flagelles** ont leur propre inertie. À très bas nombre de Reynolds un
+  filament tracté suit le chemin de sa base : le flagelle est donc la mémoire
+  du cap récent de la cellule, comme la queue d'un serpent. Il se rassemble en
+  faisceau quand on pousse, balaie en retard quand on vire, et à l'arrêt
+  brutal il continue sur sa lancée, se déphase, puis se recale.
 
 Une bactérie lactique n'est pas mobile. Celle-ci l'est parce qu'elle vole des
 gènes à tout le monde, flagelline comprise — c'est le sujet du jeu.

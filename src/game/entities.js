@@ -3,7 +3,8 @@
    des degats infliges, du ciblage automatique et de qui peut vous toucher.
 --------------------------------------------------------------------------- */
 
-import { clamp, TAU, hash2 } from '../core/util.js';
+import { clamp, TAU, hash2, angDelta, girer } from '../core/util.js';
+import { Sillage } from '../render/flagella.js';
 
 /* ------------------------------------------------------------- optique -- */
 
@@ -35,6 +36,10 @@ export function makeEnemy(spec, x, y, z, scale) {
     contact: spec.contact * scale.dmg,
     radius: spec.radius,
     ang: Math.random() * TAU,
+    angCible: 0, omega: 0, trouble: 0,
+    /* Memoire de cap, uniquement pour les especes qui portent un flagelle :
+       inutile d'entretenir un sillage pour une spore. */
+    sillage: spec.flagella ? new Sillage(22) : null,
     phase: Math.random() * TAU,
     heading: Math.random() * TAU,
     timer: Math.random() * 1.2,
@@ -123,17 +128,22 @@ function motility(e, dt, px, py, rng) {
       break;
     }
     case 'swim': {
-      /* Nage en run and tumble : lignes droites, reorientations brusques. */
+      /* Nage en run and tumble : courses droites, reorientations breves. La
+         culbute reste brusque — c'est elle, le mecanisme — mais le CORPS ne
+         se telepote plus d'un cap a l'autre, il vire. */
       e.timer -= dt;
       if (e.timer <= 0) {
         e.heading += (rng() - 0.5) * 2.6;
         e.timer = 0.4 + rng() * 1.3;
+        /* Une culbute ouvre le faisceau : c'est ce qui la rend visible. */
+        e.trouble = 1;
       }
       e.heading += Math.sin(e.phase * 1.6) * dt * 0.6;
       const hx = Math.cos(e.heading), hy = Math.sin(e.heading);
       e.vx += (hx * (1 - seek) + dx * seek) * e.speed * 5 * dt;
       e.vy += (hy * (1 - seek) + dy * seek) * e.speed * 5 * dt;
-      e.ang = Math.atan2(e.vy, e.vx);
+      if (Math.hypot(e.vx, e.vy) > 1) e.angCible = Math.atan2(e.vy, e.vx);
+      girer(e, dt, e.angCible, 0.16, 7);
       break;
     }
     case 'tumble': {
@@ -146,13 +156,20 @@ function motility(e, dt, px, py, rng) {
       const hx = Math.cos(e.heading), hy = Math.sin(e.heading);
       e.vx += (hx * (1 - seek) + dx * seek) * e.speed * 6 * dt;
       e.vy += (hy * (1 - seek) + dy * seek) * e.speed * 6 * dt;
-      e.ang += dt * 7.5;
+      /* Culbute en roue : Listeria tourne reellement sur elle-meme en se
+         deplacant. C'est sa signature, on la garde — simplement un peu moins
+         vite depuis qu'elle porte des flagelles visibles. */
+      e.ang += dt * 5.2;
+      e.trouble = 1;
       break;
     }
     case 'drift':
+      /* Un virion ne nage pas : il diffuse. Il s'oriente donc avec une
+         paresse assumee. */
       e.vx += dx * e.speed * 2 * dt;
       e.vy += dy * e.speed * 2 * dt;
-      e.ang = Math.atan2(dy, dx);
+      e.angCible = Math.atan2(dy, dx);
+      girer(e, dt, e.angCible, 0.5, 2.4);
       break;
     case 'none':
       /* Ancrees : ni le courant ni les collisions ne les deplacent. */
@@ -166,7 +183,11 @@ function motility(e, dt, px, py, rng) {
   if (mot === 'brown' || mot === 'drift') {
     e.vx += dx * e.speed * seek * 3 * dt;
     e.vy += dy * e.speed * seek * 3 * dt;
-    if (mot === 'brown') e.ang += (rng() - 0.5) * dt * 2;
+    if (mot === 'brown') {
+      /* Pas de cap a tenir : la cellule s'aligne mollement sur sa derive. */
+      if (Math.hypot(e.vx, e.vy) > 2) e.angCible = Math.atan2(e.vy, e.vx);
+      girer(e, dt, e.angCible + (rng() - 0.5) * 0.6, 0.55, 2.2);
+    }
   }
 
   /* Frottement visqueux : a cette echelle, l'inertie n'existe pas.
@@ -228,6 +249,11 @@ export function updateEnemy(e, dt, game) {
 
   /* Bord de l'arene : rappel elastique, on peut etre accule. */
   game.arena.confine(e, 0, -0.3);
+
+  /* Sillage et desordre : le flagelle suit le chemin de sa base, et le
+     faisceau se recale une demi-seconde apres une culbute. */
+  if (e.sillage) e.sillage.pousser(e.ang, dt);
+  if (e.trouble > 0) e.trouble = Math.max(0, e.trouble * Math.exp(-dt / 0.4) - dt * 0.1);
 
   applyAbility(e, dt, game);
 

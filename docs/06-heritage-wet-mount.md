@@ -196,3 +196,92 @@ lisibilité, on a changé de technique d'observation.
 
 Quand aucune technique ne concilie les deux, la lisibilité gagne et **on
 l'écrit dans la doc** plutôt que de faire semblant. C'est le cas de l'échelle.
+
+---
+
+## La brusquerie venait de l'ENTRÉE, pas du rendu
+
+Signalé après un test sur téléphone : au joystick virtuel, les changements de
+direction sont fluides ; au clavier, ils sont secs. Le diagnostic est dans
+cette différence, et il ne pointe pas vers le moteur de rendu.
+
+**Le clavier ne produit que huit directions.** Chaque appui fait donc sauter
+le cap visé de 45° d'un coup. Le joystick, lui, balaie l'angle en continu et
+le problème ne se pose jamais. Sans inertie de direction, le jeu applique ce
+saut tel quel : le corps se téléporte d'un cap à l'autre en une image, et
+toutes les animations qui en dépendent sautent avec lui.
+
+### Ce qu'on regarde pour trancher : la trajectoire
+
+Pas le sprite qui pivote — le **chemin parcouru**.
+`node tools/trajectoire.mjs` rejoue la même séquence de neuf touches pour
+plusieurs agilités et superpose les chemins.
+
+| Constat | Lecture |
+|---|---|
+| Avant, agilité de base : le chemin a des **angles** | C'est la brusquerie ressentie |
+| Après, agilité de base : le chemin a des **courbes** | C'est le correctif, et il se voit |
+| Avant **et** après, flagellation polaire : le chemin **boucle** | Ce n'est pas la giration, c'est l'inertie de **translation** (τ = 0,53 s pour un appui de 0,75 s). Ça existait déjà, et c'est le caractère assumé de ce build |
+
+La dernière ligne compte autant que les autres : on a failli « corriger » un
+comportement qui précédait le changement et qui est voulu.
+
+### Le réglage appartient à l'agilité, une stat qui existe déjà
+
+Pas une constante de rendu : la **stat d'agilité**, que deux évolutions de
+flagellation pilotent déjà (`peritriche` +22 %, `polaire` −18 % par rang). Le
+niveau de base est bas exprès — une cellule non évoluée nage mollement du
+gouvernail, et c'est ce qu'on veut voir.
+
+Une mesure a tranché la formule : le temps de giration se déduit de
+**l'agilité seule**, pas de `vitesse / agilité` comme pour la translation. La
+flagellation polaire monte la vitesse *et* baisse l'agilité, si bien que le
+temps de translation s'étale d'un facteur six entre les deux extrêmes.
+Reporté tel quel sur la giration, il donnait **4,75 s pour un demi-tour** :
+injouable. Rapporté à l'agilité seule, l'éventail se resserre à un facteur
+trois et reste jouable aux deux bouts.
+
+### Le coût en équilibrage : nul
+
+Vérifié à graines identiques, cinq runs, contre un témoin à giration quasi
+instantanée :
+
+| | Témoin | Retenu |
+|---|---|---|
+| Lait cru | 28 / 33 / 69 | 23 / 30 / 64 |
+| Conduite | 67 / 222 / 210 | 76 / 223 / 209 |
+
+L'écart est dans le bruit. Une amélioration de toucher qui ne coûte rien à la
+courbe de difficulté : c'est le cas rare où il n'y a pas d'arbitrage.
+
+## Un flagelle est la mémoire du chemin de sa cellule
+
+À très bas nombre de Reynolds, un filament passif tracté ne fait pas ce qu'il
+veut : **il suit le chemin de sa base**. Les forces visqueuses dominent
+tellement l'inertie que chaque tronçon se range dans la trace laissée par le
+précédent. Un flagelle est donc, littéralement, l'historique récent de
+l'orientation de la cellule — exactement comme la queue d'un serpent repasse
+là où est passée sa tête.
+
+On garde donc une demi-seconde de cap par cellule (`Sillage`, en valeur
+*déroulée* pour que l'interpolation ne fasse pas le tour du cadran), et on
+intègre le filament le long de cette mémoire : à l'abscisse `t`, sa direction
+est celle qu'avait la cellule il y a `t × 0,24 s`.
+
+Trois comportements en découlent, et tous les trois sont observés :
+
+- **Course.** Le faisceau se rassemble derrière la cellule — les ancrages
+  eux-mêmes convergent vers le pôle arrière, parce qu'un faisceau péritriche
+  n'est pas six filaments parallèles, c'est six filaments qui se rejoignent.
+- **Virage.** La queue balaie en retard puis rattrape. C'est gratuit : c'est
+  le sillage qui le produit, on n'a rien à animer.
+- **Arrêt brutal.** Le moteur s'arrête (la fréquence tombe de 33 à 1,4 rad/s)
+  mais les filaments continuent sur leur lancée, se déphasent et s'ouvrent,
+  puis se recalent en une demi-seconde. C'est le `trouble`, alimenté par le
+  freinage et par la vitesse angulaire.
+
+Deux mesures payées au passage : à amplitude quasi nulle, un filament au repos
+sortait comme un **trait rigide**, ce qui est le contraire de l'effet voulu —
+c'est la **fréquence**, pas l'amplitude, qui dit si le moteur tourne. Et sans
+rassemblement des ancrages, la course sortait comme une touffe et pas comme
+une corde.
