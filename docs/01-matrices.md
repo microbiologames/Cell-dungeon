@@ -95,12 +95,56 @@ et n'en bougent pas).
 > Ce n'est pas une arène, c'est un **couloir**. On n'y tourne pas autour de la
 > horde : on l'affronte de face, dos au courant.
 
-**Valeurs réellement codées** (`src/data/matrices.js`, `src/game/pipe.js`) :
+### La conduite n'a pas de bout
+
+Le défaut de la première version : avec des extrémités fermées, le courant
+finissait toujours par vous plaquer contre un mur invisible, sans retour
+possible. Le couloir **boucle** désormais sur 2816 px, et un **tapis roulant**
+recentre tout le monde d'un coup quand le joueur franchit la couture — la
+géométrie et le décor étant périodiques de cette même longueur, ça ne se voit
+pas. En pratique : infini dans les deux sens.
+
+Trois pièges payés en route, tous dus au fait que le monde boucle :
+
+| Symptôme | Cause |
+|---|---|
+| Le couloir se vide de ses plaques après un tour | Les emplacements étaient décalés par le tapis roulant, ce qui cassait leur périodicité. Ils sont **canoniques** et c'est la position du joueur qui se replie dessus |
+| Toutes les plaques restent en place à demeure | Elles ne disparaissaient jamais ; le joueur fait ~20 tours par run. On les range au-delà de 700 px, sans que ça compte comme une destruction |
+| Le couloir s'appauvrit définitivement | « Ne repousse jamais sans alginate à côté » était écrit pour un couloir fini. Sur 20 tours, ça vide le stage de sa mécanique. La repousse lente (210 s, recolonisation depuis le flux) remplace le jamais |
+
+### La géométrie varie, et le débit se conserve
+
+Chaque tour contient, dans un ordre mélangé mais **garanti** : chambre,
+pincement, filtre, bifurcation. Un tirage indépendant par tronçon laissait
+une graine sur trois faire un tour entier sans bifurcation — le contenu du
+stage n'est pas une surprise optionnelle.
+
+| Accident | Effet |
+|---|---|
+| **Chambre** | La section s'ouvre jusqu'à ×1,75. Le courant y faiblit, les plaques de biofilm y deviennent des **masses** (jusqu'à 26 px de rayon) qui referment la section |
+| **Pincement** | La section tombe à ×0,42. Le courant y accélère |
+| **Filtre** | Une crépine : des barreaux pleins percés de trois ouvertures. Le joueur doit **viser le trou** ; les mobs sont guidés vers la plus proche, sinon la horde s'entasse et ne passe plus |
+| **Bifurcation** | Un septum naît en pointe au milieu du canal et s'épaissit. C'est une **vraie paroi** : on choisit un côté, et on choisit vite |
+
+La vitesse du courant n'est pas réglée accident par accident : elle découle de
+la **conservation du débit**. Le même volume passe par chaque section, donc
+là où c'est étroit, ça va vite. Une bifurcation divise la section utile, donc
+accélère aussi. C'est la seule loi du stage et elle suffit à rendre la
+géométrie lisible sans un mot d'explication.
+
+Le facteur de débit est plafonné à 1,8, et ce plafond n'est pas cosmétique :
+mesuré à 2,6, le courant d'un pincement atteignait **88 px/s contre 68 de
+vitesse de nage** — remonter devenait impossible, pas seulement coûteux. Une
+conduite doit être dure à remonter, pas infranchissable.
+
+**Valeurs réellement codées** (`src/data/matrices.js`, `src/game/pipe.js`,
+`src/game/pipe-geo.js`) :
 
 | Constante | Valeur | Où |
 |---|---|---|
-| Forme de l'arène | tube `halfX 1400`, `halfY 112` | `PIPE.arena` |
-| Écoulement | 34 px/s au centre, profil `1 − (y/hy)²` | `PIPE.pipe.flow` |
+| Forme de l'arène | tube sans fin, demi-hauteur nominale 112 | `PIPE.arena` |
+| Période du monde | 2816 px (44 mailles de décor) | `PERIODE` |
+| Écoulement | 26 px/s nominal, × facteur de débit ∈ [0,5 ; 1,8] | `PIPE.pipe.flow` |
 | Période du NEP | 150 s, dont 8 s de télégraphe | `PERIODE`, `TELEGRAPHE` |
 | Vitesse du front | 230 px/s, demi-lame 64 px | `VITESSE_NEP`, `DEMI_FRONT` |
 | Plaques | tous les 230 px, alternées haut/bas, repousse 45 s | `PAS_PLAQUE`, `REPOUSSE` |

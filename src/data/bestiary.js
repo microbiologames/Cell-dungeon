@@ -199,6 +199,10 @@ export const PIPE_PLAQUE = M({
   kind: 'plaque', mot: 'none', gram: null,
   hp: 200, speed: 0, contact: 9, radius: 11, aa: 14,
   zSpeed: 0, zHold: 0.55, resist: 0.25, immobile: true,
+  /* Une plaque n'est pas un organisme qui flotte a une profondeur : c'est
+     une STRUCTURE accrochee a la paroi, qui occupe la section. La mise au
+     point decide si on peut la TOUCHER, pas si elle est la. */
+  obstacle: true,
   ability: 'emission', cipShelter: true,
   note: "Un biofilm est un mode de vie, pas un depot : la matrice d'EPS protege du courant et des biocides, et la plaque disperse activement des cellules pour coloniser plus loin. Elle se reforme tant qu'un secreteur d'alginate vit a cote.",
 });

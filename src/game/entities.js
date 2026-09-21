@@ -248,7 +248,7 @@ export function updateEnemy(e, dt, game) {
   e.y += e.vy * dt;
 
   /* Bord de l'arene : rappel elastique, on peut etre accule. */
-  game.arena.confine(e, 0, -0.3);
+  game.arena.confine(e, 0, -0.3, 1);
 
   /* Sillage et desordre : le flagelle suit le chemin de sa base, et le
      faisceau se recale une demi-seconde apres une culbute. */
@@ -383,7 +383,10 @@ function updateBossPhases(e, dt, game) {
          des cocci, un biofilm lache des cellules en swarming. */
       const petit = e.spec.disperseInto || 'lactococcus';
       for (let i = 0; i < 4; i++) {
-        if (!game.hasRoom()) break;
+        /* Dans le budget, comme toute source d'ennemis. C'etait la derniere
+           capacite de boss a y echapper : mesure a 40 credits vivants pour
+           une cible de 5,6 en fin de run. */
+        if (!game.hasRoom() || !game.director.hasBudget()) break;
         const a = (i / 4) * TAU;
         game.spawnSpecific(petit, e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 18, 0, 2.2);
       }

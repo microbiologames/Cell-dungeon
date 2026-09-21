@@ -117,5 +117,26 @@ await shot('30-boss-biofilm', { width: 960, height: 540 }, async (pg) => {
   });
   await pg.waitForTimeout(900);
 });
+/* Tour de la conduite : un cliche par type d'accident. La geometrie etant
+   generee par hachage, on demande a la Geometrie ou aller. */
+for (const nature of ['chambre', 'pincement', 'filtre', 'bifurcation']) {
+  await shot(`3${['chambre', 'pincement', 'filtre', 'bifurcation'].indexOf(nature) + 1}-conduite-${nature}`,
+    { width: 960, height: 540 }, async (pg) => {
+      await pg.evaluate((n) => window.__startMatrice('pipe'), nature);
+      await pg.waitForTimeout(600);
+      await pg.evaluate((n) => {
+        const g = window.__game;
+        g.damagePlayer = () => {};
+        const geo = g.arena.geo;
+        /* On cherche le centre du premier troncon de cette nature. */
+        for (let i = 0; i < 8; i++) {
+          const x = -1408 + i * 352 + 176;
+          if (geo.troncon(x).nature === n) { g.player.x = x; g.player.y = 0; break; }
+        }
+        g.player.vx = 0; g.player.vy = 0;
+      }, nature);
+      await pg.waitForTimeout(500);
+    });
+}
 console.log(errs.length ? 'ERREURS: ' + errs.join(' | ') : 'aucune erreur');
 await b.close(); srv.close();

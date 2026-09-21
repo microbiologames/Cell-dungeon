@@ -41,16 +41,23 @@ export function forEachDecor(matrix, cx, cy, radius, removed, time, fn) {
   const y0 = Math.floor((cy - radius) / DECOR_CELL), y1 = Math.floor((cy + radius) / DECOR_CELL);
   const r2 = radius * radius;
 
+  /* Dans une conduite, le monde BOUCLE : le decor doit boucler avec lui,
+     sinon le recentrage du tapis roulant fait sauter tous les globules d'un
+     coup. On replie donc la colonne de la grille sur la periode. */
+  const perX = d.periodeX ? Math.round(d.periodeX / DECOR_CELL) : 0;
+  const repli = (g) => (perX ? ((g % perX) + perX) % perX : g);
+
   for (let gy = y0; gy <= y1; gy++) {
     for (let gx = x0; gx <= x1; gx++) {
-      const n = 1 + Math.floor(hash2(gx, gy) * 2);
+      const gr = repli(gx);
+      const n = 1 + Math.floor(hash2(gr, gy) * 2);
       for (let i = 0; i < n; i++) {
         const key = `${gx},${gy},${i}`;
         if (removed.has(key)) continue;
-        const h1 = hash2(gx * 31 + i, gy * 17);
-        const h2 = hash2(gx * 13, gy * 29 + i);
-        const h3 = hash2(gx + i * 101, gy - i * 57);
-        const h4 = hash2(gx * 7 - i, gy * 3 + i * 41);
+        const h1 = hash2(gr * 31 + i, gy * 17);
+        const h2 = hash2(gr * 13, gy * 29 + i);
+        const h3 = hash2(gr + i * 101, gy - i * 57);
+        const h4 = hash2(gr * 7 - i, gy * 3 + i * 41);
 
         const kind = h4 > 0.84 ? 'bubble' : 'globule';
         /* L'exposant biaise la distribution vers les petites tailles : sans

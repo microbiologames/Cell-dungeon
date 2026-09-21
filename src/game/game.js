@@ -41,7 +41,7 @@ export class Game {
     this.time = 0;
     /* La forme de l'arene est une donnee de la matrice : goutte pour le lait,
        couloir pour la conduite. Tout le monde interroge cet objet. */
-    this.arena = makeArena(this.matrix);
+    this.arena = makeArena(this.matrix, this.seed);
     this.state = STATE.MENU;
     this.enemies = [];
     this.bullets = [];
@@ -386,10 +386,15 @@ export class Game {
   resolveEncombrement() {
     const p = this.player;
     for (const e of this.enemies) {
-      if (!e.alive || !e.spec.neutral) continue;
-      if (Math.abs(e.z) >= IN_PLANE) continue;
+      if (!e.alive) continue;
+      const structure = !!e.spec.obstacle;
+      if (!structure && !e.spec.neutral) continue;
+      /* Une STRUCTURE accrochee a la paroi est la quelle que soit la mise au
+         point : la profondeur decide si on peut la toucher, pas si elle
+         existe. Un organisme qui flotte, lui, n'encombre que dans le plan. */
+      if (!structure && Math.abs(e.z) >= IN_PLANE) continue;
 
-      const me = Math.pow(Math.max(e.radius, 0.5), 3);
+      const me = structure ? 1e9 : Math.pow(Math.max(e.radius, 0.5), 3);
       /* --- le joueur ---------------------------------------------------- */
       {
         const dx = p.x - e.x, dy = p.y - e.y;
@@ -415,7 +420,7 @@ export class Game {
 
       /* --- les autres organismes ---------------------------------------- */
       for (const o of this.enemies) {
-        if (o === e || !o.alive || o.spec.neutral) continue;
+        if (o === e || !o.alive || o.spec.neutral || o.spec.obstacle) continue;
         if (Math.abs(o.z) >= IN_PLANE) continue;
         const dx = o.x - e.x, dy = o.y - e.y;
         const rr = e.radius + o.radius;

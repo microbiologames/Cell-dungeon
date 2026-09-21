@@ -24,6 +24,7 @@
 import { clamp } from '../core/util.js';
 import { makeEnemy } from './entities.js';
 import { PIPE_PLAQUE } from '../data/bestiary.js';
+import { PERIODE } from './pipe-geo.js';
 
 /** Les quatre biocides du cycle, dans l'ordre reel d'un NEP alterne. */
 export const BIOCIDES = [
@@ -55,14 +56,15 @@ export const BIOCIDES = [
   },
 ];
 
-const PERIODE = 150;      // s entre deux cycles
+const PERIODE_NEP = 150;  // s entre deux cycles
 const TELEGRAPHE = 8;     // s d'avertissement avant que le front parte
 const VITESSE_NEP = 230;  // px/s du front
 const DEMI_FRONT = 64;    // px : demi-epaisseur de la lame de biocide
 
 /** Espacement des plaques le long du tube, et decalage haut/bas alterne. */
-const PAS_PLAQUE = 230;
+const PAS_PLAQUE = 330;
 const REPOUSSE = 45;      // s, si un producteur d'alginate a survecu
+const REPOUSSE_LENTE = 210;  // s, par recolonisation depuis le flux
 const RAYON_ALGINATE = 150;
 
 export class Conduite {
@@ -72,24 +74,28 @@ export class Conduite {
     const cfg = game.matrix.pipe || {};
     this.flow = cfg.flow ?? 34;           // px/s au centre du tube
     this.slots = [];
-    for (let x = -this.arena.halfX + PAS_PLAQUE; x < this.arena.halfX; x += PAS_PLAQUE) {
-      const haut = this.slots.length % 2 === 0;
+    for (let x = -PERIODE / 2 + PAS_PLAQUE; x < PERIODE / 2; x += PAS_PLAQUE) {
+      /* `x0` est l'abscisse CANONIQUE de l'emplacement, dans un tour. On ne
+         la decale jamais : c'est la position du joueur qui se replie dessus.
+         Les avoir decalees avec le tapis roulant cassait leur periodicite et
+         le couloir se vidait de ses plaques au bout d'un tour. */
       this.slots.push({
-        x,
-        y: haut ? -this.arena.halfY + 9 : this.arena.halfY - 9,
-        entite: null,
-        repousse: 0,
+        x0: x, haut: this.slots.length % 2 === 0, entite: null, repousse: 0,
       });
     }
-    this.cip = { etat: 'attente', t: PERIODE - TELEGRAPHE, index: 0, frontX: 0 };
+    this.cip = { etat: 'attente', t: PERIODE_NEP - TELEGRAPHE, index: 0, frontX: 0 };
     this.annonce = 0;
   }
 
   /** Biocide du prochain cycle (ou du cycle en cours). */
   get biocide() { return BIOCIDES[this.cip.index % BIOCIDES.length]; }
 
-  /** Vitesse de l'ecoulement a une ordonnee donnee. */
-  flowAt(y) { return this.flow * this.arena.flowProfile(y); }
+  /** Vitesse de l'ecoulement en un point.
+   *
+   *  Elle depend de l'ABSCISSE autant que de l'ordonnee : par conservation du
+   *  debit, la ou la conduite se pince le courant accelere. C'est la seule
+   *  loi du stage, et elle suffit a rendre la geometrie lisible sans un mot. */
+  flowAt(y, x = 0) { return this.flow * this.arena.flowProfile(y, x); }
 
   /** Le point est-il dans une plaque de biofilm vivante ? */
   dansPlaque(x, y) {
@@ -105,7 +111,8 @@ export class Conduite {
   /** A l'abri du NEP : dans une plaque, ou tapi dans une rayure de la paroi. */
   aLAbri(x, y) {
     if (this.dansPlaque(x, y)) return true;
-    return Math.abs(y) > this.arena.halfY - 11;
+    const c = this.arena.geo.canal(x, y);
+    return (y - c.bas) < 11 || (c.haut - y) < 11;
   }
 
   /** Le joueur encaisse-t-il le biocide en cours ? */
@@ -116,32 +123,92 @@ export class Conduite {
   }
 
   update(dt) {
+    this.tapisRoulant();
     this.entretienPlaques(dt);
     this.majCip(dt);
     this.emporte(dt);
   }
 
+  /**
+   * Tapis roulant : le couloir n'a pas de bout.
+   *
+   * Quand le joueur a parcouru un tour, on recentre TOUT LE MONDE d'un coup.
+   * Personne ne se retrouve de l'autre cote d'une couture, donc aucune
+   * distance relative n'est faussee. Et comme la geometrie et le decor sont
+   * periodiques de cette meme longueur, l'image ne bouge pas.
+   *
+   * C'est ce qui repare le vrai defaut du stage : avec des extremites
+   * fermees, le courant finissait toujours par vous plaquer contre un mur
+   * invisible, sans retour possible.
+   */
+  tapisRoulant() {
+    const g = this.game;
+    const d = -Math.round(g.player.x / PERIODE) * PERIODE;
+    if (d === 0) return;
+    g.player.x += d;
+    for (const e of g.enemies) e.x += d;
+    for (const b of g.bullets) b.x += d;
+    for (const k of g.pickups) k.x += d;
+    for (const z of g.zones) z.x += d;
+    for (const q of g.particles) q.x += d;
+    if (this.cip.etat === 'vague') { this.cip.frontX += d; this.cip.finX += d; }
+    /* Le decor se regenere tout seul (il est hache sur les coordonnees, et
+       periodique), et la grille de pH couvre exactement un tour : une poche
+       d'acide reste donc a sa place dans le monde. */
+  }
+
   /* --------------------------------------------------------- plaques --- */
+
+  /** Abscisse de l'instance de cet emplacement la plus proche du joueur. */
+  posSlot(s) {
+    const px = this.game.player.x;
+    return s.x0 + Math.round((px - s.x0) / PERIODE) * PERIODE;
+  }
 
   entretienPlaques(dt) {
     const g = this.game;
     for (const s of this.slots) {
-      if (s.entite && !s.entite.alive) {
+      const sx = this.posSlot(s);
+      /* 1. Hors de portee : on la range, sans que ca compte comme une
+         destruction. Le joueur fait une vingtaine de tours sur un run ;
+         sans ca, TOUS les emplacements finissaient occupes a demeure. */
+      if (s.entite && s.entite.alive && Math.abs(s.entite.x - g.player.x) > 700) {
+        s.entite.alive = false;
         s.entite = null;
-        /* Elle ne repousse que si un secreteur d'alginate a survecu tout
-           pres : tuer la plaque ne suffit pas, il faut tuer la cause. */
-        s.repousse = this.alginateProche(s.x, s.y) ? REPOUSSE : Infinity;
-      }
-      if (s.entite) continue;
-      if (s.repousse === Infinity) {
-        if (this.alginateProche(s.x, s.y)) s.repousse = REPOUSSE;
         continue;
       }
-      if (s.repousse > 0) { s.repousse -= dt; continue; }
-      /* On ne fait exister que les plaques que le joueur peut voir arriver :
-         le tube fait 2800 px, le champ en fait 250. */
-      if (Math.abs(s.x - g.player.x) > 420) continue;
-      const e = makeEnemy(PIPE_PLAQUE, s.x, s.y, 0.55, g.director.scale());
+
+      /* 2. Detruite par le joueur : elle ne repousse vite que si un
+         secreteur d'alginate a survecu tout pres. Sinon elle finit par
+         revenir quand meme, par recolonisation depuis le flux — beaucoup
+         plus tard. Un couloir sans fin ne peut pas s'appauvrir
+         definitivement a chaque plaque abattue. */
+      if (s.entite && !s.entite.alive) {
+        s.entite = null;
+        s.repousse = this.alginateProche(sx) ? REPOUSSE : REPOUSSE_LENTE;
+      }
+      if (s.entite) continue;
+
+      if (s.repousse > 0) {
+        /* Un producteur d'alginate qui passe par la accelere la reprise. */
+        if (s.repousse > REPOUSSE && this.alginateProche(sx)) s.repousse = REPOUSSE;
+        s.repousse -= dt;
+        continue;
+      }
+
+      /* 3. On ne fait exister que ce que le joueur peut voir arriver : le
+         tour fait 2816 px, le champ en fait 250. */
+      if (Math.abs(sx - g.player.x) > 420) continue;
+      /* La plaque se colle a la paroi LA OU ELLE EST : la section varie, une
+         ordonnee figee l'aurait laissee flotter au milieu d'une chambre. */
+      const c = g.arena.geo.canal(sx, s.haut ? -1 : 1);
+      const sy = s.haut ? c.bas + 9 : c.haut - 9;
+      const e = makeEnemy(PIPE_PLAQUE, sx, sy, 0.55, g.director.scale());
+      /* Dans une chambre, la plaque a la place de devenir une MASSE : c'est
+         elle qui referme la section. Dans un pincement, elle reste mince,
+         sinon elle bouchait le passage. */
+      const place = (c.haut - c.bas) / 2;
+      e.radius = clamp(place * 0.42, 8, 26);
       e.plaqueSlot = s;
       e.emitCd = 3;
       g.enemies.push(e);
@@ -149,11 +216,12 @@ export class Conduite {
     }
   }
 
-  alginateProche(x, y) {
+  /** Un secreteur d'alginate vit-il pres de cette abscisse ? */
+  alginateProche(x) {
     for (const e of this.game.enemies) {
       if (!e.alive || e.ally > 0) continue;
       if (e.spec.ability !== 'alginate') continue;
-      if (Math.hypot(e.x - x, e.y - y) < RAYON_ALGINATE) return true;
+      if (Math.abs(e.x - x) < RAYON_ALGINATE) return true;
     }
     return false;
   }
@@ -177,17 +245,22 @@ export class Conduite {
       /* Le courant s'emballe avant le passage : le champ previent. */
       if (c.t <= 0) {
         c.etat = 'vague';
-        c.frontX = -this.arena.halfX - DEMI_FRONT;
+        /* Le front part EN AMONT DU JOUEUR et balaie jusqu'en aval. Le
+           couloir n'ayant plus de bout, le faire partir d'une extremite
+           n'aurait aucun sens : le NEP est un evenement qu'on voit arriver,
+           pas un bord de carte. */
+        c.frontX = g.player.x - 620;
+        c.finX = c.frontX + 1560;
       }
       return;
     }
     /* Vague : une lame de biocide traverse la conduite d'un bout a l'autre. */
     c.frontX += VITESSE_NEP * dt;
     this.brule(dt);
-    if (c.frontX > this.arena.halfX + DEMI_FRONT) {
+    if (c.frontX > c.finX) {
       c.etat = 'attente';
       c.index += 1;
-      c.t = PERIODE - TELEGRAPHE;
+      c.t = PERIODE_NEP - TELEGRAPHE;
     }
   }
 
@@ -236,21 +309,21 @@ export class Conduite {
 
     /* Le joueur : sauf s'il est dans une plaque, qui le met a l'abri du flux. */
     if (!this.dansPlaque(g.player.x, g.player.y)) {
-      g.player.x += this.flowAt(g.player.y) * boost * dt;
+      g.player.x += this.flowAt(g.player.y, g.player.x) * boost * dt;
     }
     for (const e of g.enemies) {
       if (!e.alive) continue;
       if (e.spec.immobile || e.plaqueSlot) continue;
       if (this.dansPlaque(e.x, e.y)) continue;
-      e.x += this.flowAt(e.y) * boost * dt * (e.spec.mot === 'none' ? 0.35 : 1);
+      e.x += this.flowAt(e.y, e.x) * boost * dt * (e.spec.mot === 'none' ? 0.35 : 1);
     }
     /* Une goutte d'acide lactique est emportee comme le reste : viser en
        amont, c'est arroser large ; viser en aval, c'est tirer court. */
-    for (const b of g.bullets) if (b.alive) b.x += this.flowAt(b.y) * boost * dt * 0.6;
+    for (const b of g.bullets) if (b.alive) b.x += this.flowAt(b.y, b.x) * boost * dt * 0.6;
     /* Un acide amine libre est petit et dense : il suit le courant, mais pas
        a la vitesse du fluide. A vitesse pleine, la recolte s'effondrait et le
        joueur finissait quatre niveaux sous celui du lait cru. */
-    for (const k of g.pickups) if (k.alive) k.x += this.flowAt(k.y) * boost * dt * 0.45;
+    for (const k of g.pickups) if (k.alive) k.x += this.flowAt(k.y, k.x) * boost * dt * 0.45;
 
     g.arena.confine(g.player, 6, -0.25);
   }
@@ -267,4 +340,4 @@ export class Conduite {
   }
 }
 
-export { PERIODE as NEP_PERIODE };
+export { PERIODE_NEP as NEP_PERIODE };

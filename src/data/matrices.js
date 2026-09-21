@@ -118,10 +118,13 @@ export const PIPE = {
   subtitle: 'ACIER 316L, BIOFILM',
   playable: true,
   duration: 720,
-  /* Ce n'est pas un disque : c'est un tube. Le deplacement y est
-     essentiellement gauche-droite, et les parois sont a portee. */
-  arena: { kind: 'tube', halfX: 1400, halfY: 112 },
-  arenaRadius: 1400,
+  /* Ce n'est pas un disque : c'est un tube, et il n'a PAS DE BOUT. La
+     geometrie (chambres, pincements, filtres, bifurcations) est generee par
+     hachage de l'abscisse et se repete sur une periode que le tapis roulant
+     de la Conduite rend invisible. `demi` est la demi-hauteur NOMINALE :
+     la vraie section varie de 0,42 a 1,75 fois cette valeur. */
+  arena: { kind: 'tube', demi: 112 },
+  arenaRadius: 1408,
   pool: PIPE_MOBS,
   neutrals: PIPE_NEUTRALS,
   ambient: 2,
@@ -139,7 +142,10 @@ export const PIPE = {
   /* Ecoulement laminaire, en px/s au centre du tube. Il vaut la moitie de la
      vitesse de depart du joueur : remonter le courant est penible sans etre
      impossible, et la couche limite devient un vrai choix. */
-  pipe: { flow: 34 },
+  /* 26 px/s au centre d'une section nominale. Avec le facteur de debit
+     plafonne a 1,8, le courant culmine a 47 px/s dans un pincement — 69 %
+     de la vitesse de nage de depart. On remonte, mais on le sent. */
+  pipe: { flow: 26 },
 
   unlocks: { chaff: 0, runner: 25, tank: 110, predator: 210, denier: 0 },
 
@@ -168,6 +174,9 @@ export const PIPE = {
     kind: 'globule', minR: 1.5, maxR: 11, skew: 2.8,
     bubbleMinR: 1.6, bubbleMaxR: 9, bubbleSkew: 2.2,
     blocksBullets: true,
+    /* Le decor boucle avec le monde, sinon le recentrage du tapis roulant
+       ferait sauter tous les globules d'un coup. */
+    periodeX: 2816,
   },
 };
 

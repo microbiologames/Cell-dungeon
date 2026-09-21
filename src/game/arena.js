@@ -12,6 +12,7 @@
 --------------------------------------------------------------------------- */
 
 import { TAU, clamp } from '../core/util.js';
+import { Geometrie, PERIODE } from './pipe-geo.js';
 
 /** Goutte : disque de rayon R, menisque tout autour. */
 class DiscArena {
@@ -57,46 +58,81 @@ class DiscArena {
 }
 
 /** Conduite : tube tres allonge, parois en haut et en bas. */
+/**
+ * Conduite : un couloir SANS FIN.
+ *
+ * L'abscisse n'est jamais bornee. Ce qui empeche les coordonnees de partir a
+ * l'infini n'est pas une paroi, c'est le tapis roulant de la Conduite : quand
+ * le joueur franchit la couture, tout le monde est recentre d'un coup. Comme
+ * la geometrie et le decor sont periodiques de la meme longueur, ca ne se
+ * voit pas — et surtout, on peut revenir en arriere indefiniment. Avec des
+ * extremites fermees, le courant vous plaquait contre un mur invisible.
+ *
+ * La hauteur, elle, est une vraie paroi, et elle VARIE : c'est la geometrie
+ * qui repond.
+ */
 class TubeArena {
-  constructor(halfX, halfY) {
-    this.kind = 'tube'; this.halfX = halfX; this.halfY = halfY;
+  constructor(geo, periode) {
+    this.kind = 'tube';
+    this.geo = geo;
+    this.periode = periode;
+    this.halfX = periode / 2;
+    this.halfY = geo.demiMax;
   }
 
   get extent() { return Math.max(this.halfX, this.halfY); }
 
   contains(x, y, m = 0) {
-    return Math.abs(x) <= this.halfX - m && Math.abs(y) <= this.halfY - m;
+    const c = this.geo.canal(x, y);
+    return y >= c.bas + m && y <= c.haut - m;
   }
 
-  confine(o, margin = 0, bounce = -0.3) {
-    const hx = this.halfX - margin, hy = this.halfY - margin;
-    let touche = false;
-    if (o.x > hx) { o.x = hx; if (o.vx !== undefined) o.vx *= bounce; touche = true; }
-    else if (o.x < -hx) { o.x = -hx; if (o.vx !== undefined) o.vx *= bounce; touche = true; }
-    /* La paroi haute et la paroi basse sont le vrai mur : on y perd plus de
-       vitesse qu'aux extremites, qui sont juste la limite du troncon. */
-    if (o.y > hy) { o.y = hy; if (o.vy !== undefined) o.vy *= bounce; touche = true; }
-    else if (o.y < -hy) { o.y = -hy; if (o.vy !== undefined) o.vy *= bounce; touche = true; }
-    return touche;
+  /**
+   * @param {number} glisse 0 = on bute sur les barreaux, 1 = on est guide
+   *   vers l'ouverture la plus proche. Le joueur doit VISER le trou — c'est
+   *   tout l'interet d'une crepine ; les mobs, eux, sont guides, sinon ils
+   *   s'entassent contre la grille et la horde ne passe plus jamais.
+   */
+  confine(o, margin = 0, bounce = -0.3, glisse = 0) {
+    /* Rien sur l'abscisse : le couloir n'a pas de bout. */
+    const fil = this.geo.filtre(o.x);
+    if (fil && !this.geo.passeFiltre(fil, o.y)) {
+      /* Un barreau est plein : on le repousse du cote d'ou l'on vient. */
+      const sens = (o.vx !== undefined && o.vx < 0) ? -1 : 1;
+      o.x += sens * (fil.epaisseur + 0.8);
+      if (o.vx !== undefined) o.vx *= -0.15;
+      if (glisse > 0) {
+        let proche = null, d = 1e9;
+        for (const t of fil.trous) {
+          const dd = Math.abs(o.y - t.y);
+          if (dd < d) { d = dd; proche = t; }
+        }
+        if (proche) o.y += Math.sign(proche.y - o.y) * Math.min(d, 34 * glisse * 0.016);
+      }
+    }
+    const c = this.geo.canal(o.x, o.y);
+    const bas = c.bas + margin, haut = c.haut - margin;
+    if (haut <= bas) { o.y = (c.bas + c.haut) / 2; return true; }
+    if (o.y > haut) { o.y = haut; if (o.vy !== undefined) o.vy *= bounce; return true; }
+    if (o.y < bas) { o.y = bas; if (o.vy !== undefined) o.vy *= bounce; return true; }
+    return false;
   }
 
-  edgeCloseness(x, y, band = 40) {
-    const my = (this.halfY - Math.abs(y)) / band;
-    const mx = (this.halfX - Math.abs(x)) / band;
-    return clamp(1 - Math.min(my, mx), 0, 1);
+  edgeCloseness(x, y, band = 34) {
+    const c = this.geo.canal(x, y);
+    const m = Math.min(y - c.bas, c.haut - y);
+    return clamp(1 - m / band, 0, 1);
   }
 
   edgeDir(x, y) {
-    const my = this.halfY - Math.abs(y);
-    const mx = this.halfX - Math.abs(x);
-    if (my <= mx) return y >= 0 ? Math.PI / 2 : -Math.PI / 2;
-    return x >= 0 ? 0 : Math.PI;
+    const c = this.geo.canal(x, y);
+    return (y - c.bas) <= (c.haut - y) ? -Math.PI / 2 : Math.PI / 2;
   }
 
   spawnNear(rng, px, py, dMin, dMax) {
     /* Dans un couloir, la horde arrive par la gauche ou par la droite : un
        tirage circulaire mettrait la moitie des mobs dans la paroi. */
-    for (let essai = 0; essai < 8; essai++) {
+    for (let essai = 0; essai < 10; essai++) {
       const a = rng() * TAU;
       const d = dMin + rng() * (dMax - dMin);
       const x = px + Math.cos(a) * d;
@@ -104,22 +140,26 @@ class TubeArena {
       if (this.contains(x, y, 6)) return { x, y };
     }
     const sens = rng() < 0.5 ? -1 : 1;
-    return {
-      x: clamp(px + sens * dMax, -this.halfX + 8, this.halfX - 8),
-      y: clamp(py + (rng() * 2 - 1) * this.halfY * 0.7, -this.halfY + 6, this.halfY - 6),
-    };
+    const x = px + sens * dMax;
+    const c = this.geo.canal(x, py);
+    return { x, y: clamp(py, c.bas + 6, c.haut - 6) };
   }
 
-  /** Profil de vitesse de l'ecoulement : maximal au centre, nul aux parois.
+  /** Profil de vitesse : maximal au milieu du canal, nul aux parois.
    *  C'est un ecoulement laminaire — la couche limite est un refuge reel. */
-  flowProfile(y) {
-    const u = clamp(Math.abs(y) / this.halfY, 0, 1);
-    return 1 - u * u;
+  flowProfile(y, x = 0) {
+    const c = this.geo.canal(x, y);
+    const demi = (c.haut - c.bas) / 2;
+    const centre = (c.haut + c.bas) / 2;
+    const u = clamp(Math.abs(y - centre) / Math.max(demi, 1), 0, 1);
+    return (1 - u * u) * this.geo.facteurDebit(x);
   }
 }
 
-export function makeArena(matrix) {
+export function makeArena(matrix, graine = 3) {
   const a = matrix.arena;
-  if (a && a.kind === 'tube') return new TubeArena(a.halfX, a.halfY);
+  if (a && a.kind === 'tube') {
+    return new TubeArena(new Geometrie(a.demi, graine), PERIODE);
+  }
   return new DiscArena(matrix.arenaRadius);
 }

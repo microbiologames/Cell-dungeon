@@ -422,74 +422,96 @@ function drawHaze(scr, game, pal, fieldR, camX, camY) {
  */
 function drawCourant(scr, game, pal, fieldR, camX, camY) {
   const c = game.conduite;
-  const hy = game.arena.halfY;
+  const geo = game.arena.geo;
   const t = game.time;
 
   /* Nets : un filet de courant flou ne se lit pas, et le courant n'est pas
      un objet observe a une profondeur — c'est le milieu qui bouge. */
   scr.layer(Screen.layerFor(0.2, 0));
-  for (let i = 0; i < 70; i++) {
-    const y0 = (hash2(i, 3) * 2 - 1) * hy * 0.97;
-    const v = c.flowAt(y0);
-    if (v < 1) continue;
+  for (let i = 0; i < 80; i++) {
+    /* Le filet suit la section : il est cale sur une FRACTION du canal, pas
+       sur une ordonnee absolue. Dans un pincement, les filets se serrent et
+       s'allongent — c'est la conservation du debit, dessinee. */
+    const frac = hash2(i, 3) * 2 - 1;
     const span = 900;
-    const wx = ((hash2(i, 7) * span + t * v * 3.1) % span) - span / 2 + camX;
+    const wx = ((hash2(i, 7) * span + t * 62) % span) - span / 2 + camX;
+    const can = geo.canal(wx, frac >= 0 ? 1 : -1);
+    const centre = (can.haut + can.bas) / 2, demi = (can.haut - can.bas) / 2;
+    const y0 = centre + frac * demi * 0.94;
+    const v = c.flowAt(y0, wx);
+    if (v < 1) continue;
     const sx = VIEW.CX + (wx - camX), sy = VIEW.CY + (y0 - camY);
     if (sx < -20 || sx > VIEW.W + 20) continue;
-    const len = 2 + (v / c.flow) * 7;
-    const a = 0.22 + 0.42 * (v / c.flow);
+    const k0 = v / c.flow;
+    const len = 2 + k0 * 7;
+    const a = 0.20 + 0.34 * k0;
     for (let k = 0; k < len; k++) scr.plot(sx - k, sy, fade32(pal.flow, a * (1 - k / len)));
   }
 }
 
 /**
- * Les parois d'acier, et l'acier lui-meme.
+ * Les parois d'acier, l'acier lui-meme, et les accidents de la conduite.
  *
  * Au-dela de la paroi il n'y a pas de milieu : il y a du 316L. On masque donc
  * tout ce que le champ a dessine hors du tube — sinon le decor flottait dans
  * le metal et le couloir ne se lisait plus comme un couloir.
  *
- * Les rayures sont dessinees vers l'INTERIEUR : ce sont des anfractuosites,
- * donc des abris contre le NEP, et un abri doit se voir.
+ * La section VARIE, donc tout se dessine colonne par colonne : c'est la
+ * geometrie qui dit, pour chaque abscisse, ou sont les bords. Les rayures
+ * vont vers l'INTERIEUR : ce sont des anfractuosites, donc des abris contre
+ * le NEP, et un abri doit se voir.
  */
 function drawParois(scr, game, pal, fieldR, camX, camY) {
-  const hy = game.arena.halfY;
+  const geo = game.arena.geo;
   const acier = fade32(pal.steelDim, 0.92);
 
-  for (let y = -fieldR; y <= fieldR; y++) {
-    const wy = camY + y;
-    const dehors = Math.abs(wy) > hy;
-    if (!dehors) continue;
-    const w = Math.floor(Math.sqrt(Math.max(0, fieldR * fieldR - y * y)));
-    const py = VIEW.CY + y;
-    for (let x = -w; x <= w; x++) {
-      const px = VIEW.CX + x;
-      /* Grain du metal : un aplat parfait ne ressemble pas a de l'inox. */
-      const g = hash2(Math.floor((camX + x) / 3), Math.floor(wy / 3));
-      scr.direct(px, py, g > 0.88 ? fade32(pal.steel, 0.22) : acier);
-    }
-  }
+  for (let x = -fieldR; x <= fieldR; x++) {
+    const wx = camX + x;
+    const px = VIEW.CX + x;
+    const demi = geo.demi(wx);
+    const sep = geo.septum(wx);
+    const fil = geo.filtre(wx);
+    const colonne = Math.floor(Math.sqrt(Math.max(0, fieldR * fieldR - x * x)));
 
-  /* Les deux parois, leurs rayures, et le lisere de couche limite. */
-  for (const s of [-1, 1]) {
-    const py = Math.round(VIEW.CY + (s * hy - camY));
-    if (py < -8 || py > VIEW.H + 8) continue;
-    for (let x = -fieldR; x <= fieldR; x++) {
-      const px = VIEW.CX + x;
-      if (x * x + (py - VIEW.CY) * (py - VIEW.CY) > fieldR * fieldR) continue;
-      scr.direct(px, py, pal.steel);
-      const wx = camX + x;
-      if (hash2(Math.floor(wx / 7), s) > 0.72) {
-        const prof = 2 + Math.floor(hash2(Math.floor(wx / 7), s + 9) * 4);
-        for (let k = 1; k < prof; k++) scr.direct(px, py - s * k, fade32(pal.steelDim, 0.75));
+    for (let y = -colonne; y <= colonne; y++) {
+      const wy = camY + y;
+      const py = VIEW.CY + y;
+      const dehorsParoi = Math.abs(wy) > demi;
+      const dansSeptum = sep && Math.abs(wy - sep.y) < sep.demi;
+      const dansBarreau = fil && !geo.passeFiltre(fil, wy) && Math.abs(wy) <= demi;
+
+      if (dehorsParoi || dansSeptum) {
+        /* Grain du metal : un aplat parfait ne ressemble pas a de l'inox. */
+        const g = hash2(Math.floor(wx / 3), Math.floor(wy / 3));
+        scr.direct(px, py, g > 0.88 ? fade32(pal.steel, 0.22) : acier);
+      } else if (dansBarreau) {
+        /* Une crepine ne tue pas, elle TRIE : on la voit comme une grille
+           dans le flux, pas comme un mur. */
+        scr.direct(px, py, fade32(pal.steel, 0.55));
       }
     }
-    /* Couche limite : au-dela, le courant est nul. Le refuge doit se voir,
-       sinon le joueur ne saura jamais qu'il existe. */
-    const ly = Math.round(VIEW.CY + (s * (hy - 11) - camY));
-    for (let x = -fieldR; x <= fieldR; x += 3) {
-      if (x * x + (ly - VIEW.CY) * (ly - VIEW.CY) > fieldR * fieldR) continue;
-      scr.direct(VIEW.CX + x, ly, fade32(pal.flow, 0.22));
+
+    /* Les deux parois, et le lisere de couche limite. */
+    for (const sgn of [-1, 1]) {
+      const py = Math.round(VIEW.CY + (sgn * demi - camY));
+      if (Math.abs(py - VIEW.CY) <= colonne) {
+        scr.direct(px, py, pal.steel);
+        if (hash2(Math.floor(wx / 7), sgn) > 0.72) {
+          const prof = 2 + Math.floor(hash2(Math.floor(wx / 7), sgn + 9) * 4);
+          for (let k = 1; k < prof; k++) scr.direct(px, py - sgn * k, fade32(pal.steelDim, 0.75));
+        }
+      }
+      const ly = Math.round(VIEW.CY + (sgn * (demi - 11) - camY));
+      if ((x & 3) === 0 && Math.abs(ly - VIEW.CY) <= colonne) {
+        scr.direct(px, ly, fade32(pal.flow, 0.22));
+      }
+    }
+    /* Aretes du septum : c'est une paroi, elle merite son lisere. */
+    if (sep) {
+      for (const sgn of [-1, 1]) {
+        const py = Math.round(VIEW.CY + (sep.y + sgn * sep.demi - camY));
+        if (Math.abs(py - VIEW.CY) <= colonne) scr.direct(px, py, pal.steel);
+      }
     }
   }
 }
@@ -504,7 +526,7 @@ function drawNep(scr, game, pal, fieldR, camX, camY) {
   const c = game.conduite;
   const bio = c.biocide;
   const teinte = pal.biocide[bio.couleur] || pal.textHot;
-  const hy = game.arena.halfY;
+  const geo = game.arena.geo;
 
   if (c.cip.etat === 'telegraphe') {
     /* Le champ vire et bat de plus en plus vite a mesure que ca approche. */
@@ -521,8 +543,9 @@ function drawNep(scr, game, pal, fieldR, camX, camY) {
     if (k <= 0) continue;
     const px = VIEW.CX + x;
     const w = Math.floor(Math.sqrt(Math.max(0, fieldR * fieldR - x * x)));
+    const demi = geo.demi(camX + x);
     for (let y = -w; y <= w; y++) {
-      if (Math.abs(camY + y) > hy) continue;
+      if (Math.abs(camY + y) > demi) continue;
       const py = VIEW.CY + y;
       if (bayer(px, py) > k * 0.85) continue;
       scr.direct(px, py, fade32(teinte, 0.30 + 0.45 * k));
