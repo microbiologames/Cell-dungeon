@@ -45,7 +45,7 @@ grain monophonique caractéristique en prime.
 | `triangle` | Basse | Triangulaire |
 | `bruit` | Percussion | LFSR sous-échantillonné : le grain métallique d'une NES, pas du bruit blanc |
 | `sub` | Poids | Sinus. Rien de rétro, et c'est assumé : sans bas du spectre il n'y a pas de drum and bass |
-| `nappe` | Liquide | Trois scies désaccordées. C'est le **désaccord** qui fait l'impression de liquide, pas le nombre de voix |
+| `nappe` | Liquide | Trois scies désaccordées. C'est le **désaccord** qui fait l'impression de liquide, pas le nombre de voix. Filtrée **bas** (1,1 kHz plafonné) et sur **deux pôles** : voir « le sifflement » ci-dessous |
 
 ## Le moteur observe, on ne lui pousse rien
 
@@ -105,10 +105,58 @@ node tools/son-extrait.mjs milk 34   # rend un WAV, pour écouter
 
 `son-check` rend cinq états de jeu dans un `OfflineAudioContext` et vérifie que
 ça sonne, que ça ne sature pas, que l'intensité amène bien le bas du spectre,
-que la mise au point mange l'aigu **sans éteindre le morceau**, et que le lobby
-ne sonne pas comme un stage.
+que la mise au point mange l'aigu **sans éteindre le morceau**, que le lobby
+ne sonne pas comme un stage, et qu'**aucune raie ne siffle**.
 
-### Quatre pièges payés en écrivant ce banc
+### Le sifflement, et pourquoi le niveau ne le voyait pas
+
+Défaut signalé à l'oreille : *« un sifflement arrive très progressivement pour
+finir par occuper tout l'espace en milieu de partie »*. Les six verdicts
+existants passaient tous, et le banc de dérive donnait ×1,02 sur soixante
+secondes — donc pas de boucle qui s'emballe. Il a fallu un **spectre** pour le
+nommer : une raie stable à **2223 Hz**, deux fois plus forte que ses voisines,
+présente à toutes les intensités et **survivant au contournement du grain**.
+
+Par élimination, la coupable est la `nappe` :
+
+| Variante | Pic 2,15–2,5 kHz |
+|---|---|
+| telle quelle | 13,19 |
+| sans nappe | 7,70 |
+| nappe coupée à 900 Hz | 7,77 |
+| sans réverbe | 4,93 |
+| nappe Q = 0,4 | 12,58 |
+| sans ostinato, sans lead | ~13,2 |
+
+C'est une dent de scie **tenue en permanence** dont `appliquerAmbiance`
+recalait le passe-bas sur `coupure × 0.35`, soit **2170 Hz** pour le lait : les
+harmoniques 13 à 16 des accords tombaient pile sur le coin du filtre. Et cette
+couche était la seule envoyée à la réverbe **à gain 1.0** — les peignes de
+Schroeder étalaient ces partiels en une bande continue. D'où un sifflement qui
+*monte* au lieu d'attaquer. Le Q n'y était pour rien : c'est la **position** de
+la coupure, pas sa résonance.
+
+Quatre corrections, qui vont toutes dans le sens de la DA :
+
+- coupure plafonnée à **1250 Hz**. Une nappe est un fond harmonique ; ce sont
+  les carrés incisifs qui doivent couper le mix, et la nappe leur disputait
+  précisément leur bande ;
+- **deux pôles** au lieu d'un. À 12 dB/octave, une scie coupée à 1,1 kHz garde
+  encore le quart de ses harmoniques à 2 kHz, et dès que le mix se dégarnit
+  elles s'entendent seules ;
+- envoi de réverbe ramené de 1.0 à **0.4 en stage**, laissé à **1.0 au lobby**
+  où le drone est le sujet ;
+- un **souffle** très lent sur la coupure, une période différente par voix. Un
+  partiel parfaitement stable s'entend comme un sifflet ; le même partiel qui
+  respire s'entend comme une texture.
+
+Le verdict permanent mesure chaque raie face à la **médiane de son propre
+tiers d'octave**, pas face au niveau moyen du morceau : une texture large monte
+avec ses voisines et ne ressort pas, une raie pure laisse son voisinage en bas.
+Avec le défaut volontairement remis, il donne ×38 à 2223 Hz ; corrigé, plus
+aucune raie ne passe même le plancher d'audibilité.
+
+### Six pièges payés en écrivant ce banc
 
 | Symptôme | Cause |
 |---|---|
@@ -116,6 +164,8 @@ ne sonne pas comme un stage.
 | Mesures **non reproductibles** d'une passe à l'autre | Le banc utilisait le **singleton**, et la boucle de jeu de la page continuait d'appeler `observe()` pendant le rendu hors ligne, remettant l'ambiance à zéro en plein milieu. Le banc instancie désormais son propre moteur |
 | Fermer le passe-bas de 12 kHz à 3,4 kHz ne bougeait la mesure que de 5 % | Le passe-haut d'analyse était à **un seul pôle** : 6 dB/octave laisse passer tout le médium. On mesurait le mix, pas l'aigu. Quatrième ordre |
 | Aucune énergie au-dessus de 5 kHz, quel que soit l'état | Le banc rendait à **24 kHz** : la charleston (7 à 10 kHz) se retrouvait au bord de Nyquist et le biquad s'y écrasait. On mesurait le banc, pas le moteur |
+| La recherche de raie déclarait un sifflet **partout** | Elle comparait chaque pic à un voisinage **vide** : dans un passage clairsemé, un partiel à −60 dB domine arithmétiquement sans que personne ne l'entende. Il faut un plancher d'audibilité, et exclure le lobby, qui est un drone assumé |
+| Le défaut volontairement remis **passait le banc** | Le rendu ne durait que **quatre secondes** : une dizaine de blocs d'analyse, trop peu pour qu'une raie tenue se détache. À dix secondes elle ressort à ×38. Un banc qui ne rattrape pas le bug qu'il est censé garder ne garde rien — on le vérifie en remettant le défaut |
 
 ## Overlay de debug
 

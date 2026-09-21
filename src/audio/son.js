@@ -239,14 +239,16 @@ export class Son {
        gains. Jamais de coupure : une couche qui s'arrete s'entend, une
        couche qui descend ne s'entend pas. */
     this.couches = {};
+    this.envoisRev = {};
     for (const nom of ['nappe', 'sub', 'break', 'ostinato', 'lead', 'tension']) {
       const g = ctx.createGain();
       g.gain.value = 0.0001;
       g.connect(nom === 'nappe' || nom === 'sub' ? this.busDoux : this.busChip);
       /* Tout part aussi vers les effets, en proportion fixe par couche. */
       const r = ctx.createGain();
-      r.gain.value = nom === 'nappe' ? 1 : (nom === 'lead' ? 0.5 : 0.18);
+      r.gain.value = nom === 'nappe' ? 0.4 : (nom === 'lead' ? 0.5 : 0.18);
       g.connect(r).connect(this.envoiRev);
+      this.envoisRev[nom] = r;
       const e = ctx.createGain();
       e.gain.value = nom === 'lead' ? 0.6 : (nom === 'nappe' ? 0.5 : 0.1);
       g.connect(e).connect(this.envoiEcho);
@@ -271,10 +273,40 @@ export class Son {
       { type: 'sine', coupure: 260 });
     /* La nappe : trois voix legerement desaccordees. C'est le desaccord, pas
        le nombre de voix, qui donne l'impression de liquide. */
+    /* Le passe-bas reste BAS et sans coin resonant. Une dent de scie tenue
+       dont le filtre s'ouvre vers 2 kHz pose ses harmoniques 13 a 16 pile
+       la ou l'oreille cherche un sifflement, et la reverbe les etale en une
+       raie continue : c'est exactement le defaut qu'on a mesure. En plus
+       sombre, la nappe laisse la place aux carres incisifs qui doivent,
+       eux, couper le mix. */
     this.nappe = [0, 1, 2].map((i) => {
       const c = new Canal(ctx, this.couches.nappe,
-        { type: 'sawtooth', coupure: 1400, q: 1.1 });
+        { type: 'sawtooth', coupure: 1100, q: 0.7 });
       c.osc.detune.value = (i - 1) * 9;
+      /* Deuxieme pole. Un seul biquad, c'est 12 dB par octave : a 2 kHz une
+         dent de scie coupee a 1,1 kHz garde encore le quart de ses
+         harmoniques, et des que le mix se degarnit elles s'entendent seules.
+         Avec 24 dB par octave il n'en reste rien. */
+      const f2 = ctx.createBiquadFilter();
+      f2.type = 'lowpass';
+      f2.frequency.value = 1100;
+      f2.Q.value = 0.7;
+      c.filtre.disconnect();
+      c.filtre.connect(f2).connect(c.gain);
+      c.filtre2 = f2;
+      /* Un souffle tres lent sur la coupure, une periode differente par
+         voix : un partiel parfaitement stable s'entend comme un sifflet,
+         le meme partiel qui respire s'entend comme une texture. */
+      const lfo = ctx.createOscillator();
+      lfo.type = 'sine';
+      lfo.frequency.value = [0.047, 0.071, 0.093][i];
+      const prof = ctx.createGain();
+      prof.gain.value = 220;
+      lfo.connect(prof);
+      prof.connect(c.filtre.frequency);
+      prof.connect(f2.frequency);
+      lfo.start();
+      c.souffle = prof;
       return c;
     });
 
@@ -341,8 +373,13 @@ export class Son {
     this.rampe(this.revGain.gain, a.reverbe * 0.42, t);
     this.rampe(this.echoGain.gain, a.echo * 0.34, t);
     this.rampe(this.chipPropre.gain, 1 - a.grain, t);
+    /* Le lobby est un drone : la nappe y a droit a toute la reverbe. En
+       stage elle n'est qu'un fond harmonique, elle en recoit le tiers. */
+    this.rampe(this.envoisRev.nappe.gain, nom === 'ambiant' ? 1 : 0.4, t);
     for (const [i, c] of this.nappe.entries()) {
-      c.filtre.frequency.setTargetAtTime(a.coupure * 0.35, this.ctx.currentTime, t);
+      const fc = Math.min(a.coupure * 0.35, 1250);
+      c.filtre.frequency.setTargetAtTime(fc, this.ctx.currentTime, t);
+      c.filtre2.frequency.setTargetAtTime(fc, this.ctx.currentTime, t);
       c.osc.detune.setTargetAtTime((i - 1) * (a.grain > 0.6 ? 14 : 8), this.ctx.currentTime, t);
     }
     this.vLead.osc.setPeriodicWave(
