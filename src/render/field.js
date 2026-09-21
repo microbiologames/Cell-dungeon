@@ -211,6 +211,32 @@ export function renderField(scr, game, pal) {
       fade32(pal.acidRim, clamp(vie * 1.4, 0, 1)), 0);
   }
 
+  /* --- bulles de fermentation ------------------------------------------- */
+  /* Elles vivent sur l'axe Z comme tout le reste, donc elles passent par les
+     memes calques de flou : loin en profondeur, une bulle n'est qu'un halo ;
+     au passage du plan, elle est nette une fraction de seconde. C'est ce qui
+     la rend LISIBLE sans aucun indicateur — il suffit de regarder. */
+  if (game.bulles) {
+    for (const b of game.bulles.liste) {
+      const sB = sharpness(b.z, game.focus, dof);
+      const bl = blurLevelOf(sB);
+      scr.layer(Screen.layerFor(b.z, bl));
+      const sx = toX(b.x), sy = toY(b.y);
+      if (sx < -b.r - 20 || sx > VIEW.W + b.r + 20) continue;
+      const a = 0.22 + 0.55 * sB;
+      /* Une bulle de gaz se lit comme un ANNEAU brillant a centre vide : la
+         refraction concentre la lumiere sur son pourtour. C'est ce qui la
+         distingue d'un organisme au premier coup d'oeil. */
+      scr.ring(sx, sy, b.r, 1.6 + 1.4 * sB, fade32(pal.shield, a));
+      scr.ring(sx, sy, b.r * 0.72, 1, fade32(pal.shield, a * 0.32));
+      /* Reflet, du cote de la lumiere : il donne le volume. */
+      if (sB > 0.4) {
+        scr.disc(sx - b.r * 0.34, sy - b.r * 0.36, Math.max(1, b.r * 0.10),
+          fade32(0xffffffff, (sB - 0.4) * 1.1), 0);
+      }
+    }
+  }
+
   /* --- aura et joueur --------------------------------------------------- */
   scr.layer(Screen.layerFor(-0.05, 0));
   const aura = p.stats.aura;

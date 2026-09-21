@@ -8,6 +8,8 @@
 import {
   MILK_MOBS, MILK_NEUTRALS, MILK_BOSSES,
   PIPE_MOBS, PIPE_NEUTRALS, PIPE_BOSSES,
+  KOMBUCHA_MOBS, KOMBUCHA_NEUTRALS, KOMBUCHA_BOSSES,
+  LEVAIN_MOBS, LEVAIN_NEUTRALS, LEVAIN_BOSSES,
 } from './bestiary.js';
 
 /** Population de menace visee, en credits presents SIMULTANEMENT dans le
@@ -181,14 +183,134 @@ export const PIPE = {
 };
 
 export const KOMBUCHA = {
-  id: 'kombucha', label: 'KOMBUCHA', subtitle: 'JARRE, JOUR 7',
-  playable: false, duration: 720, arenaRadius: 1600, pool: [], bosses: {},
-  unlocks: {}, events: [],
-  chem: { phStart: 2.8, phFloor: 2.4, phTrail: 0.3, phDeposit: 0.34, tempC: 24 },
-  decor: { kind: 'globule', minR: 1.5, maxR: 14, skew: 2.4,
-    bubbleMinR: 1.8, bubbleMaxR: 12, bubbleSkew: 2.0, blocksBullets: true },
+  id: 'kombucha',
+  label: 'KOMBUCHA',
+  subtitle: 'JARRE, JOUR 7',
+  playable: true,
+  duration: 720,
+  /* Une jarre : arene ouverte, comme le lait cru, mais plus resserree — on
+     est dans un bocal, pas dans un tank. */
+  arenaRadius: 1100,
+  pool: KOMBUCHA_MOBS,
+  neutrals: KOMBUCHA_NEUTRALS,
+  /* Peu de neutres, mais enormes : ce sont les baleines du stage. */
+  ambient: 2,
+  bosses: KOMBUCHA_BOSSES,
+
+  /* Une jarre est un milieu riche et encombre : a surface egale, il s'y
+     passe plus de choses que dans un tank refrigere. */
+  budgetScale: 1.2,
+
+  unlocks: { chaff: 0, runner: 30, splitter: 90, denier: 150, tank: 240 },
+
+  events: [
+    { t: 240, type: 'boss', id: 'scoby' },
+    { t: 400, type: 'lull', dur: 18, budget: 0.12 },
+    { t: 690, type: 'lull', dur: 15, budget: 0.10 },
+    { t: 720, type: 'boss', id: 'scoby' },
+  ],
+
+  /* La signature du stage : le CO2 de la fermentation remonte en permanence,
+     et sa cadence monte avec la progression. */
+  bulles: {
+    debut: 0.16, fin: 0.85,
+    rMin: 16, rMax: 44,
+    vitesseZ: 0.28, poussee: 320,
+  },
+
+  /* pH 3,0 : bien plus acide que le lait cru. Une bacterie lactique y est
+     mal, et son propre acide n'y change plus grand-chose — le milieu est
+     deja sature d'acide acetique. */
+  chem: {
+    phStart: 3.0, phFloor: 2.5,
+    phTrail: 0.16, phDeposit: 0.18,
+    coliformSlowBelow: 2.9, pseudomonasBurnBelow: 2.7, pseudomonasBurnDps: 3,
+    tempC: 24,
+  },
+
+  /* Le decor d'une jarre : des lambeaux de cellulose et des bulles piegees
+     dans la pellicule. Gamme large, biaisee vers le petit. */
+  decor: {
+    kind: 'globule', minR: 1.5, maxR: 14, skew: 2.6,
+    bubbleMinR: 2, bubbleMaxR: 13, bubbleSkew: 1.9,
+    blocksBullets: true,
+  },
 };
 
+export const LEVAIN = {
+  id: 'levain',
+  label: 'LEVAIN',
+  subtitle: 'CHEF, TROISIEME JOUR',
+  playable: true,
+  duration: 720,
+  /* Une pate : dense, encombree. L'arene est petite parce que le champ est
+     deja plein — la difficulte est de circuler, pas de couvrir du terrain. */
+  arenaRadius: 900,
+  pool: LEVAIN_MOBS,
+  neutrals: LEVAIN_NEUTRALS,
+  ambient: 3,
+  bosses: LEVAIN_BOSSES,
+
+  /* Un levain est la matrice la plus DENSE du jeu : on y est au coude a
+     coude. Et comme la flore y est surtout immobile, il en faut plus pour
+     que la pression se fasse sentir — mesure a 1,0 : zero mort sur le
+     premier tiers, le stage etait une promenade. */
+  budgetScale: 1.28,
+
+  /* Le coureur arrive TOT. La flore du levain est essentiellement immobile —
+     c'est exact, les lactobacilles de levain ne nagent pas — et une horde
+     immobile ne menace personne : mesure a zero mort sur le premier tiers.
+     C'est L. plantarum, la seule mobile du lot, qui porte l'ouverture. */
+  unlocks: { chaff: 0, runner: 18, splitter: 100, denier: 170, tank: 260 },
+
+  events: [
+    { t: 240, type: 'boss', id: 'amasmur' },
+    { t: 420, type: 'lull', dur: 18, budget: 0.12 },
+    { t: 690, type: 'lull', dur: 15, budget: 0.10 },
+    { t: 720, type: 'boss', id: 'amasmur' },
+  ],
+
+  /* Moins de bulles que dans une jarre, mais elles existent : un levain
+     actif est plein de CO2, et c'est meme a ca qu'on voit qu'il est pret. */
+  bulles: {
+    debut: 0.10, fin: 0.5,
+    rMin: 14, rMax: 34,
+    vitesseZ: 0.24, poussee: 260,
+  },
+
+  /* pH 3,9 : acide, mais c'est le domaine des bacteries lactiques. Le joueur
+     y est chez lui — c'est la seule matrice apres le lait cru ou il ait cet
+     avantage. */
+  chem: {
+    phStart: 3.9, phFloor: 3.3,
+    phTrail: 0.22, phDeposit: 0.26,
+    coliformSlowBelow: 3.8, pseudomonasBurnBelow: 3.5, pseudomonasBurnDps: 3,
+    tempC: 26,
+  },
+
+  /* LES GRAINS D'AMIDON. Ce sont eux le stage : enormes, immobiles, ils
+     bloquent les tirs et forment un labyrinthe ou l'on se fait pieger. Les
+     grains de ble sont reellement bimodaux — de grosses lenticulaires A de
+     15 a 35 um et une nuee de petites spheriques B de 2 a 10 — d'ou une
+     gamme tres large et un biais leger seulement. */
+  decor: {
+    kind: 'globule', minR: 2.5, maxR: 28, skew: 1.35,
+    bubbleMinR: 1.8, bubbleMaxR: 10, bubbleSkew: 2.2,
+    blocksBullets: true,
+    /* IMPENETRABLES a partir de 6 px de rayon : un grain d'amidon est un
+       cristal, pas une gouttelette. C'est ce qui fait le labyrinthe. */
+    solide: true,
+    /* Une pate est PLEINE. */
+    densite: 2.2,
+  },
+};
+
+/* Le SANG reste une ebauche, et c'est un choix : en travaillant la conduite,
+   il est apparu que le stage ultime n'est pas une goutte de sang mais un
+   RESEAU VASCULAIRE — couloirs labyrinthiques, courant pulsatile,
+   bifurcations, hematies qui bousculent, systeme immunitaire. Autrement dit
+   la conduite poussee a son terme. Le construire maintenant reviendrait a
+   jeter la moitie du travail : il attend que les couloirs soient murs. */
 export const BLOOD = {
   id: 'blood', label: 'SANG', subtitle: 'IN VIVO, 37 C',
   playable: false, duration: 720, arenaRadius: 1600, pool: [], bosses: {},
@@ -198,7 +320,9 @@ export const BLOOD = {
     bubbleMinR: 1.8, bubbleMaxR: 10, bubbleSkew: 2.0, blocksBullets: true },
 };
 
-export const MATRICES = { milk: MILK, pipe: PIPE, kombucha: KOMBUCHA, blood: BLOOD };
+export const MATRICES = {
+  milk: MILK, pipe: PIPE, kombucha: KOMBUCHA, levain: LEVAIN, blood: BLOOD,
+};
 
 /** Palier courant (0 a 4) pour une fraction de run. */
 export function tierAt(p) {

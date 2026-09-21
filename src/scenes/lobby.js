@@ -20,20 +20,25 @@ import { BESTIARY } from '../data/bestiary.js';
 import { drawOrganism, drawPlayer, colorOf } from '../render/organisms.js';
 import { Swimmer } from './swimmer.js';
 
-const WELL_R = 24;
+const WELL_R = 21;
 const BOUNDS = { r: 92 };
 
 /* Disposition des puits, en coordonnees monde. Tout doit TENIR dans le
    champ d'un coup : un ecran de selection ou il faut se promener pour
    decouvrir les options est un mauvais ecran de selection. La camera est
    donc FIXE a l'origine, contrairement au jeu. */
-const SLOTS = [
-  { id: 'milk', x: -58, y: -44 },
-  { id: 'pipe', x: 58, y: -44 },
-  { id: 'kombucha', x: -58, y: 48 },
-  { id: 'blood', x: 58, y: 48 },
-  { id: 'bestiaire', x: 0, y: 2, r: 18 },
-];
+/* Cinq matrices en couronne autour du puits du bestiaire. La disposition
+   circulaire evite d'avoir a redessiner la boite a chaque stage ajoute. */
+const SLOTS = (() => {
+  const ids = ['milk', 'pipe', 'kombucha', 'levain', 'blood'];
+  const R = 62;
+  const out = ids.map((id, i) => {
+    const a = -Math.PI / 2 + (i / ids.length) * Math.PI * 2;
+    return { id, x: Math.round(Math.cos(a) * R), y: Math.round(Math.sin(a) * R * 0.86) };
+  });
+  out.push({ id: 'bestiaire', x: 0, y: 0, r: 16 });
+  return out;
+})();
 
 export class Lobby {
   constructor(onPick) {

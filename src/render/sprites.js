@@ -42,7 +42,13 @@ export function encodeSprite(w, h, palette, indices, ox, oy) {
  * @param {Sprite} sp
  * @param {number} scale  1 = taille native
  */
-export function drawSprite(scr, sp, cx, cy, angle = 0, alpha = 1, scale = 1) {
+/**
+ * @param {number} [teinte] Couleur unique imposee a tous les pixels opaques.
+ *   Sert au halo de contraste de phase : on redessine la MEME silhouette,
+ *   decalee d'un pixel dans les quatre directions, en couleur de halo. Un
+ *   anneau libre autour du sprite se lisait comme une bulle de gaz.
+ */
+export function drawSprite(scr, sp, cx, cy, angle = 0, alpha = 1, scale = 1, teinte = 0) {
   const ca = Math.cos(-angle), sa = Math.sin(-angle);
   /* Boite englobante apres rotation, arrondie au pixel superieur. */
   const rad = Math.ceil(Math.hypot(sp.w, sp.h) * 0.5 * scale) + 1;
@@ -57,7 +63,7 @@ export function drawSprite(scr, sp, cx, cy, angle = 0, alpha = 1, scale = 1) {
       if (ix < 0 || iy < 0 || ix >= sp.w || iy >= sp.h) continue;
       const idx = sp.px[iy * sp.w + ix];
       if (idx === 0) continue;
-      const col = sp.palette[idx];
+      const col = teinte || sp.palette[idx];
       scr.plot(cx + x, cy + y, alpha >= 1 ? col : fade32(col, alpha));
     }
   }

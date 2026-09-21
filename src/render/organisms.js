@@ -348,6 +348,73 @@ function silhouette(scr, spec, x, y, r, ang, phase, fill, rim, g) {
       }
       break;
     }
+    case 'conidiophore': {
+      /* ASPERGILLUS. Tete conidienne en aspergillum (le goupillon a eau
+         benite qui a donne son nom au genre) : un stipe dresse, une vesicule
+         globuleuse au sommet, et des chainettes de conidies qui rayonnent
+         tout autour. C'est une silhouette qu'on reconnait entre mille. */
+      const sx2 = x - Math.cos(ang) * r * 0.55, sy2 = y - Math.sin(ang) * r * 0.55;
+      /* Le stipe : long, droit, epais. */
+      scr.seg(sx2 - Math.cos(ang) * r * 0.9, sy2 - Math.sin(ang) * r * 0.9,
+        sx2, sy2, G(r * 0.24) * 2, rim, 0);
+      /* Chainettes de conidies, rayonnantes. */
+      const n = 13;
+      for (let i = 0; i < n; i++) {
+        const a = ang - Math.PI + (i / (n - 1)) * TAU * 0.5 + Math.PI / 2;
+        const ond = Math.sin(phase * 0.5 + i) * 0.06;
+        for (let j = 1; j <= 3; j++) {
+          const d = r * (0.52 + j * 0.20);
+          scr.disc(sx2 + Math.cos(a + ond) * d, sy2 + Math.sin(a + ond) * d,
+            G(r * 0.13), relief ? fill : fill, 0);
+        }
+      }
+      /* La vesicule, par-dessus : c'est elle le coeur de la tete. */
+      if (relief) boule(scr, sx2, sy2, G(r * 0.46), fill, rim, eclat);
+      else scr.disc(sx2, sy2, G(r * 0.46), fill, 0);
+      break;
+    }
+    case 'penicille': {
+      /* PENICILLIUM. Son nom vient du pinceau : le conidiophore se ramifie
+         en metules, puis en phialides, d'ou partent les chainettes. La
+         silhouette est un BALAI, pas un goupillon — c'est ce qui le
+         distingue d'Aspergillus au premier coup d'oeil. */
+      const bx2 = x - Math.cos(ang) * r * 0.75, by2 = y - Math.sin(ang) * r * 0.75;
+      scr.seg(bx2 - Math.cos(ang) * r * 0.8, by2 - Math.sin(ang) * r * 0.8,
+        bx2, by2, G(r * 0.22) * 2, rim, 0);
+      for (const branche of [-0.42, 0, 0.42]) {
+        const a1 = ang + branche;
+        const mx = bx2 + Math.cos(a1) * r * 0.42, my = by2 + Math.sin(a1) * r * 0.42;
+        scr.seg(bx2, by2, mx, my, G(r * 0.15) * 2, rim, 0);
+        for (const ph2 of [-0.34, 0, 0.34]) {
+          const a2 = a1 + ph2;
+          const px2 = mx + Math.cos(a2) * r * 0.34, py2 = my + Math.sin(a2) * r * 0.34;
+          scr.seg(mx, my, px2, py2, G(r * 0.12) * 2, rim, 0);
+          for (let j = 1; j <= 3; j++) {
+            const d = r * 0.16 * j;
+            const ond = Math.sin(phase * 0.6 + j + ph2 * 3) * 0.12;
+            scr.disc(px2 + Math.cos(a2 + ond) * d, py2 + Math.sin(a2 + ond) * d,
+              G(r * 0.12), fill, 0);
+          }
+        }
+      }
+      break;
+    }
+    case 'amas': {
+      /* AMAS DE LEVURES. Un bourgeonnement qui n'a pas separe : les cellules
+         filles restent accrochees. Ni grappe reguliere ni masse informe —
+         une suite de bourgeons de tailles decroissantes. */
+      const n = 6;
+      let cx2 = x, cy2 = y, a2 = ang, rr = r * 0.58;
+      for (let i = 0; i < n; i++) {
+        if (relief) boule(scr, cx2, cy2, G(rr), fill, rim, i === 0 ? eclat : eclat * 0.5);
+        else scr.disc(cx2, cy2, G(rr), fill, 0);
+        a2 += 1.05 + Math.sin(phase * 0.4 + i) * 0.16;
+        cx2 += Math.cos(a2) * rr * 1.25;
+        cy2 += Math.sin(a2) * rr * 1.25;
+        rr *= 0.86;
+      }
+      break;
+    }
     case 'plaque': {
       /* Masse d'EPS accrochee a la paroi : ni disque ni cercle. Grumeleuse,
          figee par l'angle de l'entite, parcourue de canaux d'eau. */
@@ -404,7 +471,14 @@ export function drawOrganism(scr, spec, x, y, r, ang, phase, fill, rim, opts = n
        trente-deux un trait de cheveu. */
     const g = clamp(0.55 + r * 0.11, 0.7, 2.2);
     if (sprite) {
-      scr.ring(x, y, r + g, g * 1.4, fade32(pal.phase, 0.6));
+      /* Le halo epouse la silhouette : quatre passes decalees d'un pixel.
+         Un anneau libre autour du sprite se lisait comme une bulle de gaz,
+         ce qui est un contresens complet dans une matrice qui en est
+         pleine. */
+      const dd = Math.max(1, Math.round(g * 0.6));
+      for (const [ox, oy] of [[-dd, 0], [dd, 0], [0, -dd], [0, dd]]) {
+        drawSprite(scr, sprite, x + ox, y + oy, ang, 1, 1, pal.phase);
+      }
     } else {
       silhouette(scr, spec, x, y, r, ang, phase, fade32(pal.phase, 0.5), 0, g);
       silhouette(scr, spec, x, y, r, ang, phase, pal.phase, 0, g * 0.45);

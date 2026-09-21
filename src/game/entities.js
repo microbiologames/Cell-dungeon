@@ -217,7 +217,10 @@ export function updateEnemy(e, dt, game) {
      ils entrent et sortent du plan net tout seuls. */
   if (spec.zWander) {
     e.zPhase = (e.zPhase || 0) + dt * 0.19;
-    e.z = clamp(Math.sin(e.zPhase + e.uid) * 0.85, -1, 1);
+    /* Amplitude par espece : une baleine doit rester PRESENTE. A 0,85 elle
+       passe l'essentiel de son temps floue, et floue elle ressemble a une
+       bulle — contresens complet dans une matrice qui en est pleine. */
+    e.z = clamp(Math.sin(e.zPhase + e.uid) * (spec.zAmp ?? 0.85), -1, 1);
   }
 
   /* Derive vers le plan du joueur : c'est le telegraphe de la vague. */

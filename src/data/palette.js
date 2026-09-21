@@ -151,6 +151,20 @@ export const MATRICES_PALETTE = {
     edge: hexToRgba('#59400f'),
     tint: hexToRgba('#1d1204', 40),
   },
+  levain: {
+    name: 'LEVAIN',
+    /* Une pate a levain est opaque et pale : on l'observe comme un frottis,
+       en fond clair, exactement pour la meme raison que le lait cru. Ca
+       separe aussi les deux matrices ouvertes au premier coup d'oeil. */
+    ...BRIGHT,
+    bg: hexToRgba('#ddd2b6'),
+    haze: hexToRgba('#c3b593', 95),        // farine en suspension
+    /* Les grains d'amidon SONT le levain : clairs, tres refringents, avec un
+       hile marque. Ce sont eux qu'on voit d'abord dans une pate. */
+    debris: hexToRgba('#fdf8e8'), debrisRim: hexToRgba('#8a7a55'),
+    edge: hexToRgba('#7d6d49'),
+    tint: hexToRgba('#cbbf9f', 40),
+  },
   blood: {
     name: 'SANG',
     ...DARK,

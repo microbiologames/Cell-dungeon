@@ -237,3 +237,29 @@ la couleur de halo, avant le corps.
 C'est pour gonfler chaque **primitive** et non le rayon global que la
 silhouette est une fonction à part (`silhouette(..., g)`) : gonfler le rayon
 aurait écarté les éléments d'une chaînette ou d'une grappe.
+
+## Les moisissures : trois sprites adoptés, et une exception assumée
+
+`aspergillus`, `penicillium` et `grandelevure` sont générés. Ils cochent tous
+les critères mesurés : **30 à 34 px**, silhouette **riche** (chaînettes de
+conidies, ramifications en pinceau, bourgeons imbriqués), et animation
+procédurale quasi nulle à perdre.
+
+**L'exception** : ils sortent avec des couleurs qui ne respectent pas la teinte
+de rôle « neutre » (gris délavé). Le *Penicillium* est **bleu-vert**, et c'est
+juste — la couleur des conidies de *Penicillium* est un caractère
+d'identification réel, pas une fantaisie. On ajoute donc une troisième
+exception à la règle « la couleur porte la menace », après l'endospore blanche
+et le décor gris : **chez une moisissure, la couleur porte l'espèce.**
+
+Le risque de confusion avec la teinte `tank` est réel mais levé par la
+**taille** : ces neutres font trois à quatre fois un mob. Si ça gêne en jeu,
+supprimer le PNG suffit — `assets/sprites/` est curé à la main et l'espèce
+retombe sur sa forme procédurale.
+
+### Le halo de phase d'un sprite épouse sa silhouette
+
+Un anneau tracé autour du sprite se lisait comme une **bulle de gaz** — un
+contresens dans une matrice qui en est pleine. On redessine donc la même
+silhouette, décalée d'un pixel dans les quatre directions, en couleur de halo
+(`drawSprite(..., teinte)`).

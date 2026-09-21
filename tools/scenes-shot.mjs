@@ -138,5 +138,44 @@ for (const nature of ['chambre', 'pincement', 'filtre', 'bifurcation']) {
       await pg.waitForTimeout(500);
     });
 }
+/* Les deux matrices ouvertes. Pour le kombucha on force une bulle en plein
+   passage du plan : c'est le moment qui doit se lire. */
+await shot('40-kombucha', { width: 960, height: 540 }, async (pg) => {
+  await pg.evaluate(() => window.__startMatrice('kombucha'));
+  await pg.waitForTimeout(2200);
+  await pg.evaluate(() => {
+    const g = window.__game;
+    g.damagePlayer = () => {};
+    g.bulles.liste.length = 0;
+    for (const [dx, dz, r] of [[-70, 0.9, 30], [40, 0.05, 44], [90, -0.8, 26]]) {
+      g.bulles.liste.push({ x: g.player.x + dx, y: g.player.y - 20, z: dz,
+        r0: r, r, ph: 1, mort: false });
+    }
+  });
+  await pg.waitForTimeout(160);
+});
+await shot('41-levain', { width: 960, height: 540 }, async (pg) => {
+  await pg.evaluate(() => window.__startMatrice('levain'));
+  await pg.waitForTimeout(2200);
+  await pg.evaluate(() => { window.__game.damagePlayer = () => {}; });
+  await pg.waitForTimeout(300);
+});
+/* Les baleines : moisissures et amas, a cote du joueur pour l'echelle. */
+await shot('42-baleines', { width: 960, height: 540 }, async (pg) => {
+  await pg.evaluate(() => window.__startMatrice('kombucha'));
+  await pg.waitForTimeout(900);
+  await pg.evaluate(() => {
+    const g = window.__game;
+    g.damagePlayer = () => {};
+    g.enemies.length = 0;
+    g.bulles.liste.length = 0;
+    const p = g.player;
+    ['aspergillus', 'penicillium', 'grandelevure'].forEach((id, i) => {
+      const e = g.spawnSpecific(id, p.x - 70 + i * 70, p.y - 10, 0, 1);
+      if (e) { e.zPhase = 0; e.z = 0; }
+    });
+  });
+  await pg.waitForTimeout(260);
+});
 console.log(errs.length ? 'ERREURS: ' + errs.join(' | ') : 'aucune erreur');
 await b.close(); srv.close();

@@ -11,6 +11,7 @@ import { PhField } from './phfield.js';
 import { collectDecor, applyDecor, decorBlocksBullet, convection } from './decor.js';
 import { Director } from './director.js';
 import { Conduite } from './pipe.js';
+import { Bulles } from './bulles.js';
 import {
   makeEnemy, makeBullet, makePickup, makeZone, updateEnemy, pickTarget,
   sharpness, damageFalloff, compact, IN_PLANE, nearestEnemy,
@@ -54,6 +55,9 @@ export class Game {
     /* Mecaniques propres a la matrice. Seule la conduite en a pour l'instant :
        courant, plaques de biofilm et Nettoyage En Place. */
     this.conduite = this.matrix.id === 'pipe' ? new Conduite(this) : null;
+    /* Les milieux en fermentation ouverte degagent du CO2 en permanence :
+       les bulles remontent vers l'observateur et bousculent tout. */
+    this.bulles = this.matrix.bulles ? new Bulles(this) : null;
     this.focus = 0;
     this.focusTarget = 0;
     this.boss = null;
@@ -117,7 +121,8 @@ export class Game {
       240, this.removedDecor, this.time);
 
     this.computeZoneEffects();
-    const decorSlow = applyDecor(this.player, this.player.radius, this.decorNear, dt);
+    const solide = !!this.matrix.decor.solide;
+    const decorSlow = applyDecor(this.player, this.player.radius, this.decorNear, dt, solide);
     this.playerSlowFactor = Math.min(this.playerSlowFactor, decorSlow);
     this.player.update(dt, input.move, this);
 
@@ -125,13 +130,14 @@ export class Game {
     /* Apres le directeur (les plaques posent leurs entites) et avant les
        mobs : le courant deplace ce que la trame vient de creer. */
     if (this.conduite) this.conduite.update(dt);
+    if (this.bulles) this.bulles.update(dt);
 
     for (const e of this.enemies) {
       if (!e.alive) continue;
       /* Les mobs collent aux globules et rebondissent sur les bulles comme
          le joueur : le decor n'est pas un privilege. */
       if (e.spec.mot !== 'none') {
-        const s = applyDecor(e, e.radius, this.decorNear, dt);
+        const s = applyDecor(e, e.radius, this.decorNear, dt, solide);
         if (s < 1) { e.slow = Math.max(e.slow, 1 - s); e.slowTtl = Math.max(e.slowTtl, 0.12); }
       }
       updateEnemy(e, dt, this);

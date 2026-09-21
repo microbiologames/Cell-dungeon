@@ -50,7 +50,10 @@ export function forEachDecor(matrix, cx, cy, radius, removed, time, fn) {
   for (let gy = y0; gy <= y1; gy++) {
     for (let gx = x0; gx <= x1; gx++) {
       const gr = repli(gx);
-      const n = 1 + Math.floor(hash2(gr, gy) * 2);
+      /* `densite` permet a une matrice d'etre franchement plus encombree :
+         une pate a levain est PLEINE de grains d'amidon, la ou une goutte de
+         lait a de la place. */
+      const n = Math.max(1, Math.round((1 + Math.floor(hash2(gr, gy) * 2)) * (d.densite || 1)));
       for (let i = 0; i < n; i++) {
         const key = `${gx},${gy},${i}`;
         if (removed.has(key)) continue;
@@ -103,7 +106,14 @@ export function collectDecor(matrix, cx, cy, radius, removed, time) {
  * Applique le decor a une entite qui possede x, y, vx, vy.
  * Renvoie un facteur de vitesse a appliquer (1 = libre).
  */
-export function applyDecor(ent, entRadius, decor, dt) {
+/**
+ * @param {boolean} solide Les gros elements sont-ils IMPENETRABLES ?
+ *   Un globule gras est une gouttelette : on s'y colle, on la traverse a
+ *   moitie. Un grain d'amidon est un cristal : on ne le traverse pas du
+ *   tout. C'est cette difference qui fait du levain un labyrinthe et du
+ *   lait cru un champ ouvert.
+ */
+export function applyDecor(ent, entRadius, decor, dt, solide = false) {
   let slow = 1;
   for (const it of decor) {
     /* Seul ce qui est dans le plan compte : un globule flou est au-dessus
@@ -131,8 +141,15 @@ export function applyDecor(ent, entRadius, decor, dt) {
       const pull = clamp((rr - d) / rr, 0, 1);
       ent.vx -= ent.vx * pull * 3.2 * dt;
       ent.vy -= ent.vy * pull * 3.2 * dt;
-      /* On ne s'enfonce pas jusqu'au centre : le globule a un volume. */
-      if (d < it.r * 0.65) {
+      if (solide && it.r >= 6) {
+        /* Cristal d'amidon : plein. On est repousse a l'exterieur et on
+           GLISSE le long, au lieu de s'y ecraser. */
+        const push = rr - d;
+        ent.x += nx * push; ent.y += ny * push;
+        const vn = ent.vx * nx + ent.vy * ny;
+        if (vn < 0) { ent.vx -= nx * vn * 1.6; ent.vy -= ny * vn * 1.6; }
+      } else if (d < it.r * 0.65) {
+        /* Gouttelette : on ne s'enfonce pas jusqu'au centre, mais on entre. */
         const push = it.r * 0.65 - d;
         ent.x += nx * push; ent.y += ny * push;
       }

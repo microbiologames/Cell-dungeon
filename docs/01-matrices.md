@@ -257,10 +257,40 @@ l'acidifie et envoie des essaims. Fenêtre de dégâts pendant le NEP.
 > faire le travail. Les quatre ancrages demandent un boss multi-entités, ce
 > que le moteur ne sait pas encore faire.
 
-## 3 — Kombucha (jarre, jour 7) — *spécifiée, pas encore jouable*
+## 3 — Kombucha (jarre, jour 7) — **implémentée**
 
-> Vous entrez en territoire hostile : à pH 2.8, une bactérie lactique n'a rien
+> Vous entrez en territoire hostile : à pH 3.0, une bactérie lactique n'a rien
 > à faire là. C'est le stage « survie chimique ».
+
+### Signature : les bulles arrivent par la PROFONDEUR
+
+Le CO2 de la fermentation remonte en permanence. On observe la préparation par
+le dessus : une bulle n'arrive donc pas par le côté, elle arrive **par l'axe
+Z**. Elle est d'abord un halo flou très loin, elle traverse le plan de mise au
+point — et c'est la seule fraction de seconde où elle est nette — puis elle
+repart floue de l'autre côté.
+
+C'est la première fois que l'axe Z porte une menace qui n'est **pas un
+organisme**, et c'est ce qui rend la mécanique intéressante : la mise au point
+cesse d'être un outil de ciblage pour devenir un outil de **lecture**. Bien
+régler sa profondeur, c'est voir la bulle arriver.
+
+Une bulle **ne blesse pas**. Elle **pousse** — maximal sur son axe, nul sur son
+bord, et seulement en traversant le plan. On ne l'esquive pas en tirant
+dessus, on s'écarte. La cadence monte de 0,16 à 0,85 bulle/s sur le run :
+c'est un des moteurs de l'intensité.
+
+### Les moisissures sont des baleines
+
+*Aspergillus* (tête conidienne en aspergillum) et *Penicillium* (conidiophore
+en pinceau) sont **énormes, lentes, neutres et infranchissables**. Elles
+occupent le champ et il faut faire avec.
+
+Réglage mesuré : leur dérive en profondeur était à ±0,85, si bien qu'elles
+passaient l'essentiel du temps **floues** — et floue, une grosse masse pâle
+ressemble à une bulle, ce qui est un contresens complet dans une matrice qui
+en est pleine. Elles restent maintenant à ±0,32 : présentes, nettes,
+encombrantes.
 
 | Paramètre | Valeur | Effet de jeu |
 |---|---|---|
@@ -286,7 +316,44 @@ qu'un tisseur est vivant.
 
 ---
 
-## 4 — Sang (in vivo) — *spécifiée, pas encore jouable*
+## 3 bis — Levain (chef, troisième jour) — **implémentée**
+
+> La matrice la plus **dense** du jeu. Le champ est déjà plein : la difficulté
+> n'est pas de couvrir du terrain, c'est de circuler.
+
+**Les grains d'amidon sont le stage.** Ils sont **impénétrables** au-delà de
+6 px de rayon — un grain d'amidon est un cristal, pas une gouttelette, et
+c'est cette différence avec le globule gras du lait cru qui fait du levain un
+**labyrinthe**. On glisse le long, on ne passe pas à travers. La gamme est très
+large et à peine biaisée parce que l'amidon de blé est réellement bimodal :
+grosses lenticulaires A de 15 à 35 µm et nuée de petites sphériques B de 2 à
+10 µm.
+
+**Flore** : `F. sanfranciscensis` (l'emblème — elle domine la quasi-totalité
+des levains matures du monde) · `L. brevis` · `L. plantarum` ·
+`K. humilis` (la levure classique des levains, incapable d'utiliser le
+maltose, qu'elle laisse donc à la bactérie lactique : c'est le cœur de la
+symbiose) · `W. anomalus` (phénotype killer) · `S. cerevisiae`.
+Neutres : amas de levures, *Penicillium*.
+
+**Réglage mesuré** : la flore du levain est essentiellement **immobile**, ce
+qui est exact — les lactobacilles de levain ne nagent pas. Mais une horde
+immobile ne menace personne : mesuré à **zéro mort sur le premier tiers**.
+C'est `L. plantarum`, la seule mobile du lot, qui porte l'ouverture, et elle
+est débloquée à 18 s. Le budget est à ×1,28.
+
+---
+
+## 4 — Sang (in vivo) — *repoussé, et c'est un choix*
+
+En travaillant la conduite, il est apparu que le stage ultime n'est pas une
+goutte de sang mais un **réseau vasculaire** : couloirs labyrinthiques,
+courant pulsatile, bifurcations, hématies qui bousculent, système immunitaire.
+Autrement dit la conduite poussée à son terme. Le construire maintenant
+reviendrait à jeter la moitié du travail — il attend que les couloirs soient
+mûrs.
+
+### Spécification d'origine, conservée
 
 > La matrice où tout ce que vous avez volé aux autres se retourne contre vous.
 
