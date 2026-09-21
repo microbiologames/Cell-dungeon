@@ -162,9 +162,21 @@ for (const cle of Object.keys(PRESETS)) {
   b.className = 'btn';
   b.textContent = NOMS[cle];
   b.dataset.cle = cle;
-  b.onclick = () => { ambiance = cle; majOnglets(); appliquer(); peupler(); };
+  b.onclick = () => { ambiance = cle; majOnglets(); etatType(); appliquer(); peupler(); };
   onglets.append(b);
 }
+/* En choisissant un stage, on se place dans un etat de jeu REPRESENTATIF.
+   A intensite nulle un stage n'a plus que sa nappe, et la plus haute
+   harmonique qui survit sous la coupure s'entend seule — un etat que le jeu
+   ne connait que pendant les toutes premieres secondes d'une partie. Juger
+   la direction artistique la-dessus, c'est juger autre chose que le jeu. */
+function etatType() {
+  son.intensite = ambiance === 'ambiant' ? 0 : 0.45;
+  son.danger = 0;
+  son.miseAuPoint = 0;
+  refleterContexte();
+}
+
 function majOnglets() {
   for (const b of onglets.children) b.setAttribute('aria-pressed', b.dataset.cle === ambiance);
 }
@@ -280,11 +292,13 @@ $('jouer').onclick = () => {
     son.init();
     if (!son.pret) { $('jouer').textContent = 'audio indisponible'; return; }
     son.graine(graine);
+    etatType();
     const a = son.ctx.createAnalyser();
     a.fftSize = 8192;
     a.smoothingTimeConstant = 0.82;
     son.master.connect(a);
-    analyse = { noeud: a, tampon: new Float32Array(a.frequencyBinCount) };
+    analyse = { noeud: a, tampon: new Float32Array(a.frequencyBinCount), ctx: son.ctx };
+    window.__sonde = analyse;   // pour les bancs : la sonde de la page, pas une seconde
     appliquer();
     boucle();
   }
@@ -421,17 +435,21 @@ function dessiner() {
     dernierVerdict = performance.now();
     const r = chercherRaie(tampon, SR, N);
     const el = $('verdict');
-    /* Le verdict ne vaut que sur un mix DENSE. Dans un passage clairseme, et
-       dans le lobby qui est un drone assume, un accord tenu n'est qu'un jeu
-       de raies : le banc hors ligne exclut le lobby pour la meme raison. */
-    const dense = son.intensite >= 0.4 && ambiance !== 'ambiant';
+    /* Seul le LOBBY est exclu : c'est un drone assume, un accord tenu y est
+       le sujet meme du morceau, et le banc hors ligne l'exclut pour la meme
+       raison. Les stages, eux, sont juges A TOUTE INTENSITE. La version
+       precedente suspendait aussi son verdict sous 0,4 « parce que le mix
+       est clairseme » — et c'est exactement dans cet etat que le sifflement
+       de la reverbe a ete signale. Un garde-fou qui ferme les yeux sur le
+       cas qui pose probleme ne garde rien. */
+    const dense = ambiance !== 'ambiant';
     if (r.ratio < 1.5) { el.textContent = 'aucune raie au-dessus du plancher.'; el.className = 'note mesure'; }
     else {
       el.textContent = `raie la plus saillante : x${r.ratio.toFixed(1)} a ${Math.round(r.freq)} Hz`;
       const siffle = dense && r.ratio >= 9;
       el.className = siffle ? 'note mesure alerte' : 'note mesure';
       el.textContent += siffle ? '  — c est un sifflement.'
-        : (dense ? '  — texture, pas sifflement.' : '  — mix clairseme, verdict suspendu.');
+        : (dense ? '  — texture, pas sifflement.' : '  — drone du lobby, verdict suspendu.');
     }
   }
 }

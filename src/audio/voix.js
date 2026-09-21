@@ -193,45 +193,92 @@ export class Kick {
 /* ------------------------------------------------------------- effets ---- */
 
 /**
- * Reverbe de Schroeder : quatre peignes en parallele, deux passe-tout en serie.
+ * Reverbe de Schroeder : huit peignes en parallele, deux passe-tout en serie.
  *
  * PAS de convolution. Un ConvolverNode avec deux secondes de queue stereo est
  * l'un des noeuds les plus couteux de Web Audio, et ce jeu brule deja son
- * budget processeur sur un rendu logiciel image par image. Une reverbe a
- * reseau de retards coute une quinzaine de noeuds et ne se sent pas.
+ * budget processeur sur un rendu logiciel image par image.
+ *
+ * ─── Pourquoi huit peignes, et pas quatre ────────────────────────────────
+ *
+ * Avec quatre peignes, la seule facon d'obtenir une queue longue est de
+ * monter le renvoi — et un peigne a fort renvoi n'est pas une reverbe, c'est
+ * un RESONATEUR. La version a quatre peignes, mesuree a l'impulsion, donnait
+ * +33,6 dB a 1771 Hz et huit secondes de queue : un sifflement qui montait
+ * jusqu'a couvrir la musique. La densite modale, c'est-a-dire le nombre de
+ * modes par hertz, est ce qui fait qu'une queue sonne comme une piece et non
+ * comme un tuyau ; elle croit avec le nombre de peignes. A huit, on tient une
+ * queue de deux secondes sans qu'aucun mode ne ressorte.
+ *
+ * Les longueurs sont celles de Freeverb, choisies premieres entre elles : si
+ * les peignes se synchronisent, leurs modes se superposent et la queue sonne
+ * metallique.
+ *
+ * ─── Pourquoi un UN POLE et pas un biquad pour amortir ───────────────────
+ *
+ * Mesure au `getFrequencyResponse` d'un passe-bas biquad de Web Audio a
+ * 2800 Hz :
+ *
+ *     Q = 1      gain max 1,253   +1,96 dB a 2177 Hz
+ *     Q = 0,707  gain max 1,222   +1,74 dB
+ *     Q = 0,5    gain max 1,202   +1,59 dB
+ *     Q = 0,3    gain max 1,182   +1,45 dB
+ *
+ * Il AMPLIFIE sous sa coupure, toujours, quel que soit le Q. Baisser le Q ne
+ * l'enleve pas. Dans une boucle a `retour` = 0,8 le gain de boucle reel
+ * devient 0,96 : la queue passe de 1,3 s theoriques a 8 s mesurees, et a
+ * 0,86 elle ne decroit plus du tout — le niveau MONTE de -40 a +37 dB en
+ * douze secondes. C'etait le sifflement.
+ *
+ * Un un-pole, lui, a |H| <= 1 partout par construction, et c'est exactement
+ * le filtre d'amortissement de Freeverb. Verification : le peigne nu decroit
+ * en 1,23 s pour 1,27 s prevues.
  */
 export function reverbe(ctx, o = {}) {
   const entree = ctx.createGain();
   const sortie = ctx.createGain();
   const taille = o.taille ?? 1;
   const amorti = o.amorti ?? 3200;
-  const retour = o.retour ?? 0.78;
-  /* Longueurs premieres entre elles : sinon les peignes se synchronisent et
-     la queue sonne metallique. */
-  const peignes = [0.0297, 0.0371, 0.0411, 0.0437].map((s) => s * taille);
+  const retour = o.retour ?? 0.82;
+  /* Coefficient du un-pole : y[n] = (1-d).x[n] + d.y[n-1]. */
+  const d1 = Math.exp(-2 * Math.PI * amorti / ctx.sampleRate);
+  const peignes = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617]
+    .map((n) => (n / 44100) * taille);
+  /* Le gain est reparti sur les peignes : huit boucles en parallele sommeraient
+     huit fois le signal direct. */
+  const part = ctx.createGain();
+  part.gain.value = 1 / Math.sqrt(peignes.length);
+  entree.connect(part);
   for (const s of peignes) {
     const d = ctx.createDelay(1);
     d.delayTime.value = s;
     const g = ctx.createGain();
     g.gain.value = retour;
-    const lp = ctx.createBiquadFilter();
-    lp.type = 'lowpass';
-    lp.frequency.value = amorti;
-    entree.connect(d);
+    const lp = ctx.createIIRFilter([1 - d1], [1, -d1]);
+    part.connect(d);
     d.connect(lp).connect(g).connect(d);      // boucle amortie
     d.connect(sortie);
   }
-  /* Deux passe-tout pour diffuser : ils cassent l'echo residuel des peignes. */
+  /* Deux VRAIS passe-tout : ils diffusent sans colorer. La version
+     precedente n'avait qu'une branche directe additionnee a un retard, ce
+     qui est un peigne feedforward — donc un filtre en peigne de plus, avec
+     ses creux, au lieu d'un diffuseur. */
   let n = sortie;
-  for (const s of [0.005, 0.0017]) {
+  for (const s of [0.0051, 0.0017]) {
+    const som = ctx.createGain();
     const d = ctx.createDelay(0.1);
     d.delayTime.value = s;
-    const g = ctx.createGain();
-    g.gain.value = 0.62;
-    const som = ctx.createGain();
+    const fb = ctx.createGain();
+    fb.gain.value = 0.5;
+    const direct = ctx.createGain();
+    direct.gain.value = -0.5;
+    const s2 = ctx.createGain();
     n.connect(som);
-    n.connect(d).connect(g).connect(som);
-    n = som;
+    som.connect(d);
+    d.connect(fb).connect(som);               // v[n] = x[n] + g.v[n-M]
+    som.connect(direct).connect(s2);          // y[n] = -g.v[n] + v[n-M]
+    d.connect(s2);
+    n = s2;
   }
   return { entree, sortie: n };
 }
@@ -250,9 +297,11 @@ export function delaiPingPong(ctx, temps = 0.35, retour = 0.42) {
   const pd = ctx.createStereoPanner();
   pg.pan.value = -0.85;
   pd.pan.value = 0.85;
-  const amorti = ctx.createBiquadFilter();
-  amorti.type = 'lowpass';
-  amorti.frequency.value = 2600;
+  /* Un-pole, et pas un biquad : voir la note dans `reverbe`. Un passe-bas
+     biquad amplifie sous sa coupure, et dans une boucle de delai cette
+     bosse s'accumule a chaque tour. */
+  const dp = Math.exp(-2 * Math.PI * 2600 / ctx.sampleRate);
+  const amorti = ctx.createIIRFilter([1 - dp], [1, -dp]);
   entree.connect(dg);
   dg.connect(pg).connect(sortie);
   dg.connect(dd);

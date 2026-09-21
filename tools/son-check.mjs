@@ -12,6 +12,7 @@
        percussion quand la horde monte) ;
      - que la MISE AU POINT ferme bien le passe-bas master (moins d'aigu) ;
      - que le lobby et un stage ne sonnent pas pareil ;
+     - que la REVERBE est une reverbe et non un resonateur ;
      - qu'AUCUNE raie ne domine son voisinage, c'est-a-dire qu'on n'a pas
        fabrique un sifflement. Ce defaut-la est arrive pour de vrai : une
        nappe en dent de scie dont le passe-bas s'ouvrait a 2,2 kHz, envoyee
@@ -50,6 +51,7 @@ await pg.goto('http://localhost:8099/');
 
 const res = await pg.evaluate(async () => {
   const mod = await import('./src/audio/son.js');
+  const { reverbe } = await import('./src/audio/voix.js');
 
   /* Transformee de Fourier rapide, radix 2. Ecrite ici parce qu'un
      AnalyserNode ne sert a rien hors ligne : il ne lit que le temps reel. */
@@ -195,7 +197,86 @@ const res = await pg.evaluate(async () => {
     };
   }
 
+  /**
+   * La reverbe, seule, a l'impulsion. C'est LE garde-fou qui manquait.
+   *
+   * Un reseau de retards boucles n'est une reverbe que si son gain de boucle
+   * reste franchement sous un. La version fautive amortissait ses peignes
+   * avec un passe-bas biquad — or un biquad amplifie de +1,5 a +2 dB sous sa
+   * coupure, quel que soit son Q. Le gain de boucle montait a 0,96, la queue
+   * passait de 1,3 s theoriques a huit secondes, et le niveau finissait par
+   * MONTER au lieu de decroitre. Rien dans le mix ne le disait : le niveau
+   * global etait bon, les mappages etaient bons, aucune exception. Seule la
+   * reponse impulsionnelle le montre.
+   */
+  async function reverbATester() {
+    const SR = 44100, duree = 12;
+    const ctx = new OfflineAudioContext(1, SR * duree, SR);
+    /* Les memes reglages que `construire()` : on teste ce que le jeu joue. */
+    const r = reverbe(ctx, { taille: 1.25, amorti: 2600, retour: 0.88 });
+    const buf = ctx.createBuffer(1, 64, SR);
+    buf.getChannelData(0)[0] = 1;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(r.entree);
+    r.sortie.connect(ctx.destination);
+    src.start(0);
+    const g = (await ctx.startRendering()).getChannelData(0);
+
+    /* Croissance : le test le plus bete et le plus sur. Une queue qui monte
+       n'est pas une queue. */
+    const secs = [];
+    for (let d = 0; d + SR <= g.length; d += SR) {
+      let e = 0;
+      for (let i = d; i < d + SR; i++) e += g[i] * g[i];
+      secs.push(Math.sqrt(e / SR));
+    }
+    const monte = secs[secs.length - 1] > secs[0];
+
+    /* RT60 par integration inverse de Schroeder, ajustee entre -5 et -35 dB.
+       Chercher « le dernier echantillon au-dessus d'un seuil » repond la
+       duree du rendu des que la queue ne decroit pas, et ajuster le niveau
+       brut revient a ajuster le plancher du flottant. */
+    let total = 0;
+    const cumul = new Float64Array(g.length);
+    for (let i = g.length - 1; i >= 0; i--) { total += g[i] * g[i]; cumul[i] = total; }
+    const db = (i) => 10 * Math.log10(cumul[i] / cumul[0] + 1e-30);
+    let i5 = -1, i35 = -1;
+    for (let i = 0; i < g.length; i++) {
+      if (i5 < 0 && db(i) <= -5) i5 = i;
+      if (db(i) <= -35) { i35 = i; break; }
+    }
+    let rt60 = Infinity;
+    if (i5 >= 0 && i35 > i5) {
+      let sx = 0, sy = 0, sxy = 0, sxx = 0, n = 0;
+      for (let i = i5; i <= i35; i += 64) {
+        const x = i / SR, y = db(i);
+        sx += x; sy += y; sxy += x * y; sxx += x * x; n++;
+      }
+      const pente = (n * sxy - sx * sy) / Math.max(1e-12, n * sxx - sx * sx);
+      if (pente < -0.2) rt60 = 60 / -pente;
+    }
+
+    /* Platitude : l'energie par octave. Une reverbe colore de quelques dB,
+       un resonateur bosse de plus de dix. */
+    const N = 32768;
+    const re = new Float64Array(N), im = new Float64Array(N);
+    for (let i = 0; i < N && i < g.length; i++) re[i] = g[i];
+    fft(re, im);
+    const bandes = [];
+    for (let c = 125; c <= 8000; c *= 2) {
+      let e = 0;
+      for (let k = Math.round(c / 1.414 * N / SR); k <= Math.round(c * 1.414 * N / SR); k++) {
+        e += re[k] * re[k] + im[k] * im[k];
+      }
+      bandes.push(10 * Math.log10(e + 1e-30));
+    }
+    const tri = [...bandes].sort((a, b) => a - b);
+    return { rt60, monte, bosse: tri[tri.length - 1] - tri[tri.length >> 1] };
+  }
+
   const out = [];
+  out.push({ nom: 'reverbe', ...await reverbATester() });
   out.push(await rendre('lobby', (s) => {
     s.appliquerAmbiance('ambiant', true);
     s.intensite = 0; s.danger = 0; s.miseAuPoint = 0;
@@ -216,9 +297,21 @@ const res = await pg.evaluate(async () => {
     s.appliquerAmbiance('pipe', true);
     s.intensite = 0.9; s.danger = 0.6; s.miseAuPoint = 0;
   }));
+  /* Un stage AU REPOS. C'est l'etat ou le mix est le plus degarni, donc
+     celui ou une resonance s'entend seule — et c'est precisement l'etat que
+     le banc ne regardait pas quand le sifflement a ete signale. */
+  out.push(await rendre('kombucha au repos', (s) => {
+    s.appliquerAmbiance('kombucha', true);
+    s.intensite = 0.1; s.danger = 0; s.miseAuPoint = 0;
+  }));
   return out;
 });
 
+const rev = res.shift();
+console.log('reverbe seule : RT60', rev.rt60 === null || !isFinite(rev.rt60) ? 'INFINI' : rev.rt60.toFixed(2) + ' s',
+  '| bosse de bande +' + rev.bosse.toFixed(1) + ' dB',
+  '|', rev.monte ? 'LA QUEUE MONTE' : 'la queue decroit');
+console.log('');
 console.log('nom'.padEnd(26), 'rms'.padStart(8), 'crete'.padStart(7),
   'grave'.padStart(8), 'aigu'.padStart(8));
 for (const r of res) {
@@ -246,6 +339,14 @@ dit(flou.haut < net.haut * 0.78, `l aigu tombe (${net.haut} -> ${flou.haut})`);
 dit(flou.rms > net.rms * 0.5, `le morceau reste la (rms ${net.rms} -> ${flou.rms})`);
 dit(par.lobby.bas < par['lait plein'].bas,
   'le lobby ne sonne pas comme un stage');
+/* La reverbe. Mesures : version fautive, queue croissante et bosse +13,2 dB ;
+   corrigee, RT60 1,89 s et bosse +1,7 dB. Les bornes sont larges des deux
+   cotes — c'est un garde-fou, pas un reglage. */
+dit(!rev.monte, 'la queue de reverbe decroit');
+dit(isFinite(rev.rt60) && rev.rt60 > 0.5 && rev.rt60 < 3.5,
+  `la reverbe a une duree de piece (RT60 ${isFinite(rev.rt60) ? rev.rt60.toFixed(2) + ' s' : 'INFINI'})`);
+dit(rev.bosse < 6,
+  `la reverbe colore, elle ne resonne pas (bosse +${rev.bosse.toFixed(1)} dB)`);
 /* Seuil 9. Mesure : avec la nappe fautive, x30 au lobby et x38 sur le lait
    calme ; une fois corrigee, plus aucune raie ne passe meme le plancher
    d'audibilite, dans aucun des cinq etats. La marge est large des deux

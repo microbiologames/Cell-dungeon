@@ -186,7 +186,10 @@ export class Son {
     this.busChip.connect(this.chipPropre).connect(this.filtreMaster);
 
     /* --- effets --------------------------------------------------------- */
-    this.rev = reverbe(ctx, { taille: 1.25, amorti: 3000, retour: 0.8 });
+    /* RT60 mesure : 1,89 s, bosse de bande +1,7 dB. La version precedente
+       (quatre peignes, amorti par un biquad) donnait huit secondes et
+       +13 dB autour de 2 kHz — c'etait elle, le sifflement. */
+    this.rev = reverbe(ctx, { taille: 1.25, amorti: 2600, retour: 0.88 });
     this.revGain = ctx.createGain();
     this.revGain.gain.value = 0.3;
     this.rev.sortie.connect(this.revGain).connect(this.filtreMaster);

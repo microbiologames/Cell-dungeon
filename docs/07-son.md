@@ -105,12 +105,14 @@ npm run son:studio     # conduit le studio dans un vrai navigateur
 node tools/son-extrait.mjs milk 34   # rend un WAV, pour écouter
 ```
 
-`son-check` rend cinq états de jeu dans un `OfflineAudioContext` et vérifie que
+`son-check` mesure d'abord la **réverbe seule, à l'impulsion** — RT60, platitude
+par bande, et le test le plus bête et le plus sûr : est-ce que la queue décroît.
+Puis il rend six états de jeu dans un `OfflineAudioContext` et vérifie que
 ça sonne, que ça ne sature pas, que l'intensité amène bien le bas du spectre,
 que la mise au point mange l'aigu **sans éteindre le morceau**, que le lobby
 ne sonne pas comme un stage, et qu'**aucune raie ne siffle**.
 
-### Le sifflement, et pourquoi le niveau ne le voyait pas
+### Le sifflement, acte I : la nappe
 
 Défaut signalé à l'oreille : *« un sifflement arrive très progressivement pour
 finir par occuper tout l'espace en milieu de partie »*. Les six verdicts
@@ -158,7 +160,82 @@ avec ses voisines et ne ressort pas, une raie pure laisse son voisinage en bas.
 Avec le défaut volontairement remis, il donne ×38 à 2223 Hz ; corrigé, plus
 aucune raie ne passe même le plancher d'audibilité.
 
-### Six pièges payés en écrivant ce banc
+**Et ça ne suffisait pas.** Le sifflement est revenu, et la suite est la partie
+instructive.
+
+### Le sifflement, acte II : la réverbe était l'amplificateur
+
+Corriger la nappe a supprimé une vraie raie, mais la toute première mesure
+disait déjà ceci — et je ne l'ai pas lue :
+
+| Variante | Pic 2,15–2,5 kHz |
+|---|---|
+| sans nappe | 7,70 |
+| **sans réverbe** | **4,93** |
+
+La plus forte baisse de toutes. J'avais corrigé ce qui **alimentait** le
+résonateur et laissé le résonateur.
+
+La réverbe, mesurée seule à l'impulsion :
+
+```
++33,6 dB a 1771 Hz,  queue 7,96 s
+par octave (dB) : 125:19  250:20  500:30  1000:30  2000:34  4000:30  8000:19
+```
+
+Et à `retour 0.86`, le niveau ne décroît pas : il **monte** de −40 dB à +37 dB
+en douze secondes.
+
+#### La cause : un passe-bas biquad amplifie, toujours
+
+Chaque peigne était amorti par un `BiquadFilterNode` passe-bas. Mesure au
+`getFrequencyResponse`, coupure 2800 Hz :
+
+| Q | gain max | |
+|---|---|---|
+| 1 | 1,253 | **+1,96 dB** à 2177 Hz |
+| 0,707 | 1,222 | +1,74 dB |
+| 0,5 | 1,202 | +1,59 dB |
+| 0,3 | 1,182 | +1,45 dB |
+
+**Il amplifie sous sa coupure quel que soit le Q.** Baisser le Q ne l'enlève
+pas. Dans une boucle à `retour` = 0,8, le gain de boucle réel devient 0,96 :
+quasi l'auto-oscillation. Le filtre chargé d'amortir *était* l'amplificateur.
+
+Preuve croisée décisive : un peigne **sans** filtre décroît en 1,23 s pour
+1,27 s prédites. Avec le biquad, 3,94 s.
+
+#### La correction
+
+- **Un-pole au lieu du biquad** dans la boucle : `y[n] = (1−d)·x[n] + d·y[n−1]`,
+  via un `IIRFilterNode`. Son `|H| ≤ 1` est garanti par construction — c'est
+  exactement le filtre d'amortissement de Freeverb.
+- **Huit peignes au lieu de quatre.** Avec quatre, la seule façon d'obtenir une
+  queue longue est de monter le renvoi, et un peigne à fort renvoi est un
+  résonateur. La densité modale croît avec le nombre de peignes.
+- **De vrais passe-tout.** Les deux sections de diffusion étaient des peignes
+  feedforward, donc deux filtres en peigne de plus au lieu d'un diffuseur.
+
+```
+avant  : queue 8 s et croissante,  bosse de bande +13,2 dB
+apres  : RT60 1,98 s,              bosse de bande  +3,4 dB
+```
+
+#### Trois leçons, payées deux fois
+
+1. **Corriger la source ne suffit pas quand il y a un amplificateur.** La
+   mesure le disait dès le premier A/B ; je l'ai lue comme une confirmation de
+   ma première hypothèse au lieu d'une deuxième cause.
+2. **Un garde-fou qui exclut le cas gênant ne garde rien.** Le détecteur du
+   studio suspendait son verdict « sur un mix clairsemé » — précisément l'état
+   où le défaut a été signalé. Le banc, lui, ne testait aucun stage au repos.
+   C'est le premier état ajouté depuis : il sort ×82 avec le défaut remis.
+3. **Une mesure non monotone est une mesure fausse, pas une découverte.**
+   Trois méthodes de RT60 ont donné trois absurdités (la durée du rendu, le
+   plancher du flottant, un RT60 plus court à plus fort renvoi) avant que le
+   simple relevé du niveau par seconde ne montre une queue qui *monte*.
+
+### Huit pièges payés en écrivant ce banc
 
 | Symptôme | Cause |
 |---|---|
@@ -167,6 +244,8 @@ aucune raie ne passe même le plancher d'audibilité.
 | Fermer le passe-bas de 12 kHz à 3,4 kHz ne bougeait la mesure que de 5 % | Le passe-haut d'analyse était à **un seul pôle** : 6 dB/octave laisse passer tout le médium. On mesurait le mix, pas l'aigu. Quatrième ordre |
 | Aucune énergie au-dessus de 5 kHz, quel que soit l'état | Le banc rendait à **24 kHz** : la charleston (7 à 10 kHz) se retrouvait au bord de Nyquist et le biquad s'y écrasait. On mesurait le banc, pas le moteur |
 | La recherche de raie déclarait un sifflet **partout** | Elle comparait chaque pic à un voisinage **vide** : dans un passage clairsemé, un partiel à −60 dB domine arithmétiquement sans que personne ne l'entende. Il faut un plancher d'audibilité, et exclure le lobby, qui est un drone assumé |
+| Le sifflement est revenu après correction | On avait corrigé la **source** (la nappe) et laissé l'**amplificateur** (la réverbe). Une raie a besoin des deux : quelque chose qui l'émet, quelque chose qui la tient. Le premier A/B montrait déjà que couper la réverbe faisait plus d'effet que couper la nappe |
+| Un `BiquadFilterNode` passe-bas dans une boucle de réverbération | Il amplifie de +1,5 à +2 dB sous sa coupure, **quel que soit son Q**. Dans une boucle, cette bosse ne colore pas : elle résonne. Un filtre d'amortissement doit être un **un-pole** (`IIRFilterNode`), dont le gain est majoré par un |
 | Le défaut volontairement remis **passait le banc** | Le rendu ne durait que **quatre secondes** : une dizaine de blocs d'analyse, trop peu pour qu'une raie tenue se détache. À dix secondes elle ressort à ×38. Un banc qui ne rattrape pas le bug qu'il est censé garder ne garde rien — on le vérifie en remettant le défaut |
 
 ## Le studio : régler la DA à l'oreille, la transporter par un code
@@ -224,8 +303,11 @@ niveaux : la loi reste au moteur, seule la dose est une décision artistique.
   rien. Les champs qui s'écartent de l'adopté sont marqués, sinon on ne sait
   plus ce qu'on a changé.
 - **Le détecteur de raie tourne en direct**, avec exactement le seuil du banc
-  hors ligne, et le verdict est **suspendu sur un mix clairsemé** — pour la
-  même raison que le banc exclut le lobby.
+  hors ligne. Seul le **lobby** échappe à son verdict, parce que le drone y est
+  le sujet ; les stages sont jugés à toute intensité. Choisir un stage place
+  aussi le contexte à une intensité **représentative** (0,45) plutôt qu'à zéro :
+  un stage à l'arrêt n'a plus que sa nappe, un état que le jeu ne connaît que
+  pendant les premières secondes d'une partie.
 
 ### Adopter
 
