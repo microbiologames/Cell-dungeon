@@ -160,6 +160,35 @@ dans `assets/sprites/` ce qu'on adopte, et rien d'autre. Y déverser les treize
 toiles ferait perdre à chaque espèce son animation procédurale au profit d'une
 image fixe qui, pour la plupart, n'apporte rien.
 
+### Le générateur sert aussi de RÉFÉRENCE, pas seulement d'asset
+
+Quand un sprite figerait une animation, on peut quand même générer l'image —
+puis **lire la recette d'éclairage dedans et la coder à la main**. C'est ce
+qui a été fait pour le lactobacille du joueur (21/09/2026) : le générateur a
+montré deux choses que la version manuelle n'avait pas, et les deux sont
+justes physiquement.
+
+1. **L'ombre d'un corps allongé suit son arête longue**, pas la diagonale. Un
+   cylindre s'ombre le long de sa génératrice basse.
+2. **Les granulations sont CLAIRES.** Les inclusions cytoplasmiques sont
+   réfringentes ; une granule sombre se lit comme un trou.
+
+Les deux ont été portées dans `src/render/organisms.js` (`ombreAxiale`,
+`granules`) et profitent à **tous** les bacilles, pas seulement au joueur.
+Coût : deux générations, 0,054 $, pour une amélioration qui touche une
+douzaine d'espèces. C'est le meilleur rapport mesuré jusqu'ici.
+
+### Vérifier la TOILE DE DÉPART avant de dépenser
+
+Premier essai perdu : `bake` dessinait le joueur avec la palette `UI`, qui n'a
+ni `playerRim` ni `playerCore`. La toile envoyée en `input_image` était donc
+un **aplat**, et le générateur ne pouvait en tirer qu'une dalle. Deuxième
+piège du même essai : le `fit` générique suppose un encombrement de `2 × r`,
+alors qu'un bacille fait `3,8 × r` — la cellule sortait du cadre.
+
+Règle : **regarder `assets/reference/gen-src/<id>.png` avant d'appeler `gen`.**
+Une source ratée coûte le même prix qu'une bonne.
+
 ### Le joueur : à la main, pas généré
 
 À 7 px de large, la génération n'a ajouté que des artefacts. Ce qui a marché
@@ -168,6 +197,12 @@ est un **éclairage directionnel fixe en haut à gauche** codé à la main dans
 côté opposé fait le croissant d'ombre), un pixel de reflet spéculaire par
 lobe. Les deux lobes dessinés l'un après l'autre tracent naturellement le
 septum.
+
+Et depuis qu'il est un **lactobacille**, un sprite est exclu pour une raison
+de fond : le corps se **dandine** en nageant et se **cambre** quand on change
+de plan focal. Un blit ne fait que tourner — il figerait les deux animations
+qui donnent au personnage sa vie. Le sprite généré reste dans
+`assets/reference/essais-rd/` comme référence d'éclairage, pas comme asset.
 
 Deux pièges rencontrés : un décalage trop grand ou un cytoplasme trop gros
 efface le croissant et fond les deux lobes en une masse ; un flagelle dessiné

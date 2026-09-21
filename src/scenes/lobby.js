@@ -109,7 +109,8 @@ export class Lobby {
 
     scr.layer(Screen.layerFor(-0.1, 0));
     drawPlayer(scr, toX(this.swim.x), toY(this.swim.y), this.swim.radius,
-      this.swim.ang, this.swim.phase, MATRICES_PALETTE.milk, { count: 2, mode: 'bundle' });
+      this.swim.ang, this.swim.phase, MATRICES_PALETTE.milk, { count: 2, mode: 'bundle' },
+      { drive: this.swim.drive ?? 0.6, bend: 0 });
 
     scr.composite();
     drawRim(scr, fieldR, rgba(150, 146, 128, 255));
@@ -134,7 +135,8 @@ export class Lobby {
         const px = sx + Math.cos(a) * p.rad;
         const py = sy + Math.sin(a * 1.3) * p.rad * 0.7;
         const [fill, rim] = colorOf(p.spec, w.pal);
-        drawOrganism(scr, p.spec, px, py, Math.min(p.spec.radius, 5), a, this.time, fill, rim);
+        drawOrganism(scr, p.spec, px, py, Math.min(p.spec.radius, 5), a, this.time,
+          fill, rim, { pal: w.pal, drive: 0.6 });
       }
     }
     if (w.kind === 'bestiaire') {

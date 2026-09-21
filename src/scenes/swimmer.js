@@ -16,6 +16,8 @@ export class Swimmer {
     this.speed = speed;
     this.accel = accel;
     this.radius = 3.4;
+    /* Effort de nage, pour que la flagellation batte comme en jeu. */
+    this.drive = 0;
   }
 
   update(dt, move, bounds) {
@@ -27,6 +29,8 @@ export class Swimmer {
     this.x += this.vx * dt;
     this.y += this.vy * dt;
     if (move.x || move.y) this.ang = Math.atan2(move.y, move.x);
+    const effort = Math.min(1, Math.hypot(move.x, move.y));
+    this.drive += (effort - this.drive) * Math.min(1, dt * 9);
 
     if (bounds) {
       if (bounds.r !== undefined) {

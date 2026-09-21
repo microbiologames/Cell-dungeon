@@ -77,8 +77,33 @@ await shot('12-ph', { width: 420, height: 840 }, async (page) => {
   await page.waitForTimeout(400);
 });
 await shot('13-boss', { width: 960, height: 540 }, async (page) => {
-  await page.evaluate(() => window.__game.director.runEvent({ type: 'boss', id: 'staph' }));
+  await page.evaluate(() => {
+    const g = window.__game;
+    /* On neutralise les DEGATS, pas la vulnerabilite : mettre invuln a une
+       grande valeur fait CLIGNOTER le joueur et la capture sort vide une
+       fois sur deux. Lecon deja payee. */
+    g.damagePlayer = () => {};
+    g.director.runEvent({ type: 'boss', id: 'staph' });
+  });
   await page.waitForTimeout(2500);
+});
+
+/* Flagellation : on met cote a cote les especes qui en portent et celles
+   qui n'en portent pas, pour verifier que ca se lit a la taille du jeu. */
+await shot('14-flagelles', { width: 960, height: 540 }, async (page) => {
+  await page.evaluate(() => {
+    const g = window.__game;
+    g.damagePlayer = () => {};
+    g.enemies.length = 0;
+    const p = g.player;
+    const liste = ['ecoli', 'pseudomonas', 'bacillus', 'lactococcus', 'leuconostoc'];
+    liste.forEach((id, i) => {
+      const a = (i / liste.length) * Math.PI * 2;
+      const e = g.spawnSpecific(id, p.x + Math.cos(a) * 62, p.y + Math.sin(a) * 62, 0, 1);
+      if (e) { e.vx = Math.cos(a + 2) * e.speed; e.vy = Math.sin(a + 2) * e.speed; }
+    });
+  });
+  await page.waitForTimeout(160);
 });
 
 console.log(errs.length ? 'ERREURS: ' + errs.join(' | ') : 'aucune erreur');

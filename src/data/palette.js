@@ -45,6 +45,11 @@ export const UI = {
 /* --- jeu de couleurs pour un FOND CLAIR (frottis colore) ---------------- */
 const BRIGHT = {
   mode: 'bright',
+  /* Halo de contraste de phase. C'est un ARTEFACT REEL de la technique : le
+     bord d'un objet dephase la lumiere plus fort que son centre, et l'anneau
+     de diffraction ressort en clair autour de lui. En fond clair, il se lit
+     comme un lisere blanc entre l'organisme sombre et le milieu creme. */
+  phase: hexToRgba('#ffffff', 96),
   /* Un objet hors du plan focal, en fond clair, s'etale et FONCE le fond :
      son halo est sombre, pas lumineux. */
   halo: hexToRgba('#6b6455', 150),
@@ -76,6 +81,9 @@ const BRIGHT = {
 /* --- jeu de couleurs pour un FOND NOIR (marquage vital) ----------------- */
 const DARK = {
   mode: 'dark',
+  /* Meme artefact, sur fond noir : l'anneau clair detache l'objet du fond
+     sans l'eclaircir lui-meme. */
+  phase: hexToRgba('#e8f6ff', 95),
   halo: hexToRgba('#d2ffeb', 150),
 
   player: hexToRgba('#7dff9b'), playerRim: hexToRgba('#2ea84f'),

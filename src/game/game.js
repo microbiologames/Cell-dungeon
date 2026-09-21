@@ -137,6 +137,10 @@ export class Game {
       updateEnemy(e, dt, this);
     }
 
+    /* Apres tous les deplacements, avant la chimie : les gros corps
+       neutres sont des obstacles, pas du decor peint. */
+    this.resolveEncombrement();
+
     this.updateBullets(dt);
     this.phField.update(dt, this.player.x, this.player.y);
     this.applyChemistry(dt);
@@ -359,6 +363,75 @@ export class Game {
           const dx = z.x - e.x, dy = z.y - e.y;
           if (dx * dx + dy * dy < z.r * z.r) { e.slow = z.slow; e.slowTtl = 0.2; }
         }
+      }
+    }
+  }
+
+  /**
+   * Encombrement : les gros corps sont des OBSTACLES.
+   *
+   * Un organisme neutre qu'on traverse n'est pas du decor, c'est un decor
+   * peint. Une cellule somatique fait dix-huit pixels et pese, a cette
+   * echelle, des milliers de fois une bacterie : elle ne doit pas s'ecarter
+   * poliment, elle doit bloquer.
+   *
+   * La separation est donc ponderee par la MASSE, prise en volume (r^3) :
+   *   - le joueur contre une cellule somatique : le joueur encaisse tout ;
+   *   - deux petits corps : ils se repoussent a parts egales.
+   * Et on ne pousse que DANS LE PLAN : un neutre defocalise est devant ou
+   * derriere, pas sur le chemin. La mise au point devient ainsi une facon
+   * de choisir si un obstacle existe, ce qui est exactement la bonne
+   * mecanique pour ce jeu.
+   */
+  resolveEncombrement() {
+    const p = this.player;
+    for (const e of this.enemies) {
+      if (!e.alive || !e.spec.neutral) continue;
+      if (Math.abs(e.z) >= IN_PLANE) continue;
+
+      const me = Math.pow(Math.max(e.radius, 0.5), 3);
+      /* --- le joueur ---------------------------------------------------- */
+      {
+        const dx = p.x - e.x, dy = p.y - e.y;
+        const rr = e.radius + p.radius;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < rr * rr) {
+          const d = Math.sqrt(d2) || 0.001;
+          const nx = dx / d, ny = dy / d;
+          const chev = rr - d;
+          const mp = Math.pow(p.radius, 3);
+          const part = me / (me + mp);          // ce que le joueur encaisse
+          p.x += nx * chev * part;
+          p.y += ny * chev * part;
+          e.x -= nx * chev * (1 - part);
+          e.y -= ny * chev * (1 - part);
+          /* On glisse le long de l'obstacle au lieu de s'y ecraser : la
+             composante normale de la vitesse part, la tangentielle reste.
+             Sans ca, longer une grosse cellule collait le joueur net. */
+          const vn = p.vx * nx + p.vy * ny;
+          if (vn < 0) { p.vx -= nx * vn * 1.6; p.vy -= ny * vn * 1.6; }
+        }
+      }
+
+      /* --- les autres organismes ---------------------------------------- */
+      for (const o of this.enemies) {
+        if (o === e || !o.alive || o.spec.neutral) continue;
+        if (Math.abs(o.z) >= IN_PLANE) continue;
+        const dx = o.x - e.x, dy = o.y - e.y;
+        const rr = e.radius + o.radius;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= rr * rr) continue;
+        const d = Math.sqrt(d2) || 0.001;
+        const nx = dx / d, ny = dy / d;
+        const chev = rr - d;
+        const mo = Math.pow(Math.max(o.radius, 0.5), 3);
+        const part = me / (me + mo);
+        o.x += nx * chev * part;
+        o.y += ny * chev * part;
+        e.x -= nx * chev * (1 - part);
+        e.y -= ny * chev * (1 - part);
+        const vn = o.vx * nx + o.vy * ny;
+        if (vn < 0) { o.vx -= nx * vn * 1.4; o.vy -= ny * vn * 1.4; }
       }
     }
   }

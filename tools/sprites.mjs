@@ -62,7 +62,7 @@ await mkdir(SPRITE_DIR, { recursive: true });
    celles du jeu et l'illustration jure avec le reste. */
 if (MODE === 'palette') {
   const dataUrl = await page.evaluate(async () => {
-    const { MATRICES_PALETTE, UI } = await import('./src/data/palette.js');
+    const { MATRICES_PALETTE } = await import('./src/data/palette.js');
     const pal = MATRICES_PALETTE.milk;
     const pick = [
       UI.player, UI.playerRim, UI.playerCore,
@@ -106,7 +106,7 @@ if (MODE === 'bake') {
     const { Screen } = await import('./src/core/pixel.js');
     const { drawOrganism, drawPlayer, colorOf } = await import('./src/render/organisms.js');
     const { BESTIARY } = await import('./src/data/bestiary.js');
-    const { MATRICES_PALETTE, UI } = await import('./src/data/palette.js');
+    const { MATRICES_PALETTE } = await import('./src/data/palette.js');
     const pal = MATRICES_PALETTE.milk;
     const out = [];
 
@@ -132,7 +132,16 @@ if (MODE === 'bake') {
        il faut de la marge, sinon le generateur rogne au cadre. */
     const fit = (native) => (forced ? (forced * 0.70) / (native * 2) : 1);
 
-    bake('player', forced || 16, (s, x, y) => drawPlayer(s, x, y, 3.4 * fit(3.4), 0, 1.2, UI, { count: 4, mode: 'bundle' }));
+    /* Le joueur est bake avec la palette de la MATRICE, jamais avec celle du
+       HUD : UI n'a ni playerRim ni playerCore, donc la toile sortait en
+       APLAT. Envoyee telle quelle au generateur, elle ne pouvait rendre
+       qu'une dalle — mesure faite, et c'est du credit perdu. */
+    /* Le joueur est un BACILLE : son encombrement vaut 3,8 fois son rayon,
+       pas 2 fois. Avec le fit generique, la cellule sortait du cadre et le
+       generateur travaillait sur une forme coupee. */
+    const rJoueur = forced ? (forced * 0.70) / 3.8 : 3.4;
+    bake('player', forced || 16, (s, x, y) => drawPlayer(s, x, y, rJoueur, 0, 1.2,
+      pal, { count: 0, mode: 'bundle' }, { drive: 0, bend: 0 }));
     /* Tout le bestiaire, toutes matrices : la toile de depart d'une espece
        de la conduite se bake exactement comme celle du lait cru. */
     for (const spec of Object.values(BESTIARY)) {

@@ -25,7 +25,7 @@
 import { Screen, computeLayout, VIEW, fade32 } from '../src/core/pixel.js';
 import { drawOrganism, drawPlayer, colorOf } from '../src/render/organisms.js';
 import { drawTextCentered } from '../src/core/font.js';
-import { MILK_MOBS, MILK_NEUTRALS, MILK_BOSSES } from '../src/data/bestiary.js';
+import { BESTIARY } from '../src/data/bestiary.js';
 import { MATRICES_PALETTE, UI } from '../src/data/palette.js';
 
 const SCALE = 7;            // zoom maximal
@@ -41,14 +41,24 @@ const pal = MATRICES_PALETTE.milk;
 
 /* Ce qu'on met sur la planche, dans l'ordre ou on le dessinerait. */
 const entries = [];
-entries.push({ label: 'JOUEUR', px: 3.4 * 2, draw: (s, x, y, r) => drawPlayer(s, x, y, r, 0, 1.2, UI, { count: 0, mode: 'bundle' }) });
-entries.push({ label: 'JOUEUR PERITRICHE', px: 3.4 * 2, draw: (s, x, y, r) => drawPlayer(s, x, y, r, 0, 1.2, UI, { count: 6, mode: 'peritriche' }) });
-entries.push({ label: 'JOUEUR POLAIRE', px: 3.4 * 2, draw: (s, x, y, r) => drawPlayer(s, x, y, r, 0, 1.2, UI, { count: 6, mode: 'polaire' }) });
-for (const spec of [...MILK_MOBS, ...MILK_NEUTRALS, ...Object.values(MILK_BOSSES)]) {
+/* Le joueur est dessine avec la palette de la MATRICE, pas celle du HUD :
+   UI n'a ni playerRim ni playerCore, donc le corps sortait sans relief. */
+const JOUEUR = [
+  ['JOUEUR', { count: 0, mode: 'bundle' }, { drive: 0, bend: 0 }],
+  ['JOUEUR PERITRICHE', { count: 6, mode: 'peritriche' }, { drive: 1, bend: 0 }],
+  ['JOUEUR POLAIRE', { count: 3, mode: 'polaire' }, { drive: 1, bend: 0.8 }],
+];
+for (const [label, fl, o] of JOUEUR) {
+  entries.push({ label, px: 3.4 * 2, draw: (s, x, y, r) => drawPlayer(s, x, y, r, 0.4, 1.2, pal, fl, o) });
+}
+/* TOUT le bestiaire, toutes matrices : la planche sert a verifier qu'aucune
+   espece n'emprunte la silhouette d'une autre. */
+for (const spec of Object.values(BESTIARY)) {
   const [fill, rim] = colorOf(spec, pal);
   entries.push({
     label: spec.label, px: spec.radius * 2, sub: spec.role,
-    draw: (s, x, y, r) => drawOrganism(s, spec, x, y, r, 0.4, 1.1, fill, rim),
+    draw: (s, x, y, r) => drawOrganism(s, spec, x, y, r, 0.4, 1.1, fill, rim,
+      { pal, drive: spec.mot === 'none' ? 0 : 0.8 }),
   });
 }
 const ep = (r, px) => Math.max(1, (r / (px / 2)) * 1.3);   // epaisseur a l'echelle

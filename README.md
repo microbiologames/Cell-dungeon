@@ -46,6 +46,48 @@ Sur GitHub Pages : activer Pages sur la branche, racine du dépôt.
 Les touches sont lues par position physique (`event.code`), donc AZERTY et
 QWERTY fonctionnent sans réglage.
 
+## Le personnage : un lactobacille
+
+Vous êtes un **bacille lactique**, pas un coque. Ce n'est pas un choix
+esthétique : un *Lactobacillus* fait réellement 2 à 8 µm de long pour 0,5 à
+1 µm de large, là où un *Lactococcus* fait 0,5 à 1,5 µm. Le personnage a donc
+un **axe**, et c'est ce qui rend ses animations possibles :
+
+- il se **dandine** en nageant, d'une onde qui court de la tête à la queue et
+  dont l'amplitude suit l'effort ;
+- il se **cambre** quand on change de plan focal — monter ou descendre dans
+  l'épaisseur de la préparation se lit comme un corps qui s'arque ;
+- ses **flagelles** se rassemblent en faisceau quand il pousse et se séparent
+  quand il tourne : c'est le run and tumble, dessiné.
+
+Une bactérie lactique n'est pas mobile. Celle-ci l'est parce qu'elle vole des
+gènes à tout le monde, flagelline comprise — c'est le sujet du jeu.
+
+## Ce qu'on voit au microscope
+
+Le rendu ne cherche pas le joli pour le joli : chaque effet est un phénomène
+réel, et c'est ce qui le rend lisible.
+
+- **Halo de contraste de phase.** Un liseré clair autour de chaque objet. Le
+  bord déphase la lumière plus fort que le centre : l'anneau de diffraction
+  ressort. C'est l'artefact le plus connu de la technique.
+- **Relief.** Paroi, cytoplasme décalé vers la lumière, reflet spéculaire. La
+  lampe est fixe en haut à gauche pour tout le champ. Un corps allongé s'ombre
+  le long de son arête, comme un cylindre.
+- **Granulations réfringentes.** Les inclusions cytoplasmiques renvoient la
+  lumière : elles sont claires, pas sombres.
+- **L'endospore se voit.** Un *B. cereus* qui sporule montre sa spore claire
+  par transparence — c'est le signe qui annonce la vague de spores.
+- **La flagellation est documentée ou absente.** Voir `docs/02-bestiaire.md`.
+
+## Le décor pousse
+
+Les organismes neutres ne se traversent pas quand ils sont **dans votre
+plan** : ce sont des obstacles. La séparation est pondérée par la masse, prise
+en volume, donc une cellule somatique de dix-huit pixels ne s'écarte pas
+poliment — elle bloque, et vous glissez le long. Hors de votre plan, elle
+n'existe pas : la mise au point décide si un obstacle est là.
+
 ## La mécanique signature : la mise au point
 
 Chaque organisme a une profondeur `z`. Vous réglez votre plan focal.

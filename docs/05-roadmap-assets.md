@@ -179,3 +179,61 @@ image pour chaque évolution et noyait les vraies erreurs sous des 404).
 node tools/cards-batch.mjs [n]      # génère les vignettes manquantes
 node tools/sprites.mjs import       # régénère le manifeste
 ```
+
+---
+
+## La recette de relief
+
+Tout ce qui a un volume est rendu en **trois couches**, jamais en aplat :
+
+1. **la paroi**, disque ou capsule plein, dans la couleur de liseré ;
+2. **le cytoplasme**, décalé vers la lumière et plus petit — ce qui dépasse du
+   côté opposé *est* le croissant d'ombre ;
+3. **le reflet spéculaire**, un ou deux pixels. C'est lui qui vend la sphère.
+
+La lumière est **fixe en haut à gauche, en repère écran**. Elle ne tourne
+jamais avec la cellule : une source qui suit l'objet ne se lit pas comme une
+source, et le champ entier doit avoir l'air éclairé par la même lampe.
+
+### Un corps allongé ne s'ombre pas en diagonale
+
+Un cylindre éclairé s'ombre le long de sa **génératrice basse**, donc
+perpendiculairement à son axe. Décaler le cytoplasme dans la direction brute
+de la lumière mettait le croissant sur un **bout** du bacille dès qu'il
+s'orientait vers la lampe — et un bacille avec une extrémité sombre ne
+ressemble à rien. On projette donc la lumière sur la perpendiculaire à l'axe,
+en gardant un cinquième de composante axiale pour que les pôles ne soient pas
+plats (`ombreAxiale`).
+
+### Les granulations sont claires
+
+Les inclusions de polyphosphate, de PHB et de lipides sont **réfringentes** :
+elles renvoient la lumière. Une granule sombre se lit comme un trou, une
+granule claire comme un grain. Elles sont posées dans le repère de la cellule,
+donc elles tournent avec elle et ne scintillent pas.
+
+Cas particulier qui vaut le détour : **l'endospore de *Bacillus cereus***. Elle
+est réfringente, centrale à subterminale, et ne déforme pas le sporange. On la
+voit par transparence dans la cellule mère — c'est exactement ce qu'on observe
+au microscope, et c'est le signe qui annonce la vague de spores.
+
+## Le halo de contraste de phase
+
+Un **artefact réel** de la technique : le bord d'un objet déphase la lumière
+plus fort que son centre, et l'anneau de diffraction ressort en clair autour
+de lui. On le rend en redessinant la silhouette **une fois plus large**, dans
+la couleur de halo, avant le corps.
+
+- L'épaisseur suit la **taille** de l'objet (`0,55 + r × 0,11`, borné). Une
+  valeur fixe donnait au joueur de sept pixels une auréole plus large que lui,
+  et au boss de trente-deux un trait de cheveu.
+- Deux passes de largeurs différentes : une seule donnait un trait gris
+  uniforme, pas un halo.
+- L'opacité suit celle de l'objet : un organisme très défocalisé ne garde pas
+  un liseré net.
+- En fond clair il est blanc (visible entre l'organisme sombre et le milieu
+  crème) ; en fond noir il est bleuté et détache l'objet sans l'éclaircir.
+
+C'est pour gonfler chaque **primitive** et non le rayon global que la
+silhouette est une fonction à part (`silhouette(..., g)`) : gonfler le rayon
+aurait écarté les éléments d'une chaînette ou d'une grappe.

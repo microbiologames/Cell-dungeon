@@ -201,3 +201,66 @@ n'est une garantie que si **personne ne le contourne**.
 Corollaire : une spore achetée 0,8 crédit ne peut pas rendre gratuitement un
 tank à 3,2. La germination attend que le champ ait de la place — ce qui est
 d'ailleurs la vérité biologique : une spore germe en milieu favorable.
+
+---
+
+## La flagellation est un caractère taxonomique
+
+Elle se déclare par espèce (`flagella: {mode, count}`) et **seulement quand
+elle est documentée**. Un *Lactococcus* n'a pas de flagelle, et c'est
+précisément pour ça qu'il dérive en brownien pur — la donnée de rendu et la
+donnée de simulation disent la même chose.
+
+| Espèce | Disposition | Fondement |
+|---|---|---|
+| *E. coli* | péritriche ×6 | Run and tumble ; le modèle du genre |
+| *P. fragi* | polaire ×1 | Flagelle polaire unique : nage rapide et rectiligne |
+| *B. cereus* | péritriche ×7 | Mobile, flagelles péritriches |
+| *L. monocytogenes* (boss et persistante) | péritriche ×5 / ×4 | Mobile à 20–25 °C, culbute en roue ; immobile à 37 °C |
+| *P. aeruginosa* (et la souche mucoïde) | polaire ×1 | Monotriche polaire |
+| Cellules en *swarming* | péritriche ×8 | La différenciation *swarmer* est **hyperflagellée**, c'est ce qui la définit |
+| *Sphingomonas* | **aucune** | L'épithète *paucimobilis* dit l'inverse d'une nageuse |
+| *Lactococcus*, *Leuconostoc*, *S. aureus* | **aucune** | Non mobiles |
+
+### Comment un flagelle est rendu
+
+Un flagelle bactérien n'est pas un trait qui vibre : c'est une **hélice
+rigide** entraînée par un moteur rotatif ancré dans la membrane. Vue de côté,
+elle se projette en une onde qui **se propage de la base vers la pointe**.
+
+- **Ancrage.** Le filament part d'un point de la paroi — sur l'ellipse du
+  corps, dans la direction de la *normale* — et il part droit : le crochet
+  proximal est rigide, donc l'amplitude monte depuis zéro sur le premier
+  quart. Sans ça, le flagelle a l'air décroché de la cellule.
+- **Solidarité.** Tout est calculé en repère cellule puis tourné. Si le corps
+  pivote, l'ancrage et l'onde pivotent avec, sans glissement.
+- **Régime.** Fréquence et amplitude suivent l'effort de nage. Une cellule à
+  l'arrêt laisse traîner ses filaments ; une cellule qui pousse bat vite.
+- **Faisceau.** Les péritriches se rassemblent en **un seul faisceau** pendant
+  une course et se séparent pendant une culbute : c'est le mécanisme du run
+  and tumble, et c'est de loin ce qui se lit le mieux. Six filaments
+  indépendants font une pelote ; un faisceau fait une hélice.
+
+Deux mesures payées : à amplitude `hh × 2`, six péritriches formaient une
+pelote où la direction de nage disparaissait ; et à rabattement partiel, une
+cellule à l'arrêt se retrouvait ceinte d'un **anneau parfait** de filaments.
+Une bactérie n'a pas d'auréole : même dispersés, les filaments restent
+derrière.
+
+## Une silhouette par espèce
+
+Une forme réutilisée pour deux organismes fait perdre les deux. Quatre
+morphologies ont donc été séparées :
+
+| Avant | Après | Ce que ça rend |
+|---|---|---|
+| `amoeba` pour la cellule somatique | `leuco` | Les cellules somatiques sont majoritairement des **polynucléaires** : noyau **polylobé** visible, deux à cinq lobes. C'est leur marqueur, et il tient dans 18 px |
+| `amoeba` pour *Acanthamoeba* | `acanthe` | Son marqueur est dans son nom : les **acanthopodes**, pseudopodes fins et épineux, pas des lobes gras. Plus noyau à nucléole |
+| `rodlong` pour la souche mucoïde | `mucoide` | Le bacille est noyé dans une gangue d'**alginate** translucide : c'est le phénotype qu'on voit en boîte |
+| `rod` pour *Methylobacterium* | `rosette` | Elle s'accole par un pôle en **rosettes**. Une faune neutre qui ne ressemble à aucun mob, et c'est vrai |
+
+Les bacilles qui restent (`rod`) se distinguent par leur **élancement**
+(`elance`, de 0,8 pour *Sphingomonas* à 1,8 pour une cellule en swarming), par
+leur flagellation et par leur teinte de rôle. C'est exactement ce qui permet
+de les distinguer au microscope : des bacilles se ressemblent, et c'est le
+rapport longueur/largeur, la mobilité et la coloration qui tranchent.

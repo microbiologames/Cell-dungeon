@@ -8,6 +8,15 @@
    role : archetype de directeur    cost : credits de menace
    gram : '+', '-' ou 'fungi' (cible de la nisine et de la lipase)
    zSpeed : vitesse de derive vers le plan du joueur (0 = reste hors plan)
+   elance : rapport longueur/largeur du bacille (1 = trapu)
+
+   flagella : {mode, count} — DOCUMENTE OU RIEN.
+     La flagellation est un caractere taxonomique, pas une decoration : on
+     la donne a une espece quand elle est decrite chez elle, et on ne la
+     donne pas quand l'espece est immobile. Un Lactococcus n'a pas de
+     flagelle, et c'est justement pour ca qu'il derive en brownien pur.
+       'polaire'     monotriche ou lophotriche, a un seul pole
+       'peritriche'  reparti sur tout le pourtour
 --------------------------------------------------------------------------- */
 
 export const ROLE_COST = {
@@ -41,7 +50,7 @@ export const MILK_MOBS = [
     id: 'ecoli', label: 'E. COLI', role: 'chaff',
     kind: 'rod', mot: 'swim', gram: '-',
     hp: 20, speed: 64, contact: 6, radius: 3, aa: 3,
-    phSlow: 5.6,
+    phSlow: 5.6, elance: 1.05, flagella: { mode: 'peritriche', count: 6 },
     note: "Flagelles peritriches, nage en run and tumble. Coliforme : ralentit nettement sous pH 5,6.",
   }),
   M({
@@ -49,6 +58,7 @@ export const MILK_MOBS = [
     kind: 'rod', mot: 'swim', gram: '-',
     hp: 16, speed: 104, contact: 9, radius: 2.6, aa: 4,
     ability: 'lipase', phBurn: 5.2, phBurnDps: 3,
+    elance: 0.95, flagella: { mode: 'polaire', count: 1 },
     note: "Psychrotrophe majeur du lait cru, lipolytique et proteolytique. Flagelle polaire unique : nage rapide et rectiligne.",
   }),
   M({
@@ -69,7 +79,7 @@ export const MILK_MOBS = [
     id: 'bacillus', label: 'B. CEREUS', role: 'tank',
     kind: 'rodlong', mot: 'swim', gram: '+',
     hp: 110, speed: 42, contact: 14, radius: 4.5, aa: 10,
-    ability: 'sporulation',
+    ability: 'sporulation', flagella: { mode: 'peritriche', count: 7 },
     note: "Endospore refringente, resistante a la chaleur et aux acides. Arrive au lait par le sol et la traite.",
   }),
   M({
@@ -93,9 +103,9 @@ export const MILK_MOBS = [
 export const MILK_NEUTRALS = [
   M({
     id: 'somatic', label: 'CELLULE SOMATIQUE', role: 'neutral', cost: 0,
-    kind: 'amoeba', mot: 'brown', gram: null, neutral: true,
+    kind: 'leuco', mot: 'brown', gram: null, neutral: true,
     hp: 160, speed: 7, contact: 0, radius: 9, aa: 4, zSpeed: 0, zWander: true,
-    note: "Leucocytes de la vache, presents dans tout lait cru : leur numeration cellulaire est un critere reglementaire de qualite du lait. Ils ne s'en prennent pas a une bacterie lactique.",
+    note: "Leucocytes de la vache, presents dans tout lait cru : leur numeration cellulaire est un critere reglementaire de qualite du lait. Majoritairement des polynucleaires, d'ou le noyau polylobe. Ils ne s'en prennent pas a une bacterie lactique.",
   }),
 ];
 
@@ -116,7 +126,7 @@ export const MILK_BOSSES = {
     id: 'listeria', label: 'L. MONOCYTOGENES', role: 'boss', cost: 0,
     kind: 'rod', mot: 'tumble', gram: '+',
     hp: 2400, speed: 70, contact: 20, radius: 16, aa: 240, zSpeed: 0.4,
-    boss: true, dropsPlasmid: true,
+    boss: true, dropsPlasmid: true, flagella: { mode: 'peritriche', count: 5 },
     phases: [
       { at: 1.00, ability: 'tumble', label: 'CULBUTE' },
       { at: 0.65, ability: 'comete', label: 'COMETE D ACTINE' },
@@ -138,14 +148,14 @@ export const PIPE_MOBS = [
     id: 'sphingomonas', label: 'SPHINGOMONAS', role: 'chaff',
     kind: 'rod', mot: 'brown', gram: '-',
     hp: 24, speed: 16, contact: 5, radius: 2.8, aa: 3,
-    resist: 0.15, ability: 'adhesion', cipShelter: true,
-    note: "Colonisateur classique des reseaux d'eau. Sa membrane externe porte des glycosphingolipides a la place du LPS, d'ou une adhesion tres forte et une tolerance aux desinfectants. Peu mobile : elle tient la paroi plus qu'elle ne nage.",
+    resist: 0.15, ability: 'adhesion', cipShelter: true, elance: 0.8,
+    note: "Non mobile malgre son epithete paucimobilis, d'ou l'absence de flagelle. Colonisateur classique des reseaux d'eau. Sa membrane externe porte des glycosphingolipides a la place du LPS, d'ou une adhesion tres forte et une tolerance aux desinfectants. Peu mobile : elle tient la paroi plus qu'elle ne nage.",
   }),
   M({
     id: 'aeruginosa', label: 'P. AERUGINOSA', role: 'runner',
     kind: 'rod', mot: 'swim', gram: '-',
     hp: 34, speed: 88, contact: 8, radius: 3.1, aa: 5,
-    ability: 'alginate',
+    ability: 'alginate', elance: 1.0, flagella: { mode: 'polaire', count: 1 },
     note: "Flagelle polaire unique. Secrete de l'alginate, l'exopolysaccharide qui donne le phenotype mucoide : c'est lui qui reforme la plaque de biofilm. Quorum sensing las/rhl.",
   }),
   M({
@@ -153,6 +163,7 @@ export const PIPE_MOBS = [
     kind: 'rod', mot: 'tumble', gram: '+',
     hp: 130, speed: 46, contact: 13, radius: 4.2, aa: 9,
     resist: 0.30, ability: 'persistance', cipShelter: true,
+    elance: 0.9, flagella: { mode: 'peritriche', count: 4 },
     note: "Souches persistantes reellement isolees des memes ateliers pendant des annees : elles tiennent l'inox raye et tolerent des doses sublethales de desinfectant. Mobile par flagelles peritriches sous 30 C.",
   }),
   M({
@@ -165,7 +176,7 @@ export const PIPE_MOBS = [
   }),
   M({
     id: 'acanthamoeba', label: 'ACANTHAMOEBA', role: 'predator',
-    kind: 'amoeba', mot: 'brown', gram: null,
+    kind: 'acanthe', mot: 'brown', gram: null,
     hp: 210, speed: 30, contact: 16, radius: 8, aa: 16, zSpeed: 0.18,
     ability: 'phagocytose',
     note: "Amibe libre des reseaux d'eau : elle broute le biofilm et phagocyte les bacteries. Ses acanthopodes sont son marqueur. Elle s'enkyste et traverse les biocides.",
@@ -174,6 +185,9 @@ export const PIPE_MOBS = [
     id: 'swarmer', label: 'ESSAIM', role: 'chaff', cost: 0.7,
     kind: 'rod', mot: 'swim', gram: '-',
     hp: 16, speed: 118, contact: 6, radius: 2.2, aa: 2,
+    /* Une cellule en swarming est REELLEMENT allongee et hyperflagellee :
+       c'est la differenciation qui porte ce nom. */
+    elance: 1.8, flagella: { mode: 'peritriche', count: 8 },
     note: "Cellules en swarming detachees d'une plaque de biofilm mur : la dispersion est la derniere etape du cycle du biofilm, et elle est active.",
   }),
 ];
@@ -192,17 +206,18 @@ export const PIPE_PLAQUE = M({
 export const PIPE_NEUTRALS = [
   M({
     id: 'methylo', label: 'METHYLOBACTERIUM', role: 'neutral', cost: 0,
-    kind: 'rod', mot: 'brown', gram: '-', neutral: true,
-    hp: 140, speed: 9, contact: 0, radius: 4, aa: 3, zSpeed: 0, zWander: true,
-    note: "Methylotrophe facultative rose, habitante ordinaire des reseaux d'eau et des rincages. Elle colonise l'inox sans rien devoir a personne, et surtout pas a une bacterie lactique.",
+    kind: 'rosette', mot: 'brown', gram: '-', neutral: true, segments: 4,
+    hp: 140, speed: 9, contact: 0, radius: 4.6, aa: 3, zSpeed: 0, zWander: true,
+    note: "Methylotrophe facultative rose, habitante ordinaire des reseaux d'eau et des rincages. Elle s'accole par un pole en ROSETTES, ce qui la rend reconnaissable entre toutes. Elle colonise l'inox sans rien devoir a personne, et surtout pas a une bacterie lactique.",
   }),
 ];
 
 export const PIPE_BOSSES = {
   mucoid: M({
     id: 'mucoid', label: 'P. AERUGINOSA MUCOIDE', role: 'boss', cost: 0,
-    kind: 'rodlong', mot: 'swim', gram: '-',
+    kind: 'mucoide', mot: 'swim', gram: '-',
     hp: 1000, speed: 52, contact: 16, radius: 12, aa: 110, zSpeed: 0.3,
+    flagella: { mode: 'polaire', count: 1 },
     boss: true, dropsPlasmid: true,
     phases: [
       { at: 1.00, ability: 'alginate', label: 'ALGINATE' },
@@ -214,7 +229,7 @@ export const PIPE_BOSSES = {
   }),
   amibe: M({
     id: 'amibe', label: 'ACANTHAMOEBA GEANTE', role: 'boss', cost: 0,
-    kind: 'amoeba', mot: 'brown', gram: null,
+    kind: 'acanthe', mot: 'brown', gram: null,
     hp: 1400, speed: 34, contact: 18, radius: 15, aa: 150, zSpeed: 0.22,
     boss: true, dropsPlasmid: true,
     phases: [

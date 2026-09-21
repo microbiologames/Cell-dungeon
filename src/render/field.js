@@ -6,6 +6,7 @@
 import { Screen, VIEW, fade32, mix32, rgba, bayer } from '../core/pixel.js';
 import { clamp, TAU, hash2 } from '../core/util.js';
 import { drawOrganism, drawPlayer, colorOf } from './organisms.js';
+import { driveOf } from './flagella.js';
 import { sharpness } from '../game/entities.js';
 import { forEachDecor } from '../game/decor.js';
 
@@ -146,7 +147,10 @@ export function renderField(scr, game, pal) {
       ? Math.max(0.5, 0.35 + 0.65 * s)
       : plancher + (1 - plancher) * s;
     drawOrganism(scr, e.spec, sx, sy, e.radius, e.ang, e.phase,
-      fade32(fill, alpha), fade32(rim, alpha));
+      fade32(fill, alpha), fade32(rim, alpha),
+      /* Le halo de phase suit l'opacite de l'objet : un organisme tres
+         defocalise ne doit pas garder un lisere net. */
+      { pal: { phase: fade32(pal.phase, alpha * 0.9) }, drive: driveOf(e) });
 
     /* Barre de vie des boss uniquement : le reste se lit a la forme. */
     if (e.spec.boss && e.hp < e.maxHp) {
@@ -221,7 +225,8 @@ export function renderField(scr, game, pal) {
   }
   const blink = p.invuln > 0 && Math.floor(p.phase * 12) % 2 === 0;
   if (!blink) {
-    drawPlayer(scr, toX(p.x), toY(p.y), p.radius, p.ang, p.phase, pal, p.flagellation);
+    drawPlayer(scr, toX(p.x), toY(p.y), p.radius, p.ang, p.phase, pal, p.flagellation,
+      { drive: p.drive, bend: p.bend });
   }
 
   scr.composite();

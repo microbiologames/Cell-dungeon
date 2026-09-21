@@ -159,12 +159,16 @@ export class Bestiary {
 
       scr.layer(Screen.layerFor(0.02, 0));
       const [fill, rim] = colorOf(e.spec, pal);
-      drawOrganism(scr, e.spec, sx, sy, r, e.ang, e.ph, fill, rim);
+      /* Dans le bestiaire, chaque espece nage pour elle-meme : on force un
+         effort de nage moyen pour que la flagellation batte visiblement. */
+      drawOrganism(scr, e.spec, sx, sy, r, e.ang, e.ph, fill, rim,
+        { pal, drive: e.spec.mot === 'none' ? 0 : 0.7 });
     }
 
     scr.layer(Screen.layerFor(-0.1, 0));
     drawPlayer(scr, toX(this.swim.x), toY(this.swim.y), this.swim.radius,
-      this.swim.ang, this.swim.phase, pal, { count: 2, mode: 'bundle' });
+      this.swim.ang, this.swim.phase, pal, { count: 2, mode: 'bundle' },
+      { drive: this.swim.drive ?? 0.6, bend: 0 });
 
     scr.composite();
 

@@ -40,6 +40,12 @@ export class Player {
     this.phagoTimer = 0;
     this.satellites = [];
     this.kills = 0;
+    /* Deux grandeurs qui ne servent qu'au rendu, mais qui viennent de la
+       simulation : l'effort de nage (battement des flagelles, dandinement)
+       et la cambrure (vitesse de la mise au point). Les lisser evite qu'un
+       a-coup d'entree fasse claquer l'animation. */
+    this.drive = 0;
+    this.bend = 0;
   }
 
   recompute() {
@@ -215,6 +221,16 @@ export class Player {
 
     const moving = Math.hypot(this.vx, this.vy) > maxSpeed * 0.12;
     if (move.x || move.y) this.ang = Math.atan2(move.y, move.x);
+
+    /* Effort de nage : l'ENTREE, pas la vitesse. Une cellule qui pousse
+       contre un globule bat des flagelles sans avancer, et c'est ce qu'on
+       veut voir. */
+    const effort = Math.min(1, Math.hypot(move.x, move.y));
+    this.drive += (effort - this.drive) * Math.min(1, dt * 9);
+    /* Cambrure : la VITESSE de la mise au point, pas sa valeur. On ne se
+       cambre que pendant qu'on change de plan. */
+    const vFocus = clamp((game.focusTarget - game.focus) * 3.2, -1, 1);
+    this.bend += (vFocus - this.bend) * Math.min(1, dt * 7);
 
     if (moving) {
       this.stillTime = 0;
