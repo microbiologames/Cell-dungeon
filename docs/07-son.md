@@ -1,0 +1,132 @@
+# Son
+
+Bande son **générative et adaptative**. Rien n'est enregistré : tout est
+synthétisé au moment du jeu et assemblé en direct selon l'état de la partie.
+
+## Le périmètre artistique
+
+Deux ambiances, et une seule règle pour les tenir ensemble.
+
+| Contexte | Ce qu'on entend |
+|---|---|
+| **Lobby, bestiaire** | Drone lent, nappes longues, réverbe très ouverte et écho ping-pong. Pas de batterie. On observe, on ne se bat pas |
+| **Matrices** | **Drum and bass à grain chiptune**, 168 à 176 BPM. Ondes carrées et triangulaires qui coupent le mix, ostinato hypnotique, mélodies courtes. Mais l'ambiance reste **liquide**, pas souterraine : nappes mouvantes, écho, glissandos |
+
+Le **squelette rythmique ne change pas** d'une matrice à l'autre : c'est lui
+qui fait que la bande son est « toujours chez elle ». Ce qui change, c'est la
+tonalité, le mode et la couleur des timbres — exactement comme chaque matrice
+a déjà sa palette visuelle.
+
+| Matrice | Tonique | Mode | Rapport cyclique | Grain |
+|---|---|---|---|---|
+| Lobby / bestiaire | A | dorien | 50 % | 15 % |
+| Lait cru | D | dorien | 50 % | 55 % |
+| Conduite | F# | mineur | 12,5 % | 85 % |
+| Kombucha | C# | phrygien | 25 % | 50 % |
+| Levain | A | penta. mineure | 50 % | 42 % |
+
+## Quatre canaux, comme une puce sonore
+
+**C'est une contrainte de conception, pas une décoration.** Un oscillateur Web
+Audio ne se relance pas après un `stop()` : créer une voix par note produit des
+centaines de nœuds par minute qu'il faut penser à déconnecter — la fuite
+classique de tout moteur audio de jeu.
+
+On fait donc l'inverse, et ça tombe bien, c'est exactement ainsi que marche une
+puce 8 bits : **chaque canal a un oscillateur qui tourne du début à la fin**, et
+jouer une note ne fait que changer sa fréquence et ouvrir son enveloppe. Zéro
+allocation en régime permanent, **polyphonie plafonnée par construction**, et le
+grain monophonique caractéristique en prime.
+
+| Canal | Rôle | Timbre |
+|---|---|---|
+| `pulse1` | Mélodie | Carrée à rapport cyclique variable, construite par série de Fourier (Web Audio ne propose que 50 %) |
+| `pulse2` | Ostinato | Idem, autre rapport |
+| `triangle` | Basse | Triangulaire |
+| `bruit` | Percussion | LFSR sous-échantillonné : le grain métallique d'une NES, pas du bruit blanc |
+| `sub` | Poids | Sinus. Rien de rétro, et c'est assumé : sans bas du spectre il n'y a pas de drum and bass |
+| `nappe` | Liquide | Trois scies désaccordées. C'est le **désaccord** qui fait l'impression de liquide, pas le nombre de voix |
+
+## Le moteur observe, on ne lui pousse rien
+
+`observe(scene, game, dt)` est appelé **une fois par image** et déduit tout :
+intensité, mise au point, danger, pH, arrivée d'un boss, passage d'un NEP,
+coups encaissés, mises à mort. C'est la même convention que le rendu, qui
+**lit** `game` au lieu de se le faire pousser.
+
+La conséquence est concrète : **ajouter une matrice ne demande aucun câblage
+audio**, et `game.js` ne connaît pas l'existence du son. Les événements
+ponctuels eux-mêmes se déduisent par **détection de front** — `game.flash` qui
+monte, `player.kills` qui augmente, `game.boss` qui apparaît.
+
+### Mappages
+
+| État du jeu | Effet musical |
+|---|---|
+| `director.liveCredits() / targetCredits()` + `progress` | **Intensité** → gains des couches. Le budget de menace *est* déjà la bonne mesure, on ne réinvente rien |
+| `\|game.focus\|` | Passe-bas master. Regarder loin de son propre plan **ouate** le son comme ça floute l'image. C'est l'**écart** qui compte, pas le signe |
+| Vie basse, `game.flash` | Couche de tension, battement sourd |
+| `game.ph` vs `chem.phStart/phFloor` | Couleur harmonique (passe B) |
+
+Les couches tournent **toutes en permanence** ; on ne fait que ramper leurs
+gains. Jamais de coupure : une couche qui s'arrête s'entend, une couche qui
+descend ne s'entend pas.
+
+## Timing
+
+Deux horloges. Un `setInterval` grossier (25 ms) réveille le planificateur ;
+celui-ci inscrit les notes **120 ms à l'avance** sur l'horloge d'échantillon
+(`ctx.currentTime`). Une note est donc à sa place à la milliseconde près, même
+si une image du jeu prend 40 ms.
+
+## Garde-fous
+
+- Avant `init()`, **toute la surface publique est un no-op**.
+- `init()` n'est appelé que depuis `btnStart` — politique d'autoplay.
+- Toute exception désactive le moteur **en silence** : le jeu ne tombe jamais
+  parce que le son n'est pas disponible.
+- Veille sur pause (Échap/P) et sur perte de focus de l'onglet.
+
+## Licence
+
+Aucune dépendance, aucun asset, aucun échantillon. Réverbe de Schroeder,
+rythmes euclidiens, LFSR, `mulberry32` : ce sont des **techniques**, pas du code
+copié. Tout est écrit de zéro.
+
+## Vérifier
+
+On ne règle pas une bande son adaptative en constatant qu'elle ne lève pas
+d'exception : elle peut très bien ne produire que du silence.
+
+```
+node tools/son-check.mjs        # rend hors ligne et MESURE les mappages
+node tools/son-extrait.mjs milk 34   # rend un WAV, pour écouter
+```
+
+`son-check` rend cinq états de jeu dans un `OfflineAudioContext` et vérifie que
+ça sonne, que ça ne sature pas, que l'intensité amène bien le bas du spectre,
+que la mise au point mange l'aigu **sans éteindre le morceau**, et que le lobby
+ne sonne pas comme un stage.
+
+### Quatre pièges payés en écrivant ce banc
+
+| Symptôme | Cause |
+|---|---|
+| Les cinq états sortaient **identiques** | La courbe de grain est une **porte**, pas une saturation : quantifier sur 14 paliers renvoie zéro pour tout échantillon sous 1/28 d'amplitude. Il faut présenter le signal **chaud** au quantificateur et rattraper après, comme une vraie pédale de bitcrush |
+| Mesures **non reproductibles** d'une passe à l'autre | Le banc utilisait le **singleton**, et la boucle de jeu de la page continuait d'appeler `observe()` pendant le rendu hors ligne, remettant l'ambiance à zéro en plein milieu. Le banc instancie désormais son propre moteur |
+| Fermer le passe-bas de 12 kHz à 3,4 kHz ne bougeait la mesure que de 5 % | Le passe-haut d'analyse était à **un seul pôle** : 6 dB/octave laisse passer tout le médium. On mesurait le mix, pas l'aigu. Quatrième ordre |
+| Aucune énergie au-dessus de 5 kHz, quel que soit l'état | Le banc rendait à **24 kHz** : la charleston (7 à 10 kHz) se retrouvait au bord de Nyquist et le biquad s'y écrasait. On mesurait le banc, pas le moteur |
+
+## Overlay de debug
+
+Touche **L** : intensité, mise au point, danger, acidité, ambiance courante.
+Touche **M** : couper. On ne règle pas les mappages à l'oreille seule — il faut
+voir les grandeurs observées pour savoir si c'est le mappage ou le timbre qui
+ne va pas.
+
+## Ce que la passe A ne fait pas encore
+
+Scénario du NEP (montée de tension, impact, timbre par biocide), ostinato de
+biofilm tant qu'un producteur d'alginate vit, palette de boss dédiée, couleur
+harmonique pilotée par le pH, et l'automate cellulaire qui fera émerger les
+motifs d'une simulation microbienne.

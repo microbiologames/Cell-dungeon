@@ -20,6 +20,10 @@ import { Bestiary } from './scenes/bestiary.js';
 /* Active les sprites adoptes. Le registre ne contient que ceux-la ; toute
    espece absente garde sa forme procedurale et son animation. */
 import './render/sprite-data.js';
+import { son } from './audio/son.js';
+import { drawText } from './core/font.js';
+import { UI } from './data/palette.js';
+import { clamp } from './core/util.js';
 
 const canvas = document.getElementById('cv');
 const stage = document.getElementById('stage');
@@ -118,6 +122,33 @@ function applyPendingDecorClear() {
 }
 
 let last = performance.now();
+let panneauSon = false;
+
+/**
+ * Overlay de verification du son (touche L).
+ *
+ * On ne regle pas une bande son adaptative a l'oreille seule : il faut voir
+ * les grandeurs observees pour savoir si c'est le mappage ou le timbre qui
+ * ne va pas.
+ */
+function dessinerPanneauSon(scr) {
+  const e = son.etat;
+  const lignes = [
+    `SON ${e.mort ? 'HS' : (e.pret ? (e.muet ? 'MUET' : 'ON') : 'ATTENTE GESTE')}`,
+    `AMBIANCE ${e.ambiance.toUpperCase()}`,
+    `INTENSITE  ${barre(e.intensite)}`,
+    `MISE AU PT ${barre(e.miseAuPoint)}`,
+    `DANGER     ${barre(e.danger)}`,
+    `ACIDITE    ${barre((e.acidite + 1) / 2)}`,
+    'M : COUPER   L : FERMER',
+  ];
+  lignes.forEach((l, i) => drawText(scr, l, 3, 3 + i * 8, UI.text, 1, 1));
+}
+
+const barre = (v) => {
+  const n = Math.round(clamp(v, 0, 1) * 10);
+  return '#'.repeat(n) + '.'.repeat(10 - n);
+};
 
 function frame(now) {
   /* Pas de temps borne : un onglet en arriere-plan ne doit pas teleporter
@@ -127,6 +158,11 @@ function frame(now) {
   dt = Math.min(dt, 1 / 20);
 
   input.sample();
+  /* Le son OBSERVE l'etat, on ne lui pousse rien : meme convention que le
+     rendu. Ajouter une matrice ne demande donc aucun cablage audio. */
+  if (input.takeMuet()) son.setMuted(!son.muet);
+  if (input.takePanneauSon()) panneauSon = !panneauSon;
+  son.observe(scene === SCENE.JEU ? 'jeu' : 'lobby', scene === SCENE.JEU ? game : null, dt);
 
   if (scene === SCENE.LOBBY) {
     input.takePause();
@@ -140,7 +176,9 @@ function frame(now) {
     if (input.takePause() && game.state === STATE.PLAYING) {
       game.state = STATE.PAUSED;
       overlay.showPause();
+      son.suspend();
     }
+    if (game.state === STATE.PLAYING) son.resume();
     if (game.state === STATE.PLAYING) {
       game.update(dt, input);
       applyPendingDecorClear();
@@ -159,6 +197,8 @@ function frame(now) {
     renderField(scr, game, pal);
     renderHud(scr, game, pal);
   }
+
+  if (panneauSon) dessinerPanneauSon(scr);
 
   scr.present();
   requestAnimationFrame(frame);
@@ -192,5 +232,8 @@ addEventListener('visibilitychange', () => {
     game.state = STATE.PAUSED;
     overlay.showPause();
   }
+  /* L'onglet qui part endort l'audio : sinon la bande son continue de jouer
+     dans le vide et le planificateur accumule du retard a rattraper. */
+  if (document.hidden) son.suspend(); else son.resume();
   last = performance.now();
 });

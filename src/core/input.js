@@ -24,6 +24,8 @@ export class Input {
     this.focusImpulse = 0;   // molette, consomme chaque image
     this.dash = false;
     this.pause = false;
+    this.muet = false;
+    this.panneauSon = false;
     this.anyPress = false;
     this.hasTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
     /* Etat du manche virtuel, pour que le HUD puisse le dessiner. */
@@ -40,6 +42,8 @@ export class Input {
       this.anyPress = true;
       if (e.code === 'Space') { this.dash = true; e.preventDefault(); }
       if (e.code === 'Escape' || e.code === 'KeyP') this.pause = true;
+      if (e.code === 'KeyM') this.muet = true;
+      if (e.code === 'KeyL') this.panneauSon = true;
       if (MOVE_KEYS[e.code] || FOCUS_KEYS[e.code]) e.preventDefault();
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
@@ -150,5 +154,7 @@ export class Input {
 
   takeDash() { const v = this.dash; this.dash = false; return v; }
   takePause() { const v = this.pause; this.pause = false; return v; }
+  takeMuet() { const v = this.muet; this.muet = false; return v; }
+  takePanneauSon() { const v = this.panneauSon; this.panneauSon = false; return v; }
   takeAnyPress() { const v = this.anyPress; this.anyPress = false; return v; }
 }

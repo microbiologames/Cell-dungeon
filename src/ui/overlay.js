@@ -11,6 +11,7 @@ import { RARITY } from '../data/evolutions.js';
 import { RARITY_HEX } from '../data/palette.js';
 import { mmss } from '../core/util.js';
 import { CARD_ART } from './card-art.js';
+import { son } from '../audio/son.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -27,7 +28,12 @@ export class Overlay {
       endTitle: $('endTitle'), endStats: $('endStats'), pauseStats: $('pauseStats'),
       menuKeys: $('menuKeys'),
     };
-    $('btnStart').onclick = () => this.hideAll();
+    $('btnStart').onclick = () => {
+      /* SEUL point d'entree du son : la politique d'autoplay des navigateurs
+         exige un geste utilisateur pour ouvrir un AudioContext. */
+      son.init();
+      this.hideAll();
+    };
     $('btnRetry').onclick = () => onExit();
     $('btnResume').onclick = () => this.resume();
     $('btnQuit').onclick = () => onExit();

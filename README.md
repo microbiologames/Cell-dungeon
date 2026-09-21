@@ -42,6 +42,7 @@ Sur GitHub Pages : activer Pages sur la branche, racine du dépôt.
 | **Mise au point** | molette, ou `R` / `F` | glissement vertical, moitié droite |
 | Dash (si pili de type IV) | `Espace` | — |
 | Pause | `Échap` / `P` | — |
+| Couper le son | `M` | — |
 
 Les touches sont lues par position physique (`event.code`), donc AZERTY et
 QWERTY fonctionnent sans réglage.
@@ -93,6 +94,23 @@ plan** : ce sont des obstacles. La séparation est pondérée par la masse, pris
 en volume, donc une cellule somatique de dix-huit pixels ne s'écarte pas
 poliment — elle bloque, et vous glissez le long. Hors de votre plan, elle
 n'existe pas : la mise au point décide si un obstacle est là.
+
+## La bande son est générée, pas jouée
+
+Aucun fichier audio : tout est synthétisé au moment du jeu et assemblé selon
+l'état de la partie. **Drum and bass à grain chiptune** dans les matrices,
+**drone lent et réverbéré** dans le lobby et le bestiaire.
+
+Le moteur **observe** l'état au lieu de se le faire pousser — même convention
+que le rendu. Ajouter une matrice ne demande donc aucun câblage audio.
+Détail dont je suis content : regarder loin de son propre plan **ouate** le
+son exactement comme ça floute l'image, parce que la mise au point pilote le
+passe-bas master.
+
+Quatre canaux permanents comme une puce 8 bits, ce qui plafonne la polyphonie
+par construction. Zéro dépendance, zéro asset. Voir `docs/07-son.md`.
+
+Touche **M** pour couper, **L** pour l'overlay de vérification.
 
 ## La mécanique signature : la mise au point
 
