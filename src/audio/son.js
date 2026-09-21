@@ -40,16 +40,9 @@ import { clamp, mulberry32 } from '../core/util.js';
 import {
   ondePulsee, tamponBruit, courbeGrain, Canal, Percu, Kick, reverbe, delaiPingPong,
 } from './voix.js';
+import { GAMMES, PRESETS, decoderCode, encoderCode } from '../data/son-presets.js';
 
 /* ----------------------------------------------------------- musique ----- */
-
-/** Demi-tons d'une gamme mineure naturelle et de ses variantes. */
-const GAMMES = {
-  mineure: [0, 2, 3, 5, 7, 8, 10],
-  dorien: [0, 2, 3, 5, 7, 9, 10],
-  phrygien: [0, 1, 3, 5, 7, 8, 10],
-  pentamineure: [0, 3, 5, 7, 10],
-};
 
 /** Progression d'accords, en degres. Courte et tournante : c'est une boucle
  *  de roguelike, elle doit supporter douze minutes sans lasser. */
@@ -58,40 +51,12 @@ const PROGRESSION = [0, 5, 3, 6];
 /**
  * Identite sonore par contexte.
  *
- * Le SQUELETTE rythmique ne change pas d'une matrice a l'autre : c'est lui
- * qui fait que la bande son est « toujours chez elle ». Ce qui change, c'est
- * la tonalite, le mode et la couleur des timbres — comme chaque matrice a
- * deja sa palette visuelle.
+ * La table vit dans `src/data/son-presets.js`, avec son schema et son codec :
+ * c'est de la DIRECTION ARTISTIQUE, elle se regle a l'oreille dans
+ * `tools/son-studio.html` et se transporte par un code. Le moteur, lui, ne
+ * connait que des valeurs.
  */
-const AMBIANCES = {
-  /* Lobby et bestiaire : pas de batterie du tout, et un tempo qui ne sert
-     qu'a cadencer les respirations de la nappe. */
-  ambiant: {
-    bpm: 58, tonique: 45, gamme: 'dorien',
-    rapport1: 0.5, rapport2: 0.25, coupure: 2400,
-    reverbe: 0.85, echo: 0.55, grain: 0.15,
-  },
-  milk: {
-    bpm: 172, tonique: 50, gamme: 'dorien',
-    rapport1: 0.5, rapport2: 0.25, coupure: 6200,
-    reverbe: 0.42, echo: 0.3, grain: 0.55,
-  },
-  pipe: {
-    bpm: 176, tonique: 42, gamme: 'mineure',
-    rapport1: 0.125, rapport2: 0.5, coupure: 7400,
-    reverbe: 0.3, echo: 0.38, grain: 0.85,
-  },
-  kombucha: {
-    bpm: 168, tonique: 49, gamme: 'phrygien',
-    rapport1: 0.25, rapport2: 0.125, coupure: 5600,
-    reverbe: 0.58, echo: 0.46, grain: 0.5,
-  },
-  levain: {
-    bpm: 170, tonique: 45, gamme: 'pentamineure',
-    rapport1: 0.5, rapport2: 0.5, coupure: 5000,
-    reverbe: 0.5, echo: 0.34, grain: 0.42,
-  },
-};
+const AMBIANCES = PRESETS;
 
 /** Grille de batterie sur deux mesures, en doubles croches (32 pas).
  *  Motif de drum and bass : grosse caisse sur 1 et sur le « et » de 3,
@@ -121,6 +86,7 @@ export class Son {
     this.volume = 0.7;
     this.ctx = null;
     this.timer = null;
+    this.derniereGraine = 0x5eed;
     this.rng = mulberry32(0x5eed);
 
     /* Etat observe, lisse image par image. */
@@ -348,7 +314,11 @@ export class Son {
    * comparables. C'est ce qui rendait les mesures de tools/son-check.mjs
    * instables d'un essai a l'autre.
    */
-  graine(n) { this.rng = mulberry32(n >>> 0); }
+  /** Fixe le hasard controle. On la retient : elle fait partie du code. */
+  graine(n) {
+    this.derniereGraine = n >>> 0;
+    this.rng = mulberry32(this.derniereGraine);
+  }
 
   setVolume(v) {
     this.volume = clamp(v, 0, 1);
@@ -372,7 +342,10 @@ export class Son {
     const t = immediat ? 0.001 : 0.6;
     this.rampe(this.revGain.gain, a.reverbe * 0.42, t);
     this.rampe(this.echoGain.gain, a.echo * 0.34, t);
-    this.rampe(this.chipPropre.gain, 1 - a.grain, t);
+    /* Borne a zero : un gain negatif n'est pas un mix propre, c'est une
+       inversion de phase qui annule le bus chip. Le curseur du studio va
+       jusqu'a 1, mais un code recopie de travers, non. */
+    this.rampe(this.chipPropre.gain, Math.max(0, 1 - a.grain), t);
     /* Le lobby est un drone : la nappe y a droit a toute la reverbe. En
        stage elle n'est qu'un fond harmonique, elle en recoit le tiers. */
     this.rampe(this.envoisRev.nappe.gain, nom === 'ambiant' ? 1 : 0.4, t);
@@ -380,7 +353,7 @@ export class Son {
       const fc = Math.min(a.coupure * 0.35, 1250);
       c.filtre.frequency.setTargetAtTime(fc, this.ctx.currentTime, t);
       c.filtre2.frequency.setTargetAtTime(fc, this.ctx.currentTime, t);
-      c.osc.detune.setTargetAtTime((i - 1) * (a.grain > 0.6 ? 14 : 8), this.ctx.currentTime, t);
+      c.osc.detune.setTargetAtTime((i - 1) * a.desaccord, this.ctx.currentTime, t);
     }
     this.vLead.osc.setPeriodicWave(
       a.rapport1 === 0.125 ? this.ondes.p125 : (a.rapport1 === 0.25 ? this.ondes.p25 : this.ondes.p50));
@@ -464,9 +437,14 @@ export class Son {
 
     /* --- batterie : le moteur du morceau -------------------------------- */
     if (KICK.includes(pas)) this.kick.frappe(t, 0.9);
-    if (CLAP.includes(pas)) this.clap.frappe(t, 0.12, 0.5, 1900);
+    /* `percu` deplace toute la batterie en frequence d'un seul geste :
+       sourde en bas, claquante en haut. A 0,6 on retrouve le reglage
+       d'origine, ce qui rend le curseur lisible — on entend ou on est
+       parti. */
+    const pq = amb.percu;
+    if (CLAP.includes(pas)) this.clap.frappe(t, 0.12, 0.5, 1420 + 800 * pq);
     if (CLAP_FANTOME.includes(pas) && this.rng() < 0.35 + 0.4 * I) {
-      this.clap.frappe(t, 0.05, 0.18, 2600);
+      this.clap.frappe(t, 0.05, 0.18, 2000 + 1000 * pq);
     }
     /* Charleston en doubles croches, densite croissante : c'est elle qui
        porte le sentiment d'urgence sans changer le tempo. */
@@ -474,7 +452,7 @@ export class Son {
       /* 6 a 8 kHz : c'est la bande d'une charleston, avec un peu de corps.
          Plus haut, il ne reste que de l'air — inaudible sur un haut-parleur
          de telephone, et au bord de Nyquist si le contexte tourne bas. */
-      this.hat.frappe(t, 0.035, 0.07 + 0.05 * I, 6200 + this.rng() * 2200);
+      this.hat.frappe(t, 0.035, 0.07 + 0.05 * I, 4400 + 3000 * pq + this.rng() * 2200);
     }
 
     /* --- ostinato : hypnotique, il ne change qu'a l'accord -------------- */
@@ -486,7 +464,7 @@ export class Son {
     }
 
     /* --- melodie : courte, entetante, elle n'arrive qu'en pression ------ */
-    if (I > 0.35 && pas % 4 === 0 && this.rng() < 0.28 + 0.4 * I) {
+    if (I > 0.35 && pas % 4 === 0 && this.rng() < (0.28 + 0.4 * I) * amb.melodie) {
       const saut = [0, 2, 4, 6, 7][Math.floor(this.rng() * 5)];
       this.vLead.note(t, this.freq(degreAccord + saut, 1), this.parPas * 3, 0.12,
         { a: 0.006, d: 0.09, s: 0.4, r: this.parPas * 3 });
@@ -605,9 +583,13 @@ export class Son {
     const g = this.couches;
     const tau = 0.45;
     this.rampe(g.nappe.gain, ambiant ? 0.5 : 0.18 + 0.1 * (1 - I), tau);
-    this.rampe(g.sub.gain, ambiant ? 0.0001 : 0.1 + 0.35 * seuil(0.05, 0.4), tau);
+    /* `sub` et `ostinato` sont des MULTIPLICATEURS sur la loi de couche, pas
+       des niveaux : la loi (les seuils d'apparition) reste au moteur, seule
+       la dose est une decision artistique. */
+    const a = this.amb || AMBIANCES.milk;
+    this.rampe(g.sub.gain, ambiant ? 0.0001 : (0.1 + 0.35 * seuil(0.05, 0.4)) * a.sub, tau);
     this.rampe(g.break.gain, ambiant ? 0.0001 : 0.5 * seuil(0.12, 0.45), tau);
-    this.rampe(g.ostinato.gain, ambiant ? 0.0001 : 0.32 * seuil(0.25, 0.6), tau);
+    this.rampe(g.ostinato.gain, ambiant ? 0.0001 : 0.32 * seuil(0.25, 0.6) * a.ostinato, tau);
     this.rampe(g.lead.gain, ambiant ? 0.22 : 0.3 * seuil(0.4, 0.8), tau);
     this.rampe(g.tension.gain, this.danger * 0.5, 0.8);
 
@@ -618,6 +600,32 @@ export class Son {
        eteindre. */
     const f = 14000 * Math.pow(0.24, this.miseAuPoint);
     this.rampe(this.filtreMaster.frequency, f, 0.25);
+  }
+
+  /* ---------------------------------------------------- direction ------- */
+
+  /**
+   * Charge un code de studio : il porte a la fois le PRESET (l'identite,
+   * qui ne doit pas bouger d'une partie a l'autre) et la GRAINE (le hasard
+   * controle, qui est l'interpretation). Les deux sont dans le meme code
+   * parce qu'on a entendu les deux ensemble.
+   *
+   * @returns {boolean} faux si le code est invalide — auquel cas RIEN n'est
+   *   charge : un preset a moitie applique se debusque a l'oreille pendant
+   *   une soiree entiere.
+   */
+  appliquerCode(code) {
+    const d = decoderCode(code);
+    if (!d) return false;
+    Object.assign(AMBIANCES[d.ambiance], d.preset);
+    this.graine(d.graine);
+    if (this.pret && this.ambiance === d.ambiance) this.appliquerAmbiance(d.ambiance, true);
+    return true;
+  }
+
+  /** Le code de l'ambiance demandee, dans son etat courant. */
+  codeActuel(ambiance = this.ambiance, graine = this.derniereGraine) {
+    return encoderCode(ambiance, AMBIANCES[ambiance] || AMBIANCES.milk, graine);
   }
 
   /** Etat lisible, pour l'overlay de debug. */

@@ -15,7 +15,11 @@
     "sprites:import": "node tools/sprites.mjs import",
     "rd:guard": "node tools/rd.mjs guard",
     "rd:credits": "node tools/rd.mjs credits",
-    "at-size": "node tools/at-size.mjs"
+    "at-size": "node tools/at-size.mjs",
+    "son:check": "node tools/son-check.mjs",
+    "son:studio": "node tools/son-studio-check.mjs",
+    "son:extrait": "node tools/son-extrait.mjs",
+    "son:derive": "node tools/son-derive.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0"

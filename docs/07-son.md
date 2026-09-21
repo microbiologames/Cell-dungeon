@@ -99,7 +99,9 @@ On ne règle pas une bande son adaptative en constatant qu'elle ne lève pas
 d'exception : elle peut très bien ne produire que du silence.
 
 ```
-node tools/son-check.mjs        # rend hors ligne et MESURE les mappages
+npm run son:check      # rend hors ligne et MESURE les mappages
+npm run son:derive     # 60 s a etat fige : detecte une accumulation
+npm run son:studio     # conduit le studio dans un vrai navigateur
 node tools/son-extrait.mjs milk 34   # rend un WAV, pour écouter
 ```
 
@@ -167,6 +169,70 @@ aucune raie ne passe même le plancher d'audibilité.
 | La recherche de raie déclarait un sifflet **partout** | Elle comparait chaque pic à un voisinage **vide** : dans un passage clairsemé, un partiel à −60 dB domine arithmétiquement sans que personne ne l'entende. Il faut un plancher d'audibilité, et exclure le lobby, qui est un drone assumé |
 | Le défaut volontairement remis **passait le banc** | Le rendu ne durait que **quatre secondes** : une dizaine de blocs d'analyse, trop peu pour qu'une raie tenue se détache. À dix secondes elle ressort à ×38. Un banc qui ne rattrape pas le bug qu'il est censé garder ne garde rien — on le vérifie en remettant le défaut |
 
+## Le studio : régler la DA à l'oreille, la transporter par un code
+
+`tools/son-studio.html` — page autonome, aucun build. Se sert comme le jeu :
+
+```
+npm run serve      # puis http://localhost:8080/tools/son-studio.html
+npm run son:studio # le banc qui vérifie que le studio ne ment pas
+```
+
+### Preset ≠ graine
+
+C'est la distinction qui structure tout le fichier `src/data/son-presets.js` :
+
+| | Rôle | Doit bouger ? |
+|---|---|---|
+| **Preset** | Tempo, tonique, mode, couleur des timbres, espace, caractère de batterie | Non. C'est **l'identité** |
+| **Graine** | Quelle note l'ostinato tire, où tombe la variation, quelle charleston passe | Oui. C'est **l'interprétation** |
+
+Le **code** emballe les deux en dix-huit caractères : `CD1-milk-F9SJQNM43A6AA5XVER`.
+Les deux, parce qu'on les a entendus ensemble.
+
+Chaque champ tient sur un nombre fixe de bits, avec un pas choisi pour que les
+valeurs adoptées tombent exactement dessus — l'aller-retour preset → code →
+preset est **l'identité, pas une approximation**. Ce qu'on entend dans le
+studio est ce que le jeu jouera. L'alphabet est celui de Crockford (ni I, ni
+L, ni O, ni U : on recopie ces codes à la main), et une somme de contrôle de
+cinq bits attrape les fautes de frappe. Un code refusé ne charge **rien** —
+un preset à moitié appliqué se débusque à l'oreille pendant une soirée.
+
+### Ce qui est réglable, et ce qui ne l'est pas
+
+Quatorze curseurs : tempo, tonique, mode, les deux rapports cycliques,
+couleur, grain, désaccord de nappe, réverbe, écho, sub, caractère de
+percussion, présence de l'ostinato, densité mélodique.
+
+Restent **côté moteur**, et délibérément : les seuils d'apparition des
+couches, la loi mise au point → passe-bas master, la structure des canaux
+permanents, et les garde-fous anti-sifflement (coupure de nappe plafonnée,
+deuxième pôle, envoi de réverbe réduit en stage). Un curseur dessus, et on
+reconstruit le défaut en trois clics.
+
+`sub` et `ostinato` sont des **multiplicateurs** sur la loi de couche, pas des
+niveaux : la loi reste au moteur, seule la dose est une décision artistique.
+
+### Trois choses que le studio fait et qu'un simple panneau de curseurs ne fait pas
+
+- **Le contexte est simulé.** Une DA ne se juge pas à l'arrêt : intensité,
+  danger et mise au point sont pilotables, et un « arc de partie » de 90 s les
+  balaye comme une vraie partie — montée, creux de défocalisation, danger dans
+  le dernier tiers.
+- **On compare en maintenant un bouton.** L'oreille compare mal deux sons
+  séparés par dix secondes de réglage, et très bien deux sons séparés par
+  rien. Les champs qui s'écartent de l'adopté sont marqués, sinon on ne sait
+  plus ce qu'on a changé.
+- **Le détecteur de raie tourne en direct**, avec exactement le seuil du banc
+  hors ligne, et le verdict est **suspendu sur un mix clairsemé** — pour la
+  même raison que le banc exclut le lobby.
+
+### Adopter
+
+« Exporter » rend le bloc à recopier dans `src/data/son-presets.js`, plus les
+cinq codes. Rien n'est écrit automatiquement : les presets adoptés sont
+curatés à la main, comme les sprites.
+
 ## Overlay de debug
 
 Touche **L** : intensité, mise au point, danger, acidité, ambiance courante.
@@ -174,9 +240,13 @@ Touche **M** : couper. On ne règle pas les mappages à l'oreille seule — il f
 voir les grandeurs observées pour savoir si c'est le mappage ou le timbre qui
 ne va pas.
 
-## Ce que la passe A ne fait pas encore
+## Ce qui vient après
 
-Scénario du NEP (montée de tension, impact, timbre par biocide), ostinato de
-biofilm tant qu'un producteur d'alginate vit, palette de boss dédiée, couleur
-harmonique pilotée par le pH, et l'automate cellulaire qui fera émerger les
-motifs d'une simulation microbienne.
+**La passe B attend que la DA soit calée**, et c'est délibéré : son matériau
+(riser de NEP, ostinato de biofilm, palette de boss) se règle sur des timbres.
+Le coder avant de figer les presets, c'est payer le réglage deux fois.
+
+Au programme : scénario du NEP (montée de tension, impact, timbre par
+biocide), ostinato de biofilm tant qu'un producteur d'alginate vit, palette de
+boss dédiée, couleur harmonique pilotée par le pH, et l'automate cellulaire
+qui fera émerger les motifs d'une simulation microbienne.

@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cell Dungeon — studio sonore</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #02060a; --ink: #cfe6d8; --dim: #5d7a68;
+    --hot: #ffd479; --line: #172b21; --alerte: #ff8a6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13px; line-height: 1.5;
+  }
+  header {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    padding: 10px 16px; background: rgba(2, 6, 10, .96);
+    border-bottom: 1px solid var(--line);
+  }
+  h1 { font-size: 13px; letter-spacing: .14em; margin: 0 auto 0 0; color: var(--hot); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 16px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
+  .carte { border: 1px solid var(--line); padding: 12px 14px 14px; margin-bottom: 16px; }
+  .carte h2 {
+    font-size: 11px; letter-spacing: .12em; color: var(--hot);
+    margin: 0 0 10px; text-transform: uppercase;
+  }
+  .btn {
+    border: 1px solid var(--line); background: transparent; color: var(--ink);
+    font: inherit; padding: 5px 11px; cursor: pointer; letter-spacing: .06em;
+  }
+  .btn:hover, .btn:focus-visible { border-color: var(--hot); color: var(--hot); outline: none; }
+  .btn[aria-pressed="true"] { border-color: var(--hot); color: var(--bg); background: var(--hot); }
+  select, input[type="text"], input[type="number"], textarea {
+    background: #030a0e; color: var(--ink); border: 1px solid var(--line);
+    font: inherit; padding: 4px 7px;
+  }
+  textarea { width: 100%; height: 190px; resize: vertical; font-size: 11px; line-height: 1.45; }
+  .rang { display: grid; grid-template-columns: 1fr; gap: 3px; margin-bottom: 11px; }
+  .rang .tete { display: flex; gap: 8px; align-items: baseline; }
+  .rang .nom { flex: 1 1 auto; }
+  .rang .val { color: var(--hot); font-variant-numeric: tabular-nums; }
+  .rang .aide { color: var(--dim); font-size: 10.5px; line-height: 1.35; }
+  .rang.bouge .nom { color: var(--hot); }
+  input[type="range"] { width: 100%; accent-color: var(--hot); margin: 0; }
+  .puces { display: flex; gap: 6px; flex-wrap: wrap; }
+  .lig { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  code.code {
+    display: block; padding: 7px 9px; border: 1px solid var(--line);
+    color: var(--hot); word-break: break-all; background: #030a0e; margin: 6px 0;
+    font-size: 14px; letter-spacing: .06em;
+  }
+  canvas { width: 100%; height: 108px; display: block; border: 1px solid var(--line); background: #010407; }
+  .note { color: var(--dim); font-size: 11px; }
+  .alerte { color: var(--alerte); }
+  .mesure { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>STUDIO SONORE</h1>
+  <button class="btn" id="jouer">Ecouter</button>
+  <label class="note">volume <input type="range" id="vol" min="0" max="1" step="0.01" value="0.7" style="width:90px;vertical-align:middle"></label>
+</header>
+
+<div class="wrap">
+  <div class="carte">
+    <h2>Ambiance</h2>
+    <div class="puces" id="onglets"></div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <div class="carte">
+        <h2>Contexte simule</h2>
+        <p class="note" style="margin:0 0 10px">
+          Une DA ne se juge pas a l'arret. Ces trois grandeurs sont celles que
+          <code>observe()</code> deduit du jeu ; le moteur ne connait rien d'autre.
+        </p>
+        <div id="contexte"></div>
+        <div class="lig">
+          <button class="btn" id="arc" aria-pressed="false">Arc de partie (90 s)</button>
+          <span class="note" id="arcEtat"></span>
+        </div>
+      </div>
+
+      <div class="carte">
+        <h2>Ce qui sort</h2>
+        <canvas id="spectre" width="560" height="108"></canvas>
+        <p class="note mesure" id="verdict" style="margin:8px 0 0">&nbsp;</p>
+        <p class="note" style="margin:6px 0 0">
+          Le detecteur de raie est celui du banc : chaque pic compare a la
+          mediane de son propre tiers d'octave. Au-dela de x9, c'est un
+          sifflement, pas une texture.
+        </p>
+      </div>
+
+      <div class="carte">
+        <h2>Code</h2>
+        <code class="code" id="codeCourant">—</code>
+        <div class="lig">
+          <button class="btn" id="copier">Copier</button>
+          <label class="note">graine <input type="number" id="graine" min="0" max="65535" step="1" value="24301" style="width:88px"></label>
+          <button class="btn" id="tirer">Autre graine</button>
+        </div>
+        <div class="lig" style="margin-top:9px">
+          <input type="text" id="charger" placeholder="CD1-milk-…" style="flex:1 1 220px">
+          <button class="btn" id="btnCharger">Charger</button>
+        </div>
+        <p class="note" id="etatCode" style="margin:7px 0 0">
+          Le code porte le preset ET la graine : l'identite et l'interpretation.
+        </p>
+      </div>
+    </div>
+
+    <div>
+      <div id="groupes"></div>
+
+      <div class="carte">
+        <h2>Adopter</h2>
+        <div class="lig">
+          <button class="btn" id="comparer">Maintenir pour comparer a l'adopte</button>
+          <button class="btn" id="remettre">Tout remettre</button>
+          <button class="btn" id="exporter">Exporter</button>
+        </div>
+        <p class="note" style="margin:8px 0 0">
+          « Exporter » rend le bloc a recopier dans <code>src/data/son-presets.js</code>.
+          Rien n'est ecrit automatiquement : les presets adoptes sont curates a la main.
+        </p>
+        <textarea id="sortie" readonly hidden></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { son } from '../src/audio/son.js';
+import { PRESETS, CHAMPS, GROUPES, NOMS, encoderCode } from '../src/data/son-presets.js';
+
+/* L'etat adopte, fige au chargement : c'est la reference de la comparaison
+   et de « tout remettre ». On la copie AVANT que le premier curseur bouge. */
+const ADOPTE = JSON.parse(JSON.stringify(PRESETS));
+
+const $ = (id) => document.getElementById(id);
+let ambiance = 'milk';
+let graine = 24301;
+let arcT = -1;
+let compare = false;
+
+/* --------------------------------------------------------- ambiances ---- */
+
+const onglets = $('onglets');
+for (const cle of Object.keys(PRESETS)) {
+  const b = document.createElement('button');
+  b.className = 'btn';
+  b.textContent = NOMS[cle];
+  b.dataset.cle = cle;
+  b.onclick = () => { ambiance = cle; majOnglets(); appliquer(); peupler(); };
+  onglets.append(b);
+}
+function majOnglets() {
+  for (const b of onglets.children) b.setAttribute('aria-pressed', b.dataset.cle === ambiance);
+}
+majOnglets();
+
+/* ---------------------------------------------------------- curseurs ---- */
+
+const rangs = new Map();
+function peupler() {
+  $('groupes').innerHTML = '';
+  rangs.clear();
+  for (const groupe of GROUPES) {
+    const champs = CHAMPS.filter((c) => c.groupe === groupe);
+    if (!champs.length) continue;
+    const carte = document.createElement('div');
+    carte.className = 'carte';
+    carte.innerHTML = `<h2>${groupe}</h2>`;
+    for (const ch of champs) carte.append(faireRang(ch));
+    $('groupes').append(carte);
+  }
+  majValeurs();
+}
+
+function faireRang(ch) {
+  const d = document.createElement('div');
+  d.className = 'rang';
+  const nb = ch.choix ? ch.choix.length - 1 : Math.round((ch.max - ch.min) / ch.pas);
+  d.innerHTML = `<div class="tete"><span class="nom">${ch.nom}</span><span class="val"></span></div>`
+    + `<input type="range" min="0" max="${nb}" step="1">`
+    + (ch.aide ? `<div class="aide">${ch.aide}</div>` : '');
+  const input = d.querySelector('input');
+  input.oninput = () => {
+    const p = PRESETS[ambiance];
+    p[ch.cle] = ch.choix ? ch.choix[+input.value]
+      : Math.round((ch.min + (+input.value) * ch.pas) * 1000) / 1000;
+    appliquer();
+    majValeurs();
+  };
+  rangs.set(ch.cle, { d, input, ch });
+  return d;
+}
+
+function texteDe(ch, v) {
+  if (ch.cle === 'gamme') return v;
+  if (ch.choix) return v.toFixed(3).replace(/0+$/, '');
+  return ch.unite ? `${v} ${ch.unite}` : v.toFixed(2);
+}
+
+function majValeurs() {
+  const p = PRESETS[ambiance];
+  for (const [cle, r] of rangs) {
+    const v = p[cle];
+    const n = r.ch.choix ? r.ch.choix.indexOf(v) : Math.round((v - r.ch.min) / r.ch.pas);
+    r.input.value = n;
+    r.d.querySelector('.val').textContent = texteDe(r.ch, v);
+    /* On marque ce qui s'ecarte de l'adopte : apres vingt minutes de
+       curseurs, c'est la seule facon de savoir ce qu'on a vraiment change. */
+    r.d.classList.toggle('bouge', v !== ADOPTE[ambiance][cle]);
+  }
+  $('codeCourant').textContent = encoderCode(ambiance, p, graine);
+}
+
+/* ---------------------------------------------------------- contexte ---- */
+
+const CONTEXTE = [
+  ['intensite', 'Intensite', 'Moitie avancement du run, moitie pression de la horde.'],
+  ['danger', 'Danger', 'Vie basse ou coup encaisse. Amene le battement sourd.'],
+  ['miseAuPoint', 'Mise au point', 'L ecart a son propre plan Z ouate le son comme il floute l image.'],
+];
+for (const [cle, nom, aide] of CONTEXTE) {
+  const d = document.createElement('div');
+  d.className = 'rang';
+  d.innerHTML = `<div class="tete"><span class="nom">${nom}</span><span class="val">0.00</span></div>`
+    + `<input type="range" min="0" max="1" step="0.01" value="0">`
+    + `<div class="aide">${aide}</div>`;
+  const input = d.querySelector('input');
+  input.oninput = () => {
+    if (arcT >= 0) basculerArc();
+    son[cle] = +input.value;
+    d.querySelector('.val').textContent = (+input.value).toFixed(2);
+  };
+  d.dataset.cle = cle;
+  $('contexte').append(d);
+}
+function refleterContexte() {
+  for (const d of $('contexte').children) {
+    const v = son[d.dataset.cle] || 0;
+    d.querySelector('input').value = v;
+    d.querySelector('.val').textContent = v.toFixed(2);
+  }
+}
+
+function basculerArc() {
+  arcT = arcT >= 0 ? -1 : 0;
+  $('arc').setAttribute('aria-pressed', arcT >= 0);
+  $('arcEtat').textContent = arcT >= 0 ? '' : 'a l arret';
+}
+$('arc').onclick = basculerArc;
+
+/* ------------------------------------------------------------ moteur ---- */
+
+function appliquer() {
+  if (!son.pret) return;
+  son.ambiance = ambiance;
+  son.appliquerAmbiance(ambiance, true);
+  son.majCouches();
+}
+
+let analyse = null;
+$('jouer').onclick = () => {
+  if (son.pret) { son.muet = !son.muet; son.master.gain.value = son.muet ? 0 : +$('vol').value; }
+  else {
+    son.init();
+    if (!son.pret) { $('jouer').textContent = 'audio indisponible'; return; }
+    son.graine(graine);
+    const a = son.ctx.createAnalyser();
+    a.fftSize = 8192;
+    a.smoothingTimeConstant = 0.82;
+    son.master.connect(a);
+    analyse = { noeud: a, tampon: new Float32Array(a.frequencyBinCount) };
+    appliquer();
+    boucle();
+  }
+  $('jouer').textContent = son.pret && !son.muet ? 'Couper' : 'Ecouter';
+};
+$('vol').oninput = () => { son.volume = +$('vol').value; if (son.pret && !son.muet) son.master.gain.value = son.volume; };
+
+/* ------------------------------------------------------------- code ----- */
+
+$('graine').oninput = () => { graine = +$('graine').value | 0; son.graine(graine); majValeurs(); };
+$('tirer').onclick = () => {
+  graine = Math.floor(Math.random() * 65536);
+  $('graine').value = graine;
+  son.graine(graine);
+  majValeurs();
+};
+$('copier').onclick = async () => {
+  try { await navigator.clipboard.writeText($('codeCourant').textContent); $('etatCode').textContent = 'copie.'; }
+  catch { $('etatCode').textContent = 'copie refusee par le navigateur, selectionner a la main.'; }
+};
+$('btnCharger').onclick = () => {
+  const code = $('charger').value.trim();
+  if (!son.appliquerCode(code)) {
+    $('etatCode').innerHTML = '<span class="alerte">code refuse : version, ambiance, longueur ou somme de controle. Rien n a ete charge.</span>';
+    return;
+  }
+  ambiance = code.split('-')[1].toLowerCase();
+  graine = son.derniereGraine;
+  $('graine').value = graine;
+  majOnglets(); appliquer(); peupler();
+  $('etatCode').textContent = 'charge.';
+};
+
+/* Maintenir pour entendre l'adopte : l'oreille compare mal deux sons separes
+   par dix secondes de reglage, et tres bien deux sons separes par rien. */
+function poserCompare(on) {
+  if (compare === on) return;
+  compare = on;
+  Object.assign(PRESETS[ambiance], (on ? ADOPTE : ETAT_TRAVAIL)[ambiance]);
+  if (on) ETAT_TRAVAIL[ambiance] = { ...PRESETS[ambiance] };
+  appliquer();
+}
+const ETAT_TRAVAIL = JSON.parse(JSON.stringify(PRESETS));
+const cmp = $('comparer');
+cmp.onmousedown = () => { ETAT_TRAVAIL[ambiance] = { ...PRESETS[ambiance] }; compare = true; Object.assign(PRESETS[ambiance], ADOPTE[ambiance]); appliquer(); cmp.setAttribute('aria-pressed', true); };
+const relacher = () => { if (!compare) return; compare = false; Object.assign(PRESETS[ambiance], ETAT_TRAVAIL[ambiance]); appliquer(); cmp.setAttribute('aria-pressed', false); };
+cmp.onmouseup = relacher;
+cmp.onmouseleave = relacher;
+cmp.ontouchstart = (e) => { e.preventDefault(); cmp.onmousedown(); };
+cmp.ontouchend = relacher;
+
+$('remettre').onclick = () => {
+  Object.assign(PRESETS[ambiance], ADOPTE[ambiance]);
+  appliquer(); majValeurs();
+};
+
+$('exporter').onclick = () => {
+  const lignes = ['export const PRESETS = {'];
+  for (const [cle, p] of Object.entries(PRESETS)) {
+    lignes.push(`  ${cle}: {`);
+    lignes.push(`    bpm: ${p.bpm}, tonique: ${p.tonique}, gamme: '${p.gamme}',`);
+    lignes.push(`    rapport1: ${p.rapport1}, rapport2: ${p.rapport2}, coupure: ${p.coupure}, grain: ${p.grain}, desaccord: ${p.desaccord},`);
+    lignes.push(`    reverbe: ${p.reverbe}, echo: ${p.echo},`);
+    lignes.push(`    sub: ${p.sub}, percu: ${p.percu}, ostinato: ${p.ostinato}, melodie: ${p.melodie},`);
+    lignes.push('  },');
+  }
+  lignes.push('};', '', '/* Codes correspondants :');
+  for (const cle of Object.keys(PRESETS)) lignes.push(`   ${cle.padEnd(9)} ${encoderCode(cle, PRESETS[cle], graine)}`);
+  lignes.push('*/');
+  const t = $('sortie');
+  t.hidden = false;
+  t.value = lignes.join('\n');
+  t.select();
+};
+
+/* ----------------------------------------------------------- spectre ---- */
+
+const cv = $('spectre');
+const g2 = cv.getContext('2d');
+
+/** Le detecteur de raie du banc, en direct : un pic face a son tiers d'octave. */
+function chercherRaie(db, SR, N) {
+  let fort = -Infinity;
+  for (let k = 0; k < db.length; k++) if (db[k] > fort) fort = db[k];
+  let pire = 0, f = 0;
+  const kmin = Math.round(600 * N / SR);
+  for (let k = kmin; k < db.length - 1; k++) {
+    /* Meme plancher que le banc : 0,06 en PUISSANCE, soit douze decibels
+       sous le maximum. Regle a vingt-quatre, le detecteur criait au loup
+       sur des partiels que personne n'entend. */
+    if (db[k] < fort - 12.2) continue;
+    if (!(db[k] > db[k - 1] && db[k] > db[k + 1])) continue;
+    const a = Math.max(1, Math.round(k / 1.26)), b = Math.min(db.length - 1, Math.round(k * 1.26));
+    const v = [];
+    for (let j = a; j <= b; j++) if (Math.abs(j - k) > 3) v.push(db[j]);
+    if (v.length < 8) continue;
+    v.sort((x, y) => x - y);
+    /* Les dB sont deja logarithmiques : l'ecart EST le rapport. */
+    const r = Math.pow(10, (db[k] - v[v.length >> 1]) / 20);
+    if (r > pire) { pire = r; f = k * SR / N; }
+  }
+  return { ratio: pire, freq: f };
+}
+
+let dernierVerdict = 0;
+function dessiner() {
+  const { noeud, tampon } = analyse;
+  noeud.getFloatFrequencyData(tampon);
+  const SR = son.ctx.sampleRate, N = noeud.fftSize;
+  const L = cv.width, H = cv.height;
+  g2.clearRect(0, 0, L, H);
+  /* Echelle logarithmique : c'est celle de l'oreille, et la seule sur
+     laquelle une raie du medium se voit a cote d'une grosse caisse. */
+  const f0 = 40, f1 = Math.min(16000, SR / 2);
+  g2.strokeStyle = '#172b21';
+  g2.beginPath();
+  for (const f of [100, 500, 1000, 5000, 10000]) {
+    const x = Math.round(L * Math.log(f / f0) / Math.log(f1 / f0)) + 0.5;
+    g2.moveTo(x, 0); g2.lineTo(x, H);
+  }
+  g2.stroke();
+  g2.strokeStyle = '#cfe6d8';
+  g2.beginPath();
+  for (let x = 0; x < L; x++) {
+    const f = f0 * Math.pow(f1 / f0, x / L);
+    const k = Math.round(f * N / SR);
+    const db = tampon[Math.min(k, tampon.length - 1)];
+    const y = H - H * Math.max(0, Math.min(1, (db + 100) / 90));
+    if (x === 0) g2.moveTo(x, y); else g2.lineTo(x, y);
+  }
+  g2.stroke();
+
+  if (performance.now() - dernierVerdict > 260) {
+    dernierVerdict = performance.now();
+    const r = chercherRaie(tampon, SR, N);
+    const el = $('verdict');
+    /* Le verdict ne vaut que sur un mix DENSE. Dans un passage clairseme, et
+       dans le lobby qui est un drone assume, un accord tenu n'est qu'un jeu
+       de raies : le banc hors ligne exclut le lobby pour la meme raison. */
+    const dense = son.intensite >= 0.4 && ambiance !== 'ambiant';
+    if (r.ratio < 1.5) { el.textContent = 'aucune raie au-dessus du plancher.'; el.className = 'note mesure'; }
+    else {
+      el.textContent = `raie la plus saillante : x${r.ratio.toFixed(1)} a ${Math.round(r.freq)} Hz`;
+      const siffle = dense && r.ratio >= 9;
+      el.className = siffle ? 'note mesure alerte' : 'note mesure';
+      el.textContent += siffle ? '  — c est un sifflement.'
+        : (dense ? '  — texture, pas sifflement.' : '  — mix clairseme, verdict suspendu.');
+    }
+  }
+}
+
+let precedent = 0;
+function boucle(t = 0) {
+  requestAnimationFrame(boucle);
+  const dt = Math.min(0.1, (t - precedent) / 1000);
+  precedent = t;
+  if (!son.pret) return;
+  if (arcT >= 0) {
+    arcT += dt;
+    const u = (arcT % 90) / 90;
+    son.intensite = u < 0.85 ? u / 0.85 : 1 - (u - 0.85) / 0.15;
+    son.danger = Math.max(0, (u - 0.6) / 0.4) * 0.8;
+    son.miseAuPoint = u > 0.3 && u < 0.42 ? Math.sin((u - 0.3) / 0.12 * Math.PI) : 0;
+    $('arcEtat').textContent = `${Math.round(u * 100)} %`;
+    refleterContexte();
+  }
+  son.majCouches();
+  if (analyse) dessiner();
+}
+
+peupler();
+$('graine').value = graine;
+</script>
+</body>
+</html>
