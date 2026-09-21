@@ -45,6 +45,50 @@ export function angDelta(a, b) {
   return d;
 }
 
+/**
+ * Giration : fait tourner un cap vers une cible, avec de l'inertie.
+ *
+ * Poser `ang = atan2(...)` fait CLAQUER l'orientation : le corps saute d'un
+ * cap a l'autre en une image, et toutes les animations qui en dependent
+ * (flagelles, cambrure) sautent avec lui. Un petit poisson ne fait pas ca :
+ * il amorce, il tourne, il se redresse.
+ *
+ * Le modele est un ressort ANGULAIRE a amortissement critique, de meme
+ * constante de temps `tau` que le moteur de translation. Les deux inerties
+ * sont donc solidaires, et la flagellation pilote les deux d'un coup :
+ * peritriche vire sec, polaire vire large. C'est exactement le caractere
+ * qu'on veut faire sentir.
+ *
+ * @param {{ang:number, omega:number}} o  objet porteur du cap
+ * @param {number} dt
+ * @param {number} cible   cap vise, en radians
+ * @param {number} tau     constante de temps, en secondes
+ * @param {number} omegaMax vitesse angulaire maximale, en rad/s
+ * @returns {number} la vitesse angulaire apres coup, en rad/s
+ */
+export function girer(o, dt, cible, tau, omegaMax) {
+  const t = Math.max(tau, 0.02);
+  const k = 1 / (t * t);              // raideur
+  const c = 2 / t;                    // amortissement critique
+  /* Sous-pas si l'image est longue : un ressort raide integre en Euler
+     explose au-dela de dt ~ tau/2, et la cellule se met a tourner sur
+     elle-meme. Ca arrive vraiment sur un onglet qui reprend la main. */
+  const n = Math.min(4, Math.max(1, Math.ceil(dt / (t * 0.5))));
+  const h = dt / n;
+  for (let i = 0; i < n; i++) {
+    const err = angDelta(o.ang, cible);
+    o.omega += (err * k - o.omega * c) * h;
+    if (o.omega > omegaMax) o.omega = omegaMax;
+    else if (o.omega < -omegaMax) o.omega = -omegaMax;
+    o.ang += o.omega * h;
+  }
+  /* On garde le cap borne, sinon il derive vers des valeurs enormes sur un
+     run de douze minutes et la precision flottante se degrade. */
+  if (o.ang > Math.PI) o.ang -= TAU;
+  else if (o.ang < -Math.PI) o.ang += TAU;
+  return o.omega;
+}
+
 /** Formate un temps en m:ss. */
 export function mmss(sec) {
   const s = Math.max(0, Math.floor(sec));

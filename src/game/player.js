@@ -7,7 +7,21 @@
 import { computeStats } from './stats.js';
 import { EVOLUTIONS, EVO_BY_ID, rarityWeight } from '../data/evolutions.js';
 import { XP_FOR_LEVEL } from '../data/matrices.js';
-import { clamp, weightedPick, TAU } from '../core/util.js';
+import { clamp, weightedPick, girer, angDelta, TAU } from '../core/util.js';
+
+/**
+ * Part du cap du CORPS dans la direction de poussee, de 0 a 1.
+ *
+ * A zero, la cellule glisse instantanement dans la direction demandee et
+ * l'orientation n'est qu'une decoration : le corps pivote pendant que la
+ * trajectoire, elle, tourne au carre. Ca se lit comme une patinoire.
+ * A un, on ne pousse QUE selon l'axe du corps — physiquement juste pour un
+ * flagelle, mais on perd le controle fin de l'esquive.
+ *
+ * A un demi, la trajectoire s'incurve visiblement sans qu'on cesse d'aller
+ * ou on demande. Valeur retenue apres mesure au pilote automatique.
+ */
+const ALIGNEMENT = 0.5;
 
 export class Player {
   constructor(game) {
@@ -15,6 +29,8 @@ export class Player {
     this.x = 0; this.y = 0;
     this.vx = 0; this.vy = 0;
     this.ang = -Math.PI / 2;
+    this.angCible = this.ang;
+    this.omega = 0;
     this.phase = 0;
     this.taken = new Map();
     this.level = 1;
@@ -46,6 +62,9 @@ export class Player {
        a-coup d'entree fasse claquer l'animation. */
     this.drive = 0;
     this.bend = 0;
+    /* Inclinaison de virage : la queue chasse vers l'exterieur du tournant,
+       comme chez un poisson. Derivee de la vitesse angulaire. */
+    this.lean = 0;
   }
 
   recompute() {
@@ -211,8 +230,37 @@ export class Player {
     const maxSpeed = this.stats.speed * game.playerSlowFactor;
     const tau = maxSpeed / Math.max(1, this.stats.accel);
     const k = 1 - Math.exp(-dt / Math.max(tau, 0.016));
-    const tvx = move.x * maxSpeed;
-    const tvy = move.y * maxSpeed;
+
+    /* --- giration ------------------------------------------------------ */
+    /* Le cap suit l'intention avec la MEME constante de temps que la
+       translation : une cellule agile vire sec, une cellule lancee vire
+       large. La flagellation pilote donc les deux d'un coup. */
+    const intention = Math.hypot(move.x, move.y);
+    if (intention > 0.02) this.angCible = Math.atan2(move.y, move.x);
+    const omegaMax = clamp(1.15 / Math.max(tau, 0.05), 2.4, 11);
+    girer(this, dt, this.angCible, Math.max(tau, 0.05), omegaMax);
+    /* Ce qui sert au rendu : la queue chasse d'autant plus que ca tourne. */
+    const leanCible = clamp(this.omega / omegaMax, -1, 1);
+    this.lean += (leanCible - this.lean) * Math.min(1, dt * 12);
+
+    /* --- poussee ------------------------------------------------------- */
+    /* Un flagelle pousse selon l'AXE DU CORPS. On melange donc la direction
+       demandee et celle du corps : la trajectoire s'incurve au lieu de
+       tourner au carre, et pousser de travers coute de la vitesse. */
+    let tvx = 0, tvy = 0;
+    if (intention > 0.02) {
+      const dx = move.x / intention, dy = move.y / intention;
+      const bx = Math.cos(this.ang), by = Math.sin(this.ang);
+      let px = dx * (1 - ALIGNEMENT) + bx * ALIGNEMENT;
+      let py = dy * (1 - ALIGNEMENT) + by * ALIGNEMENT;
+      const pl = Math.hypot(px, py);
+      if (pl > 1e-4) { px /= pl; py /= pl; }
+      /* On ne pousse pas de travers : le rendement tombe quand le corps
+         n'est pas encore aligne sur l'intention. */
+      const rendement = 0.5 + 0.5 * Math.max(0, dx * bx + dy * by);
+      const v = maxSpeed * Math.min(1, intention) * rendement;
+      tvx = px * v; tvy = py * v;
+    }
     this.vx += (tvx - this.vx) * k;
     this.vy += (tvy - this.vy) * k;
 
@@ -220,7 +268,6 @@ export class Player {
     this.y += this.vy * dt;
 
     const moving = Math.hypot(this.vx, this.vy) > maxSpeed * 0.12;
-    if (move.x || move.y) this.ang = Math.atan2(move.y, move.x);
 
     /* Effort de nage : l'ENTREE, pas la vitesse. Une cellule qui pousse
        contre un globule bat des flagelles sans avancer, et c'est ce qu'on
