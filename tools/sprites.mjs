@@ -198,10 +198,42 @@ for (const file of all) {
     continue;
   }
 
-  const res = await page.evaluate(async ([url, tw, th]) => {
+  const res = await page.evaluate(async ([url, cible]) => {
     const img = new Image();
     img.src = url;
     await img.decode();
+
+    /* RECADRAGE SUR LE CONTENU, avant toute reduction.
+       La taille cible veut dire "cet organisme fait tant de pixels de large",
+       et ca parle de l'ORGANISME, pas de la toile qui l'entoure. Sans ce
+       recadrage on reduit la marge en meme temps que le sujet : mesure sur
+       Penicillium, un contenu de 23x17 dans une toile de 32x32, soit une
+       moisissure a peine plus grosse que le joueur alors qu'elle doit faire
+       figure de baleine. Le bake laisse deja 30 % de marge, le generateur en
+       rajoute, et les deux se multiplient. */
+    const plein = document.createElement('canvas');
+    plein.width = img.width; plein.height = img.height;
+    const gp = plein.getContext('2d');
+    gp.drawImage(img, 0, 0);
+    const src = gp.getImageData(0, 0, img.width, img.height).data;
+    let x0 = img.width, y0 = img.height, x1 = -1, y1 = -1;
+    for (let y = 0; y < img.height; y++) {
+      for (let x = 0; x < img.width; x++) {
+        if (src[(y * img.width + x) * 4 + 3] < 110) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+    if (x1 < 0) return null;
+    const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+    /* On garde les PROPORTIONS : un bacille reste un bacille, il ne devient
+       pas carre sous pretexte que sa cible l'est. */
+    const k = cible / Math.max(cw, ch);
+    const tw = Math.max(3, Math.round(cw * k));
+    const th = Math.max(3, Math.round(ch * k));
+
     /* Reduction par moyenne de surface : a ces tailles, un simple
        echantillonnage perdrait la moitie des details. */
     const cv = document.createElement('canvas');
@@ -209,7 +241,7 @@ for (const file of all) {
     const g = cv.getContext('2d');
     g.imageSmoothingEnabled = true;
     g.imageSmoothingQuality = 'high';
-    g.drawImage(img, 0, 0, tw, th);
+    g.drawImage(img, x0, y0, cw, ch, 0, 0, tw, th);
     const d = g.getImageData(0, 0, tw, th).data;
 
     /* Palette : on quantifie grossierement, on compte, on garde les plus
@@ -239,8 +271,8 @@ for (const file of all) {
     for (let i = 0; i < tw * th; i++) {
       idx.push(d[i * 4 + 3] < 110 ? 0 : nearest(d[i * 4], d[i * 4 + 1], d[i * 4 + 2]));
     }
-    return { cols, idx, used: cols.length };
-  }, [`/assets/sprites/${file}`, target[0], target[1]]);
+    return { cols, idx, used: cols.length, w: tw, h: th };
+  }, [`/assets/sprites/${file}`, Math.max(target[0], target[1])]);
 
   if (!res) { console.warn(`  ! ${file} : entierement transparent, ignore`); continue; }
 
@@ -248,11 +280,11 @@ for (const file of all) {
   let data = '';
   for (const v of res.idx) data += v === 0 ? '.' : ALPHABET[v];
   sprites[id] = {
-    w: target[0], h: target[1], ox: target[0] / 2, oy: target[1] / 2,
+    w: res.w, h: res.h, ox: res.w / 2, oy: res.h / 2,
     palette: [0, ...res.cols.map(([r, g, b]) => ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0)],
     data,
   };
-  console.log(`  ${id.padEnd(16)} ${target[0]}x${target[1]}  ${res.used} couleurs`);
+  console.log(`  ${id.padEnd(16)} ${res.w}x${res.h}  ${res.used} couleurs`);
 }
 
 /* Liste des vignettes de cartes disponibles. Sans elle, l'interface

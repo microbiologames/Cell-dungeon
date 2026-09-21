@@ -314,18 +314,24 @@ export const KOMBUCHA_MOBS = [
 
 /* La faune neutre du kombucha, ce sont les MOISISSURES FILAMENTEUSES. Elles
    sont enormes, lentes, majestueuses, et elles ne vous veulent rien — des
-   baleines. Elles occupent le champ et il faut faire avec. */
+   baleines. Elles occupent le champ et il faut faire avec.
+
+   Leur rayon est volontairement TRES superieur a celui des mobs : une tete
+   conidienne d'Aspergillus fait quelques centaines de micrometres contre un
+   ou deux pour une bacterie. On compresse enormement, comme partout dans le
+   jeu, mais un rapport de trois a quatre est le minimum pour que la baleine
+   se lise comme une baleine et pas comme un gros mob. */
 export const KOMBUCHA_NEUTRALS = [
   M({
     id: 'aspergillus', label: 'ASPERGILLUS', role: 'neutral', cost: 0,
     kind: 'conidiophore', mot: 'brown', gram: 'fungi', neutral: true, obstacle: true,
-    hp: 900, speed: 4, contact: 0, radius: 17, aa: 10, zSpeed: 0, zWander: true, zAmp: 0.32,
+    hp: 900, speed: 4, contact: 0, radius: 22, aa: 10, zSpeed: 0, zWander: true, zAmp: 0.32,
     note: "Tete conidienne en aspergillum : un stipe dresse, une vesicule globuleuse, et des chainettes de conidies rayonnantes. Moisissure de surface d'une jarre ouverte. Elle ne s'en prend a personne.",
   }),
   M({
     id: 'penicillium', label: 'PENICILLIUM', role: 'neutral', cost: 0,
     kind: 'penicille', mot: 'brown', gram: 'fungi', neutral: true, obstacle: true,
-    hp: 820, speed: 5, contact: 0, radius: 15, aa: 9, zSpeed: 0, zWander: true, zAmp: 0.32,
+    hp: 820, speed: 5, contact: 0, radius: 20, aa: 9, zSpeed: 0, zWander: true, zAmp: 0.32,
     note: "Son nom vient du pinceau : le conidiophore se ramifie en metules puis en phialides, d'ou partent les chainettes de conidies. Contaminant classique des milieux sucres et acides.",
   }),
 ];
@@ -401,14 +407,14 @@ export const LEVAIN_NEUTRALS = [
   M({
     id: 'grandelevure', label: 'AMAS DE LEVURES', role: 'neutral', cost: 0,
     kind: 'amas', mot: 'brown', gram: 'fungi', neutral: true, obstacle: true,
-    hp: 700, speed: 6, contact: 0, radius: 14, aa: 8, zSpeed: 0, zWander: true, zAmp: 0.30,
+    hp: 700, speed: 6, contact: 0, radius: 18, aa: 8, zSpeed: 0, zWander: true, zAmp: 0.30,
     note: "Un bourgeonnement qui n'a pas separe : les cellules filles restent accrochees et forment un amas pseudomycelien. Massif, lent, et parfaitement indifferent.",
   }),
   M({
     id: 'penicilliumLev', label: 'PENICILLIUM', role: 'neutral', cost: 0,
     kind: 'penicille', mot: 'brown', gram: 'fungi', neutral: true, obstacle: true,
     spriteId: 'penicillium',
-    hp: 820, speed: 5, contact: 0, radius: 15, aa: 9, zSpeed: 0, zWander: true, zAmp: 0.32,
+    hp: 820, speed: 5, contact: 0, radius: 20, aa: 9, zSpeed: 0, zWander: true, zAmp: 0.32,
     note: "La moisissure qui finit par gagner un levain neglige. Conidiophore en pinceau, chainettes de conidies.",
   }),
 ];

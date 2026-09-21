@@ -153,6 +153,21 @@ structure interne qui décide, pas le nombre de pixels disponibles.
 La toile de départ d'une espèce de la conduite se bake exactement comme celle
 du lait cru.
 
+### L'import RECADRE sur le contenu
+
+La taille cible veut dire « cet organisme fait tant de pixels de large », et
+ça parle de **l'organisme**, pas de la toile qui l'entoure. L'importateur
+recadre donc sur la boîte englobante opaque avant de réduire, en conservant
+les proportions (un bacille reste un bacille).
+
+Mesure qui a motivé le correctif : `penicillium` sortait avec **23 × 17 px de
+contenu dans une toile de 32 × 32**, soit une moisissure à peine plus grosse
+que le joueur alors qu'elle doit faire figure de baleine. Deux marges se
+multipliaient : le `bake` laisse 30 % de marge, et le générateur en rajoute.
+
+Conséquence : les sprites ne sont plus carrés. `listeria` fait 34 × 19,
+ce qui est exactement ce qu'on veut pour un bacille.
+
 ### `assets/sprites/` se CURE, ne se déverse pas
 
 `bake` écrit désormais dans `assets/reference/bake/`. On **copie à la main**
