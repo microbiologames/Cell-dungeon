@@ -12,3 +12,6 @@ package-lock.json
 !docs/**/*.png
 !assets/**/*.png
 .DS_Store
+
+# copie autonome du studio, fabriquee par tools/son-studio-publier.mjs
+.studio-publie/

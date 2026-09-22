@@ -104,6 +104,7 @@ d'exception : elle peut très bien ne produire que du silence.
 npm run son:check      # rend hors ligne et MESURE les mappages
 npm run son:derive     # 60 s a etat fige : detecte une accumulation
 npm run son:studio     # conduit le studio dans un vrai navigateur
+npm run son:publier    # fabrique la copie hebergee et la conduit aussi
 node tools/son-extrait.mjs milk 34   # rend un WAV, pour écouter
 ```
 
@@ -357,6 +358,28 @@ allumé en permanence pendant qu'on règle.
   aussi le contexte à une intensité **représentative** (0,45) plutôt qu'à zéro :
   un stage à l'arrêt n'a plus que sa nappe, un état que le jeu ne connaît que
   pendant les premières secondes d'une partie.
+
+### Publier le studio
+
+`tools/son-studio.html` importe le moteur par des chemins relatifs (`../src/…`).
+Une page **hébergée** est servie à la racine : il faut donc en fabriquer une
+variante — et cette variante n'est plus celle que `son:studio` teste.
+
+```
+npm run son:publier      # fabrique la copie autonome ET la conduit dans un navigateur
+```
+
+Deux règles, payées cher :
+
+- **Les modules sont publiés sous un préfixe versionné** (`v3/src/…`), changé à
+  chaque publication. Sinon un navigateur sert les modules de la version
+  précédente **depuis son cache**, à côté du nouveau `index.html`. Un import
+  nommé manquant fait échouer **tout le graphe de modules avant sa première
+  ligne** : aucun panneau construit, aucun son, et rien dans le dépôt qui
+  cloche. C'est arrivé, et le banc du dépôt était vert pendant ce temps.
+- **La copie fabriquée est conduite dans un vrai navigateur**, pas seulement
+  celle du dépôt. Vérifier la page qu'on garde n'est pas vérifier la page
+  qu'on livre.
 
 ### Adopter
 
