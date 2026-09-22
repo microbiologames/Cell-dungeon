@@ -123,7 +123,10 @@ dit(vu.ambiances === 5, `les cinq ambiances ont leur onglet (${vu.ambiances})`);
 dit(vu.champs === 7, `les sept champs d ambiance ont leur curseur (${vu.champs})`);
 dit(vu.voix === 9, `les neuf voix du rack ont leur onglet (${vu.voix})`);
 dit(vu.patch > 0, `le panneau de voix se construit (${vu.patch} curseurs)`);
-dit(vu.code.startsWith('CD2-'), `le code se calcule (${vu.code.slice(0, 24)}…)`);
+/* On ne fige pas la version du code ici : elle bouge a chaque fois que le
+   schema gagne un champ, et un banc qui la fige echoue pour une raison qui
+   n'a rien a voir avec ce qu'il verifie. */
+dit(/^CD\d+-[a-z]+-[0-9A-Z]{40,}$/.test(vu.code), `le code se calcule (${vu.code.slice(0, 26)}…)`);
 /* Le bouton bascule sur « Couper » une fois le moteur demarre : c'est la
    preuve qu'`init()` a abouti, et pas seulement que la page s'affiche. */
 dit(vu.transport === 'Couper', `le moteur demarre sur un geste (bouton : ${vu.transport})`);
