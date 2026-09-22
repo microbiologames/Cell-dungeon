@@ -19,7 +19,12 @@
    D'ou les deux regles que cet outil applique :
 
      1. les modules sont publies sous un prefixe VERSIONNE (`v3/src/...`), si
-        bien qu'un cache ne peut pas servir les anciens a leur place ;
+        bien qu'un cache ne peut pas servir les anciens a leur place — mais
+        les ANCIENS PREFIXES RESTENT EN LIGNE. Les supprimer a casse la page
+        une deuxieme fois, en sens inverse : un navigateur qui garde en
+        cache l'ancien `index.html` y cherche ses modules, et ne trouve
+        plus rien. Une panne de cache reparee par une autre panne de cache.
+        Ils pesent quelques dizaines de kilo-octets : on les garde ;
      2. la copie fabriquee est CONDUITE dans un vrai navigateur avant d'etre
         publiee, et pas seulement celle du depot.
 
@@ -134,4 +139,7 @@ dit(soucis.length === 0, soucis.length ? soucis.join(' | ') : 'aucune erreur, au
 console.log(`\nA publier : index.html + ${MODULES.map((m) => `${PREFIXE}/${m}`).join(', ')}`);
 console.log('Changer de prefixe a chaque publication : un cache ne peut pas servir');
 console.log("d'anciens modules a la place des nouveaux s'ils n'ont pas le meme chemin.");
+console.log('Mais GARDER les anciens prefixes en ligne : un navigateur qui a mis');
+console.log("l'ancien index.html en cache y cherche ses modules, et une suppression");
+console.log('le laisse avec un graphe de modules introuvable — donc une page morte.');
 process.exit(verdicts.every(Boolean) ? 0 : 1);

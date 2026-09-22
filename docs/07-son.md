@@ -446,6 +446,11 @@ Deux règles, payées cher :
   nommé manquant fait échouer **tout le graphe de modules avant sa première
   ligne** : aucun panneau construit, aucun son, et rien dans le dépôt qui
   cloche. C'est arrivé, et le banc du dépôt était vert pendant ce temps.
+- **Mais les anciens préfixes restent en ligne.** Les supprimer a cassé la page
+  une deuxième fois, en sens inverse : un navigateur qui garde en cache
+  l'**ancien `index.html`** y cherche ses modules, et ne trouve plus rien.
+  Une panne de cache réparée par une panne de cache symétrique. Quelques
+  dizaines de kilo-octets par version suffisent à l'éviter — on les garde.
 - **La copie fabriquée est conduite dans un vrai navigateur**, pas seulement
   celle du dépôt. Vérifier la page qu'on garde n'est pas vérifier la page
   qu'on livre.
