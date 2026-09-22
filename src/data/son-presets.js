@@ -32,7 +32,7 @@
 
 import { VOIX, CHAMPS_PAR_GENRE, RACKS } from './son-instruments.js';
 
-export { VOIX, CHAMPS_PAR_GENRE, RACKS } from './son-instruments.js';
+export { VOIX, CHAMPS_PAR_GENRE, RACKS, MACHINES, SENS } from './son-instruments.js';
 
 /** Demi-tons d'une gamme mineure naturelle et de ses variantes. */
 export const GAMMES = {
@@ -110,7 +110,7 @@ export const NOMS = {
    haute et on les recopie a la main — un 0 qu'on prend pour un O coute une
    session d'ecoute. */
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-const VERSION = 'CD2';
+const VERSION = 'CD3';
 const BITS_GRAINE = 16;
 const BITS_SOMME = 5;
 const BITS_DESACCORD = 5;
@@ -162,15 +162,28 @@ function valeurDe(ch, n) {
   return Math.round(Math.max(ch.min, Math.min(ch.max, v)) * 1000) / 1000;
 }
 
+/* Champs apparus avec CD3 : le modele de synthese et ses deux boutons de
+   caractere. Ils sont AJOUTES EN FIN de chaque liste, si bien qu'en les
+   retirant on retrouve exactement l'ordre des bits de CD2. C'est ce qui
+   permet de relire les anciens codes sans garder une copie figee du
+   schema. */
+const NOUVEAUX_CD3 = new Set(['modele', 'timbre1', 'timbre2']);
+
 /** Tous les champs du code, dans l'ordre : ambiance puis rack. */
-function champsDuCode() {
+function champsDuCode(sansCD3 = false) {
   const l = CHAMPS.map((ch) => ({ ch, voix: null }));
-  for (const v of VOIX) for (const ch of CHAMPS_PAR_GENRE[v.genre]) l.push({ ch, voix: v.cle });
+  for (const v of VOIX) {
+    for (const ch of CHAMPS_PAR_GENRE[v.genre]) {
+      if (sansCD3 && NOUVEAUX_CD3.has(ch.cle)) continue;
+      l.push({ ch, voix: v.cle });
+    }
+  }
   return l;
 }
 
-const BITS_UTILES = champsDuCode().reduce((a, { ch }) => a + ch.bits, 0)
+const taille = (sansCD3) => champsDuCode(sansCD3).reduce((a, { ch }) => a + ch.bits, 0)
   + BITS_DESACCORD + BITS_GRAINE + BITS_SOMME;
+const BITS_UTILES = taille(false);
 const LONGUEUR = Math.ceil(BITS_UTILES / 5);
 
 /**
@@ -241,7 +254,10 @@ export function decoderCode(code) {
   const ambiance = m[1].toLowerCase();
   if (!PRESETS[ambiance]) return null;
   if (m[0] === 'CD1') return depuisCD1(ambiance, m[2]);
-  if (m[0] !== VERSION || m[2].length !== LONGUEUR) return null;
+  const ancien = m[0] === 'CD2';
+  if (!ancien && m[0] !== VERSION) return null;
+  const utiles = taille(ancien);
+  if (m[2].length !== Math.ceil(utiles / 5)) return null;
   const bits = [];
   for (const c of m[2]) {
     const v = ALPHABET.indexOf(c);
@@ -251,16 +267,21 @@ export function decoderCode(code) {
   let pos = 0;
   const tirer = (n) => { let v = 0; for (let i = 0; i < n; i++) v = (v << 1) | bits[pos++]; return v; };
   const preset = {};
-  const rack = {};
-  for (const v of VOIX) rack[v.cle] = {};
-  for (const { ch, voix } of champsDuCode()) {
+  /* On part du rack adopte : un code ancien ne porte pas les champs
+     apparus depuis, et il faut bien leur donner une valeur. */
+  const rack = JSON.parse(JSON.stringify(RACKS[ambiance]));
+  for (const { ch, voix } of champsDuCode(ancien)) {
     const val = valeurDe(ch, tirer(ch.bits));
     if (voix) rack[voix][ch.cle] = val; else preset[ch.cle] = val;
   }
   rack.desaccord = tirer(BITS_DESACCORD);
   const graine = tirer(BITS_GRAINE);
   const annonce = tirer(BITS_SOMME);
-  if (sommeDe(bits, BITS_UTILES - BITS_SOMME) !== annonce) return null;
+  if (sommeDe(bits, utiles - BITS_SOMME) !== annonce) return null;
+  /* Les bits de remplissage doivent etre nuls. Sans cette verification, une
+     faute de frappe sur le DERNIER caractere passe inapercue : elle ne
+     touche ni les donnees ni la somme, seulement le bourrage. */
+  for (let i = utiles; i < bits.length; i++) if (bits[i]) return null;
   return { ambiance, preset, rack, graine };
 }
 

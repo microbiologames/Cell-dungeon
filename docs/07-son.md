@@ -268,14 +268,54 @@ Trois choses, et il ne faut pas les confondre :
 |---|---|---|---|
 | **Ambiance** | Tempo, tonique, mode, grain, réverbe, écho, densité mélodique. Ce qui se dit d'un morceau **sans parler de ses instruments** | `son-presets.js` | Non. C'est l'**identité** |
 | **Rack** | Le **son de chaque voix** : onde, filtre, résonance, enveloppe, niveau | `son-instruments.js` | Non |
-| **Graine** | Quelle note l'ostinato tire, où tombe la variation, quelle charleston passe | — | Oui. C'est l'**interprétation** |
+| **Graine** | **Compose** la progression d'accords, le motif de l'ostinato et la phrase du lead — puis pilote les densités | — | Oui. C'est l'**interprétation** |
 
 Le **code** emballe les trois : `CD2-milk-F9SB86M8F7PYB60CD3…`. Les trois, parce
 qu'on les a entendus ensemble.
 
+### La graine compose, elle ne saupoudre pas
+
+**Défaut vécu, signalé à l'oreille** : « en changeant la graine la mélodie ne
+change pas trop ». C'était exact. La progression d'accords et le motif de
+l'ostinato étaient des **constantes** du moteur, et le lead tirait une note au
+hasard à chaque phrase. La graine ne changeait donc ni l'harmonie, ni le motif,
+ni aucune forme mémorisable — seulement des densités de charleston et de clap.
+
+Et un tirage par note ne fait pas une mélodie : il fait une suite de notes sans
+forme, qu'on n'a aucune raison de retenir.
+
+La graine compose désormais trois choses, depuis un **flux de hasard séparé** de
+celui du jeu — sinon la matière changerait selon le nombre de charlestons déjà
+jouées, et deux parties de même graine ne se ressembleraient plus :
+
+- **la progression** : quatre degrés, ouverte sur la tonique, sans répétition
+  d'un accord au suivant ;
+- **le motif de l'ostinato** : huit pas, avec retour sur un pilier à chaque
+  temps fort et une palette réduite. Un motif tiré uniformément sonne comme une
+  erreur, pas comme une boucle — or il doit tenir douze minutes ;
+- **la phrase du lead** : quatre à six degrés, **parcourus dans l'ordre**. C'est
+  ce qui la rend entêtante ; le hasard décide seulement si elle sonne ou si elle
+  se tait.
+
+Le squelette rythmique, lui, ne bouge pas : c'est lui qui fait que la bande son
+est « toujours chez elle ».
+
+**Mesure**, écart quadratique entre deux rendus rapporté au niveau, batterie
+coupée puisqu'elle est volontairement invariante :
+
+| | Deux graines |
+|---|---|
+| Avant (constantes) | ×0,31 |
+| Après (composée) | ×0,97 |
+
+Le banc l'assert désormais sur trois graines, à la fois sur la matière composée
+et sur le signal rendu — composer autre chose sans que ça s'entende serait le
+même défaut sous un autre nom.
+
 ### Le rack : neuf voix, un synthétiseur soustractif ordinaire
 
-Chaque voix mélodique — nappe, sub, basse, ostinato, lead — expose une **onde**
+Chaque voix mélodique — nappe, sub, basse, ostinato, lead — expose un **modèle
+de synthèse**, une **onde**
 (sinus, triangle, scie, impulsions 8/12,5/25/33 %, carré), un **filtre**
 (passe-bas, passe-bande, passe-haut) avec coupure et résonance, une
 **enveloppe** ADSR et un **niveau**. La grosse caisse a ses deux hauteurs et
@@ -289,6 +329,35 @@ garde.
 Chaque ambiance a **son** rack — une matrice a sa palette sonore comme elle a
 sa palette visuelle — et le studio sait recopier un rack vers les autres quand
 on ne veut pas tout refaire.
+
+#### Le modèle de synthèse, et les machines
+
+Un filtre et une enveloppe ne transforment pas un oscillateur en cloche, ni du
+bruit en charleston. Chaque voix a donc un **modèle** — l'architecture de
+synthèse elle-même :
+
+| Genre | Modèles |
+|---|---|
+| Mélodique | `soustractif` · `super` (unisson désaccordé) · `fm` (modulation de fréquence) · `acide` (le filtre a sa propre enveloppe) |
+| Percussion au bruit | `bruit` · `taps` (rebonds) · `caisse` (bruit + deux sinus accordés) · `metal` (six carrés inharmoniques) |
+| Grosse caisse | `propre` · `saturé`, plus un clic d'attaque dosable |
+
+Deux **boutons de caractère** par voix, dont le sens dépend du modèle : écart
+d'unisson et niveau pour `super`, rapport et profondeur pour `fm`, hauteur et
+durée du balayage pour `acide`, écart entre rebonds pour `taps`. Le studio
+affiche la légende du modèle courant — sans elle ce sont deux curseurs
+anonymes.
+
+Au-dessus, un catalogue de **machines** : des timbres tout faits à choisir
+avant de régler. Sept pour les voix mélodiques, sept pour les percussions au
+bruit, quatre pour la grosse caisse. Une machine ne touche **pas** au niveau de
+la voix — changer d'instrument ne doit pas faire sauter l'équilibre du mix.
+
+Leurs noms décrivent un **caractère**, pas une marque. Tout est synthétisé ici,
+rien n'est échantillonné : appeler une de ces voix du nom d'une machine réelle
+serait une promesse qu'elle ne tient pas. Les repères historiques sont dans
+l'aide, là où ils servent — « la grosse caisse des boîtes analogiques de 1980 »
+pour le sinus long, « celle de 1983, taillée pour la piste » pour la claquante.
 
 **Les valeurs ne sont pas continues** : chaque champ pioche dans une table.
 Une table de 16 ou 32 entrées tient sur quatre ou cinq bits exactement, et une

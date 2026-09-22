@@ -13,6 +13,7 @@
      - que la MISE AU POINT ferme bien le passe-bas master (moins d'aigu) ;
      - que le lobby et un stage ne sonnent pas pareil ;
      - que la REVERBE est une reverbe et non un resonateur ;
+     - que la GRAINE change reellement la musique, et pas seulement son grain ;
      - qu'AUCUNE raie ne domine son voisinage, c'est-a-dire qu'on n'a pas
        fabrique un sifflement. Ce defaut-la est arrive pour de vrai : une
        nappe en dent de scie dont le passe-bas s'ouvrait a 2,2 kHz, envoyee
@@ -275,7 +276,66 @@ const res = await pg.evaluate(async () => {
     return { rt60, monte, bosse: tri[tri.length - 1] - tri[tri.length >> 1] };
   }
 
+  /**
+   * La graine doit donner un MORCEAU different, pas le meme morceau joue
+   * autrement.
+   *
+   * Defaut vecu : la progression d'accords et le motif de l'ostinato etaient
+   * des constantes, et le lead tirait une note au hasard a chaque phrase.
+   * Changer de graine ne changeait donc ni l'harmonie, ni le motif, ni
+   * aucune forme memorisable — seulement des densites. On le verifie sur la
+   * matiere composee ET sur le signal rendu : composer autre chose sans que
+   * ca s'entende serait le meme defaut sous un autre nom.
+   */
+  async function graines() {
+    const mat = [];
+    for (const g of [0x5eed, 0xbeef, 0x1234]) {
+      const s = new mod.Son();
+      s.graine(g);
+      mat.push(JSON.stringify(s.melodie));
+    }
+    const distinctes = new Set(mat).size;
+
+    /* On rend SANS BATTERIE. Le squelette rythmique ne depend pas de la
+       graine — c'est voulu, c'est lui qui fait que la bande son est
+       « toujours chez elle » — et il porte l'essentiel de l'energie. Le
+       garder dans la mesure revient a diluer ce qu'on cherche : mesure a
+       l'appui, x0,20 contre x0,75 sur le mix complet, x0,34 contre x1,17
+       une fois la batterie coupee. */
+    const rendus = [];
+    for (const g of [0x5eed, 0xbeef, 0x1234]) {
+      const SR = 44100, duree = 6;
+      const ctx = new OfflineAudioContext(1, SR * duree, SR);
+      const s = new mod.Son();
+      s.graine(g);
+      s.init(ctx);
+      s.appliquerAmbiance('milk', true);
+      s.intensite = 0.8; s.danger = 0; s.miseAuPoint = 0;
+      s.majCouches();
+      s.couches.break.gain.cancelScheduledValues(0);
+      s.couches.break.gain.setValueAtTime(0.00001, 0);
+      for (let t = 0; t < duree; t += 0.05) s.avancerJusqua(t);
+      rendus.push((await ctx.startRendering()).getChannelData(0));
+    }
+    /* Ecart quadratique, rapporte au niveau, MOYENNE sur les trois paires :
+       deux graines peuvent tomber sur des motifs voisins par hasard, et une
+       seule paire ferait un verdict qui clignote. */
+    const ecarts = [];
+    for (const [i, j] of [[0, 1], [0, 2], [1, 2]]) {
+      let dif = 0, ref = 0;
+      for (let k = 0; k < rendus[i].length; k++) {
+        const d = rendus[i][k] - rendus[j][k];
+        dif += d * d;
+        ref += rendus[i][k] * rendus[i][k];
+      }
+      ecarts.push(Math.sqrt(dif / Math.max(1e-20, ref)));
+    }
+    const ecart = ecarts.reduce((a, v) => a + v, 0) / ecarts.length;
+    return { distinctes, ecart };
+  }
+
   const out = [];
+  out.push({ nom: 'graines', ...await graines() });
   out.push({ nom: 'reverbe', ...await reverbATester() });
   out.push(await rendre('lobby', (s) => {
     s.appliquerAmbiance('ambiant', true);
@@ -307,7 +367,10 @@ const res = await pg.evaluate(async () => {
   return out;
 });
 
+const gr = res.shift();
 const rev = res.shift();
+console.log('graines : ' + gr.distinctes + '/3 matieres melodiques distinctes'
+  + ' | ecart entre deux rendus x' + gr.ecart.toFixed(2));
 console.log('reverbe seule : RT60', rev.rt60 === null || !isFinite(rev.rt60) ? 'INFINI' : rev.rt60.toFixed(2) + ' s',
   '| bosse de bande +' + rev.bosse.toFixed(1) + ' dB',
   '|', rev.monte ? 'LA QUEUE MONTE' : 'la queue decroit');
@@ -345,6 +408,12 @@ dit(par.lobby.bas < par['lait plein'].bas,
 dit(!rev.monte, 'la queue de reverbe decroit');
 dit(isFinite(rev.rt60) && rev.rt60 > 0.5 && rev.rt60 < 3.5,
   `la reverbe a une duree de piece (RT60 ${isFinite(rev.rt60) ? rev.rt60.toFixed(2) + ' s' : 'INFINI'})`);
+dit(gr.distinctes === 3, `trois graines donnent trois musiques (${gr.distinctes}/3)`);
+/* Seuil 0,5. Mesure des deux cotes, hors batterie : avec les constantes
+   d'avant, la moyenne des trois paires tourne autour de 0,31 ; avec la
+   matiere composee, autour de 0,88. Le seuil est entre les deux regimes et
+   loin des deux. */
+dit(gr.ecart > 0.5, `et ca s entend (ecart moyen x${gr.ecart.toFixed(2)})`);
 dit(rev.bosse < 6,
   `la reverbe colore, elle ne resonne pas (bosse +${rev.bosse.toFixed(1)} dB)`);
 /* Seuil 9. Mesure : avec la nappe fautive, x30 au lobby et x38 sur le lait

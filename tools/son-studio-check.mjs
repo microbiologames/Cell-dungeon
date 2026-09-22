@@ -139,13 +139,13 @@ const codeSolo = await pg.locator('#codeCourant').textContent();
 dit(codeSolo === code2, 'le solo ne contamine pas le code : ce n est pas un reglage');
 await pg.click('#solo');
 
-await pg.fill('#charger', 'CD2-pipe-FRRH68M8F7PYB60CD3BBCJ4SMJHQ61J4WT8D36P2NCH4DCK6QCM495QJ3JYXQW');
+await pg.fill('#charger', 'CD3-pipe-FRRH68M8F7PYB6000CD3BBC00J4SMJHG0761J4WT008D36P2N00CH4D069KB0B51204PY8075XVC0');
 await pg.click('#btnCharger');
 await pg.waitForTimeout(250);
 const apresCharge = (await pg.locator('#codeCourant').textContent()).trim();
-dit(apresCharge === 'CD2-PIPE-FRRH68M8F7PYB60CD3BBCJ4SMJHQ61J4WT8D36P2NCH4DCK6QCM495QJ3JYXQW'.replace('PIPE', 'pipe'), 'un code se recharge tel quel');
+dit(apresCharge === 'CD3-pipe-FRRH68M8F7PYB6000CD3BBC00J4SMJHG0761J4WT008D36P2N00CH4D069KB0B51204PY8075XVC0', 'un code se recharge tel quel');
 
-await pg.fill('#charger', 'CD2-pipe-FRRH68M8F7PYB60CD3BBCJ4SMJHQ61J4WT8D36P2NCH4DCK6QCM495QJ3JYXQX');
+await pg.fill('#charger', 'CD3-pipe-FRRH68M8F7PYB6000CD3BBC00J4SMJHG0761J4WT008D36P2N00CH4D069KB0B51204PY8075XVC1');
 await pg.click('#btnCharger');
 await pg.waitForTimeout(150);
 dit((await pg.locator('#codeCourant').textContent()).trim() === apresCharge,
@@ -168,10 +168,37 @@ const verdict = (await pg.locator('#verdict').textContent()).trim();
 dit(!verdict.includes('sifflement.') || verdict.includes('pas sifflement'),
   `le detecteur en direct est d accord avec le banc : ${verdict}`);
 
+/* Les machines. C'est la reponse a « proposer du choix » : un catalogue de
+   timbres tout faits, qui doivent VRAIMENT changer le modele de synthese. */
+await pg.evaluate(() => document.querySelector('#voix .btn[data-cle="hat"]').click());
+const machines = await pg.locator('#machines .btn').count();
+dit(machines >= 4, `la charleston propose ${machines} machines`);
+await pg.evaluate(() => [...document.querySelectorAll('#machines .btn')]
+  .find((b) => b.textContent.includes('metallique')).click());
+await pg.waitForTimeout(200);
+/* On ne sait pas quelle ambiance est ouverte a ce stade du banc — un code a
+   ete charge entre-temps. On verifie donc qu'EXACTEMENT UNE l'a recu : c'est
+   aussi la garantie qu'une machine ne deborde pas sur les autres racks. */
+const touches = await pg.evaluate(async () => {
+  const m = await import('../src/data/son-presets.js');
+  return Object.entries(m.RACKS).filter(([, r]) => r.hat.modele === 'metal').map(([k]) => k);
+});
+dit(touches.length === 1,
+  `choisir une machine change le modele de synthese d une seule ambiance (${touches.join(',') || 'aucune'})`);
+
+/* La graine doit composer une musique, et la page doit le MONTRER : une
+   graine dont on ne voit pas l'effet ressemble a un bouton qui ne fait rien. */
+const avantMelodie = (await pg.locator('#compose').textContent()).trim();
+await pg.click('#tirer');
+await pg.waitForTimeout(200);
+const apresMelodie = (await pg.locator('#compose').textContent()).trim();
+dit(avantMelodie.startsWith('accords') && apresMelodie !== avantMelodie,
+  'une nouvelle graine compose une autre musique, et la page l affiche');
+
 await pg.click('#exporter');
 await pg.waitForTimeout(150);
 const sortie = await pg.locator('#sortie').inputValue();
-dit(sortie.includes('export const PRESETS') && sortie.includes('export const RACKS') && sortie.includes('CD2-'),
+dit(sortie.includes('export const PRESETS') && sortie.includes('export const RACKS') && sortie.includes('CD3-'),
   `l export rend un bloc reutilisable (${sortie.split('\n').length} lignes)`);
 
 dit(errs.length === 0, errs.length ? errs.join(' | ') : 'aucune erreur de page, aucune ressource manquante');

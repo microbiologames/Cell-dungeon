@@ -103,7 +103,6 @@ function enveloppe(param, t, attaque, chute, tenue, relache, pic) {
   param.setTargetAtTime(0.0001, t + attaque + chute, Math.max(0.01, relache / 3));
 }
 
-/** Un canal melodique permanent : un oscillateur, une enveloppe, un filtre. */
 /** Du vocabulaire du rack a celui de Web Audio. */
 export const TYPE_FILTRE = {
   'passe-bas': 'lowpass', 'passe-bande': 'bandpass', 'passe-haut': 'highpass',
@@ -129,26 +128,57 @@ export function banqueOndes(ctx) {
 
 const NATIFS = { sinus: 'sine', triangle: 'triangle', scie: 'sawtooth' };
 
+/**
+ * Rapports de frequence du modulateur, en FM. Les entiers sonnent
+ * harmoniques (cuivre, orgue), les rapports non entiers sonnent
+ * inharmoniques (cloche, metal) : c'est toute la difference entre un timbre
+ * qui a une note et un timbre qui a une couleur.
+ */
+export const RAPPORTS_FM = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 11, 13, 16];
+
 export class Canal {
   /**
+   * Un canal melodique permanent. Trois oscillateurs, toujours allumes,
+   * dont deux muets par defaut : ils servent a l'unisson et a la modulation
+   * de frequence. Les allouer a la demande reviendrait a creer des noeuds en
+   * plein jeu, ce que tout ce moteur s'interdit.
+   *
    * @param {AudioContext} ctx
    * @param {AudioNode} sortie
-   * @param {object} o {onde, type, coupure, glisse}
+   * @param {object} o {onde, type, coupure, q, glisse}
    */
   constructor(ctx, sortie, o = {}) {
     this.ctx = ctx;
     this.glisse = o.glisse ?? 0;
+    this.melange = ctx.createGain();
+
     this.osc = ctx.createOscillator();
+    this.osc.type = o.type || 'triangle';
     if (o.onde) this.osc.setPeriodicWave(o.onde);
-    else this.osc.type = o.type || 'triangle';
+    this.osc.connect(this.melange);
+
+    this.osc2 = ctx.createOscillator();
+    this.osc3 = ctx.createOscillator();
+    this.unisson = ctx.createGain();
+    this.unisson.gain.value = 0;
+    this.osc2.connect(this.unisson);
+    this.osc3.connect(this.unisson);
+    this.unisson.connect(this.melange);
+    /* En modulation de frequence, osc2 ne s'entend pas : il pilote la
+       frequence de osc. Le meme oscillateur sert donc aux deux modeles, et
+       c'est le gain de sortie qui decide de son role. */
+    this.fm = ctx.createGain();
+    this.fm.gain.value = 0;
+    this.osc2.connect(this.fm).connect(this.osc.frequency);
+
     this.gain = ctx.createGain();
     this.gain.gain.value = 0.0001;
     this.filtre = ctx.createBiquadFilter();
     this.filtre.type = 'lowpass';
     this.filtre.frequency.value = o.coupure ?? 12000;
     this.filtre.Q.value = o.q ?? 0.7;
-    this.osc.connect(this.filtre).connect(this.gain).connect(sortie);
-    this.osc.start();
+    this.melange.connect(this.filtre).connect(this.gain).connect(sortie);
+    this.osc.start(); this.osc2.start(); this.osc3.start();
   }
 
   /** @param {number} t instant absolu, en secondes du contexte audio. */
@@ -165,20 +195,44 @@ export class Canal {
   }
 
   /**
-   * Applique un patch du rack : onde, filtre, resonance.
+   * Applique un patch du rack : modele de synthese, onde, filtre, resonance.
    *
    * L'enveloppe et le niveau ne sont PAS appliques ici — ils sont lus a
    * chaque note par `jouer()`. Une enveloppe est une propriete de la note,
-   * pas de l'etat du canal, et la confondre avec l'etat oblige a
-   * re-appliquer le patch a chaque changement de curseur pendant qu'une
-   * note sonne.
+   * pas de l'etat du canal.
    */
   appliquerTimbre(p, ondes, t = 0, lissage = 0.02) {
     this.timbre = p;
-    if (NATIFS[p.onde]) this.osc.type = NATIFS[p.onde];
-    else if (ondes[p.onde]) this.osc.setPeriodicWave(ondes[p.onde]);
+    const poser = (osc) => {
+      if (NATIFS[p.onde]) osc.type = NATIFS[p.onde];
+      else if (ondes[p.onde]) osc.setPeriodicWave(ondes[p.onde]);
+    };
+    poser(this.osc);
+    const modele = p.modele || 'soustractif';
+
+    if (modele === 'super') {
+      /* Unisson : deux copies desaccordees. C'est l'ecart, pas le nombre de
+         voix, qui fait la largeur — les battements entre partiels voisins
+         remplissent le spectre bien mieux qu'un oscillateur de plus. */
+      poser(this.osc2); poser(this.osc3);
+      const ecart = 4 + p.timbre1 * 46;
+      this.osc2.detune.setTargetAtTime(-ecart, t, lissage);
+      this.osc3.detune.setTargetAtTime(ecart, t, lissage);
+      this.unisson.gain.setTargetAtTime(0.35 + 0.45 * p.timbre2, t, lissage);
+      this.fm.gain.setTargetAtTime(0, t, lissage);
+    } else if (modele === 'fm') {
+      /* Le modulateur est un sinus : une onde riche en FM donne une bouillie
+         de bandes laterales, pas un timbre. */
+      this.osc2.type = 'sine';
+      this.osc2.detune.setTargetAtTime(0, t, lissage);
+      this.unisson.gain.setTargetAtTime(0, t, lissage);
+    } else {
+      this.unisson.gain.setTargetAtTime(0, t, lissage);
+      this.fm.gain.setTargetAtTime(0, t, lissage);
+    }
+
     this.filtre.type = TYPE_FILTRE[p.filtre] || 'lowpass';
-    this.filtre.frequency.setTargetAtTime(p.coupure, t, lissage);
+    if (modele !== 'acide') this.filtre.frequency.setTargetAtTime(p.coupure, t, lissage);
     this.filtre.Q.setTargetAtTime(p.resonance, t, lissage);
     if (this.filtre2) {
       this.filtre2.frequency.setTargetAtTime(p.coupure, t, lissage);
@@ -196,6 +250,28 @@ export class Canal {
     const f = this.osc.frequency;
     if (this.glisse > 0) { f.cancelScheduledValues(t); f.setTargetAtTime(freq, t, this.glisse); }
     else f.setValueAtTime(freq, t);
+
+    const modele = p.modele || 'soustractif';
+    if (modele === 'super') {
+      this.osc2.frequency.setValueAtTime(freq, t);
+      this.osc3.frequency.setValueAtTime(freq, t);
+    } else if (modele === 'fm') {
+      /* Le modulateur SUIT la note : c'est le rapport qui est fixe, pas sa
+         frequence. Sinon le timbre change avec la hauteur jouee. */
+      const rapport = RAPPORTS_FM[Math.round(p.timbre1 * (RAPPORTS_FM.length - 1))];
+      this.osc2.frequency.setValueAtTime(freq * rapport, t);
+      this.fm.gain.setValueAtTime(freq * p.timbre2 * 8, t);
+    } else if (modele === 'acide') {
+      /* Le filtre a SA propre enveloppe, plus rapide que celle du niveau.
+         C'est elle qui fait le « wow » caracteristique, et rien d'autre : ni
+         l'onde, ni la resonance seule. */
+      const haut = Math.min(16000, p.coupure * (1 + 7 * p.timbre1));
+      const chute = 0.03 + p.timbre2 * 0.5;
+      const ff = this.filtre.frequency;
+      ff.cancelScheduledValues(t);
+      ff.setValueAtTime(haut, t);
+      ff.exponentialRampToValueAtTime(Math.max(60, p.coupure), t + chute);
+    }
     enveloppe(this.gain.gain, t, p.attaque, p.chute, p.tenue, p.relache, p.niveau * accent);
   }
 
@@ -206,21 +282,79 @@ export class Canal {
   }
 }
 
-/** Une voix de percussion : bruit filtre, enveloppe courte. */
+/* Rapports inharmoniques d'une charleston de boite a rythmes. Ce ne sont pas
+   des harmoniques : c'est ce qui donne le grain metallique qu'aucun bruit ne
+   sait imiter. */
+const METAL = [1, 1.4471, 1.6170, 1.9265, 2.5028, 2.6637];
+
+/** Une voix de percussion. Quatre modeles, une seule chaine. */
 export class Percu {
   constructor(ctx, sortie, buffer, o = {}) {
     this.ctx = ctx;
-    this.src = ctx.createBufferSource();
-    this.src.buffer = buffer;
-    this.src.loop = true;
     this.filtre = ctx.createBiquadFilter();
     this.filtre.type = o.type || 'bandpass';
     this.filtre.frequency.value = o.freq ?? 2000;
     this.filtre.Q.value = o.q ?? 1.2;
     this.gain = ctx.createGain();
     this.gain.gain.value = 0.0001;
-    this.src.connect(this.filtre).connect(this.gain).connect(sortie);
+    this.filtre.connect(this.gain).connect(sortie);
+
+    this.src = ctx.createBufferSource();
+    this.src.buffer = buffer;
+    this.src.loop = true;
+    this.gBruit = ctx.createGain();
+    this.gBruit.gain.value = 1;
+    this.src.connect(this.gBruit).connect(this.filtre);
     this.src.start();
+
+    /* Banque metallique : six carres a rapports inharmoniques, la recette
+       des charlestons de boites a rythmes. Permanente et muette, comme tout
+       le reste. */
+    this.gMetal = ctx.createGain();
+    this.gMetal.gain.value = 0;
+    this.gMetal.connect(this.filtre);
+    this.metal = METAL.map((r) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'square';
+      osc.frequency.value = 320 * r;
+      osc.connect(this.gMetal);
+      osc.start();
+      return osc;
+    });
+
+    /* Deux sinus accordes : le corps d'une caisse claire, que le bruit seul
+       ne donne pas. */
+    this.gTons = ctx.createGain();
+    this.gTons.gain.value = 0;
+    this.gTons.connect(this.gain);
+    this.tons = [1, 1.79].map((r) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = 185 * r;
+      osc.connect(this.gTons);
+      osc.start();
+      return osc;
+    });
+  }
+
+  appliquerTimbre(p) {
+    this.timbre = p;
+    this.filtre.type = TYPE_FILTRE[p.filtre] || 'bandpass';
+    this.filtre.Q.value = p.resonance;
+    const modele = p.modele || 'bruit';
+    this.gBruit.gain.value = modele === 'metal' ? 0 : 1;
+    this.gMetal.gain.value = modele === 'metal' ? 0.16 : 0;
+    this.gTons.gain.value = modele === 'caisse' ? 0.0001 : 0;
+    if (modele === 'metal') {
+      /* Les six carres se calent sur la frequence reglee : la charleston
+         monte et descend d'un bloc, elle ne se desaccorde pas. */
+      const base = p.frequence * 0.16;
+      this.metal.forEach((osc, i) => { osc.frequency.value = base * METAL[i]; });
+    }
+    if (modele === 'caisse') {
+      const base = 185 * (p.frequence / 1900);
+      this.tons.forEach((osc, i) => { osc.frequency.value = base * [1, 1.79][i]; });
+    }
   }
 
   /**
@@ -232,28 +366,78 @@ export class Percu {
   frappe(t, accent = 1, o = {}) {
     const p = this.timbre;
     if (!p) return;
-    this.filtre.frequency.setValueAtTime(p.frequence * (o.freq ?? 1), t);
+    const modele = p.modele || 'bruit';
+    if (modele !== 'metal') this.filtre.frequency.setValueAtTime(p.frequence * (o.freq ?? 1), t);
     const duree = p.duree * (o.duree ?? 1);
-    enveloppe(this.gain.gain, t, 0.001, duree * 0.35, 0.25, duree, p.niveau * accent);
-  }
-
-  appliquerTimbre(p) {
-    this.timbre = p;
-    this.filtre.type = TYPE_FILTRE[p.filtre] || 'bandpass';
-    this.filtre.Q.value = p.resonance;
+    const pic = p.niveau * accent;
+    if (modele === 'taps') {
+      /* Un clap n'est pas UN bruit : c'est plusieurs mains qui ne tombent
+         pas ensemble. Trois rebonds serres puis la queue — sans eux on
+         entend une porte qui claque, pas des applaudissements. */
+      const ecart = 0.006 + p.timbre1 * 0.024;
+      for (let i = 0; i < 3; i++) {
+        enveloppe(this.gain.gain, t + i * ecart, 0.001, 0.004, 0.1, ecart * 0.9, pic * 0.7);
+      }
+      enveloppe(this.gain.gain, t + 3 * ecart, 0.001, duree * 0.35, 0.25, duree, pic);
+      return;
+    }
+    if (modele === 'caisse') {
+      const corps = 0.1 + p.timbre1 * 0.5;
+      enveloppe(this.gTons.gain, t, 0.001, duree * 0.5, 0.15, duree * 0.8, pic * corps);
+    }
+    enveloppe(this.gain.gain, t, 0.001, duree * 0.35, 0.25, duree, pic);
   }
 }
 
 /** Grosse caisse : sinus a enveloppe de hauteur. Pas chiptune, mais c'est la
  *  drum and bass qui commande — sans bas du spectre il n'y a pas de morceau. */
 export class Kick {
-  constructor(ctx, sortie) {
+  constructor(ctx, sortie, buffer = null) {
+    this.ctx = ctx;
+    this.sortie = ctx.createGain();
+    this.sortie.connect(sortie);
+    /* Saturation optionnelle : c'est elle qui fait passer une grosse caisse
+       devant le reste du mix sans monter son niveau. */
+    this.sature = ctx.createWaveShaper();
+    this.sature.curve = courbeGrain(40, 1.4);
+    this.sature.oversample = '2x';
+    this.direct = ctx.createGain();
+    this.viaSature = ctx.createGain();
+    this.viaSature.gain.value = 0;
+    this.direct.connect(this.sortie);
+    this.viaSature.connect(this.sature).connect(this.sortie);
+
     this.osc = ctx.createOscillator();
     this.osc.type = 'sine';
     this.gain = ctx.createGain();
     this.gain.gain.value = 0.0001;
-    this.osc.connect(this.gain).connect(sortie);
+    this.osc.connect(this.gain);
+    this.gain.connect(this.direct);
+    this.gain.connect(this.viaSature);
     this.osc.start();
+
+    /* Le clic : un eclat de bruit aigu de quelques millisecondes. C'est LUI
+       qui separe une grosse caisse ronde d'une grosse caisse claquante, bien
+       plus que la hauteur ou la duree. */
+    if (buffer) {
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.loop = true;
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.value = 2600;
+      this.clic = ctx.createGain();
+      this.clic.gain.value = 0.0001;
+      src.connect(hp).connect(this.clic).connect(this.sortie);
+      src.start();
+    }
+  }
+
+  appliquerTimbre(p) {
+    this.timbre = p;
+    const dur = (p.modele || 'propre') === 'sature';
+    this.direct.gain.value = dur ? 0 : 1;
+    this.viaSature.gain.value = dur ? 1 : 0;
   }
 
   frappe(t, accent = 1) {
@@ -264,9 +448,10 @@ export class Kick {
     f.setValueAtTime(p.depart, t);
     f.exponentialRampToValueAtTime(p.arrivee, t + p.glisse);
     enveloppe(this.gain.gain, t, 0.002, p.duree * 0.3, 0.4, p.duree, p.niveau * accent);
+    if (this.clic && p.timbre1 > 0) {
+      enveloppe(this.clic.gain, t, 0.0005, 0.004, 0.02, 0.02, p.timbre1 * 0.5 * accent);
+    }
   }
-
-  appliquerTimbre(p) { this.timbre = p; }
 }
 
 /* ------------------------------------------------------------- effets ---- */

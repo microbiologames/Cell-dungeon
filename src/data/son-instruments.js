@@ -43,6 +43,8 @@ export const DUREES = [0.01, 0.02, 0.035, 0.05, 0.07, 0.09, 0.12, 0.16, 0.2, 0.2
 export const DEPARTS = [60, 80, 100, 120, 150, 180, 190, 220, 260, 300, 340, 400, 480, 560, 650, 750];
 export const ARRIVEES = [25, 30, 35, 40, 42, 48, 55, 62, 70, 80, 90, 100, 115, 130, 150, 170];
 export const GLISSES = [0.02, 0.03, 0.04, 0.06, 0.09, 0.12, 0.16, 0.2, 0.26, 0.32, 0.4, 0.5, 0.6, 0.75, 0.9, 1.1];
+/** Les deux boutons de caractere. Leur sens depend du modele de synthese. */
+export const TIMBRES = [0, 0.07, 0.13, 0.2, 0.27, 0.33, 0.4, 0.47, 0.53, 0.6, 0.67, 0.73, 0.8, 0.87, 0.93, 1];
 
 /**
  * Ondes. Toutes sont construites en additionnant des harmoniques, jamais en
@@ -51,6 +53,45 @@ export const GLISSES = [0.02, 0.03, 0.04, 0.06, 0.09, 0.12, 0.16, 0.2, 0.26, 0.3
  */
 export const ONDES = ['sinus', 'triangle', 'scie', 'pulse08', 'pulse12', 'pulse25', 'pulse33', 'carre'];
 export const FILTRES = ['passe-bas', 'passe-bande', 'passe-haut'];
+
+/**
+ * Le MODELE de synthese. C'est lui qui fait qu'une voix est un autre
+ * instrument et pas le meme reglage autrement : un filtre et une enveloppe
+ * ne transforment pas un oscillateur en cloche, ni du bruit en charleston.
+ */
+export const MODELES = {
+  melodique: ['soustractif', 'super', 'fm', 'acide'],
+  bruit: ['bruit', 'taps', 'caisse', 'metal'],
+  kick: ['propre', 'sature'],
+};
+
+const NOMS_MODELES = {
+  soustractif: 'soustractif — un oscillateur, un filtre. Le plus direct',
+  super: 'unisson — plusieurs copies desaccordees, large et mouvant',
+  fm: 'modulation de frequence — cloches, cuivres, timbres inharmoniques',
+  acide: 'acide — le filtre a sa propre enveloppe, c est elle qu on entend',
+  bruit: 'bruit filtre — le plus simple',
+  taps: 'rebonds — plusieurs eclats serres, un clap et non une porte',
+  caisse: 'caisse — bruit plus deux sinus accordes, le corps d une claire',
+  metal: 'metallique — six carres inharmoniques, la charleston des boites',
+  propre: 'propre',
+  sature: 'sature — passe devant le mix sans monter de niveau',
+};
+
+/** Le sens des deux boutons de caractere, modele par modele. */
+const SENS = {
+  soustractif: ['(sans effet)', '(sans effet)'],
+  super: ['ecart de desaccord', 'niveau de l unisson'],
+  fm: ['rapport du modulateur', 'profondeur de modulation'],
+  acide: ['hauteur du balayage', 'duree du balayage'],
+  bruit: ['(sans effet)', ''],
+  taps: ['ecart entre les rebonds', ''],
+  caisse: ['part du corps accorde', ''],
+  metal: ['(sans effet)', ''],
+  propre: ['clic d attaque', ''],
+  sature: ['clic d attaque', ''],
+};
+export { NOMS_MODELES, SENS };
 
 const NOMS_ONDES = {
   sinus: 'sinus — rond, sans harmonique',
@@ -74,6 +115,10 @@ export const CHAMPS_VOIX = [
   { cle: 'tenue', nom: 'Tenue', table: TENUES, bits: 4 },
   { cle: 'relache', nom: 'Relache', unite: 's', table: RELACHES, bits: 4 },
   { cle: 'niveau', nom: 'Niveau', table: NIVEAUX, bits: 4 },
+  /* Ajoutes en fin de liste : l'ordre des champs EST l'ordre des bits. */
+  { cle: 'modele', nom: 'Modele', choix: MODELES.melodique, bits: 2, legendes: NOMS_MODELES },
+  { cle: 'timbre1', nom: 'Caractere 1', table: TIMBRES, bits: 4 },
+  { cle: 'timbre2', nom: 'Caractere 2', table: TIMBRES, bits: 4 },
 ];
 
 /** Schema d'une percussion accordee au bruit (claire, charleston, tension). */
@@ -83,6 +128,8 @@ export const CHAMPS_BRUIT = [
   { cle: 'resonance', nom: 'Resonance', table: RESONANCES, bits: 4 },
   { cle: 'duree', nom: 'Duree', unite: 's', table: DUREES, bits: 4 },
   { cle: 'niveau', nom: 'Niveau', table: NIVEAUX, bits: 4 },
+  { cle: 'modele', nom: 'Modele', choix: MODELES.bruit, bits: 2, legendes: NOMS_MODELES },
+  { cle: 'timbre1', nom: 'Caractere', table: TIMBRES, bits: 4 },
 ];
 
 /** Schema de la grosse caisse : un sinus qui tombe, rien d'autre. */
@@ -92,6 +139,8 @@ export const CHAMPS_KICK = [
   { cle: 'glisse', nom: 'Temps de chute', unite: 's', table: GLISSES, bits: 4 },
   { cle: 'duree', nom: 'Duree', unite: 's', table: DUREES, bits: 4 },
   { cle: 'niveau', nom: 'Niveau', table: NIVEAUX, bits: 4 },
+  { cle: 'modele', nom: 'Modele', choix: MODELES.kick, bits: 2, legendes: NOMS_MODELES },
+  { cle: 'timbre1', nom: 'Clic d attaque', table: TIMBRES, bits: 4 },
 ];
 
 /**
@@ -126,19 +175,28 @@ export const CHAMPS_PAR_GENRE = {
 /* Le rack de base, celui qui reproduit exactement le moteur d'avant. */
 const BASE = {
   nappe: { onde: 'scie', filtre: 'passe-bas', coupure: 1250, resonance: 0.7,
-    attaque: 0.9, chute: 0.6, tenue: 0.8, relache: 1.6, niveau: 0.09 },
+    attaque: 0.9, chute: 0.6, tenue: 0.8, relache: 1.6, niveau: 0.09,
+    modele: 'soustractif', timbre1: 0, timbre2: 0 },
   sub: { onde: 'sinus', filtre: 'passe-bas', coupure: 260, resonance: 0.7,
-    attaque: 0.01, chute: 0.12, tenue: 0.7, relache: 0.26, niveau: 0.5 },
+    attaque: 0.01, chute: 0.12, tenue: 0.7, relache: 0.26, niveau: 0.5,
+    modele: 'soustractif', timbre1: 0, timbre2: 0 },
   basse: { onde: 'triangle', filtre: 'passe-bas', coupure: 1800, resonance: 0.7,
-    attaque: 0.006, chute: 0.08, tenue: 0.5, relache: 0.18, niveau: 0.16 },
+    attaque: 0.006, chute: 0.08, tenue: 0.5, relache: 0.18, niveau: 0.16,
+    modele: 'soustractif', timbre1: 0, timbre2: 0 },
   ostinato: { onde: 'pulse25', filtre: 'passe-bas', coupure: 6000, resonance: 0.7,
-    attaque: 0.004, chute: 0.04, tenue: 0.35, relache: 0.12, niveau: 0.1 },
+    attaque: 0.004, chute: 0.04, tenue: 0.35, relache: 0.12, niveau: 0.1,
+    modele: 'soustractif', timbre1: 0, timbre2: 0 },
   lead: { onde: 'carre', filtre: 'passe-bas', coupure: 7000, resonance: 0.7,
-    attaque: 0.006, chute: 0.09, tenue: 0.4, relache: 0.26, niveau: 0.12 },
-  kick: { depart: 190, arrivee: 42, glisse: 0.09, duree: 0.2, niveau: 0.9 },
-  clap: { filtre: 'passe-bande', frequence: 1900, resonance: 1.1, duree: 0.12, niveau: 0.5 },
-  hat: { filtre: 'passe-haut', frequence: 6200, resonance: 0.8, duree: 0.035, niveau: 0.07 },
-  tension: { filtre: 'passe-bande', frequence: 220, resonance: 3.5, duree: 0.5, niveau: 0.25 },
+    attaque: 0.006, chute: 0.09, tenue: 0.4, relache: 0.26, niveau: 0.12,
+    modele: 'soustractif', timbre1: 0, timbre2: 0 },
+  kick: { depart: 190, arrivee: 42, glisse: 0.09, duree: 0.2, niveau: 0.9,
+    modele: 'propre', timbre1: 0 },
+  clap: { filtre: 'passe-bande', frequence: 1900, resonance: 1.1, duree: 0.12,
+    niveau: 0.5, modele: 'bruit', timbre1: 0 },
+  hat: { filtre: 'passe-haut', frequence: 6200, resonance: 0.8, duree: 0.035,
+    niveau: 0.07, modele: 'bruit', timbre1: 0 },
+  tension: { filtre: 'passe-bande', frequence: 220, resonance: 3.5, duree: 0.5,
+    niveau: 0.25, modele: 'bruit', timbre1: 0 },
   desaccord: 8,
 };
 
@@ -158,4 +216,84 @@ export const RACKS = {
   pipe: rack({ lead: { onde: 'pulse12' }, ostinato: { onde: 'carre' }, desaccord: 14 }),
   kombucha: rack({ lead: { onde: 'pulse25' }, ostinato: { onde: 'pulse12' } }),
   levain: rack({ lead: { onde: 'carre' }, ostinato: { onde: 'carre' } }),
+};
+
+/* ----------------------------------------------------------- machines --- */
+
+/**
+ * Des timbres tout faits, a choisir avant de regler.
+ *
+ * Une machine ne touche PAS au niveau de la voix : changer d'instrument ne
+ * doit pas faire sauter l'equilibre du mix. Elle pose le modele, l'onde, le
+ * filtre, l'enveloppe et les deux boutons de caractere, et c'est tout.
+ *
+ * Les noms decrivent un caractere, pas une marque : tout est synthetise ici,
+ * rien n'est echantillonne, et appeler une de ces voix du nom d'une machine
+ * reelle serait une promesse qu'elle ne tient pas. Les references sont dans
+ * l'aide, la ou elles servent a se reperer.
+ */
+export const MACHINES = {
+  melodique: [
+    { nom: 'Soustractif', aide: 'un oscillateur et un filtre, le point de depart',
+      p: { modele: 'soustractif', onde: 'carre', filtre: 'passe-bas', coupure: 7000,
+        resonance: 0.7, attaque: 0.006, chute: 0.09, tenue: 0.4, relache: 0.26,
+        timbre1: 0, timbre2: 0 } },
+    { nom: 'Pulse chiptune', aide: 'le lead nasillard des consoles 8 bits, attaque seche',
+      p: { modele: 'soustractif', onde: 'pulse12', filtre: 'passe-bas', coupure: 7000,
+        resonance: 0.7, attaque: 0.001, chute: 0.04, tenue: 0.35, relache: 0.08,
+        timbre1: 0, timbre2: 0 } },
+    { nom: 'Super scie', aide: 'trois scies desaccordees, large et brillante',
+      p: { modele: 'super', onde: 'scie', filtre: 'passe-bas', coupure: 5000,
+        resonance: 0.7, attaque: 0.02, chute: 0.3, tenue: 0.7, relache: 0.5,
+        timbre1: 0.27, timbre2: 0.6 } },
+    { nom: 'Nappe large', aide: 'la meme, lente et sombre : un fond qui respire',
+      p: { modele: 'super', onde: 'scie', filtre: 'passe-bas', coupure: 1250,
+        resonance: 0.7, attaque: 0.9, chute: 0.6, tenue: 0.8, relache: 1.6,
+        timbre1: 0.4, timbre2: 0.53 } },
+    { nom: 'FM cloche', aide: 'rapport non entier : inharmonique, metallique, qui tinte',
+      p: { modele: 'fm', onde: 'sinus', filtre: 'passe-bas', coupure: 8500,
+        resonance: 0.7, attaque: 0.002, chute: 0.4, tenue: 0.1, relache: 0.9,
+        timbre1: 0.73, timbre2: 0.33 } },
+    { nom: 'FM basse', aide: 'rapport serre : une basse qui grogne, dans l esprit des synthes numeriques',
+      p: { modele: 'fm', onde: 'sinus', filtre: 'passe-bas', coupure: 1800,
+        resonance: 0.7, attaque: 0.002, chute: 0.12, tenue: 0.5, relache: 0.18,
+        timbre1: 0.13, timbre2: 0.4 } },
+    { nom: 'Acide', aide: 'filtre resonant balaye a chaque note, dans l esprit des basses acid',
+      p: { modele: 'acide', onde: 'scie', filtre: 'passe-bas', coupure: 700,
+        resonance: 5, attaque: 0.002, chute: 0.12, tenue: 0.3, relache: 0.12,
+        timbre1: 0.6, timbre2: 0.2 } },
+  ],
+  bruit: [
+    { nom: 'Bruit filtre', aide: 'le plus simple : un eclat de bruit dans une bande',
+      p: { modele: 'bruit', filtre: 'passe-bande', frequence: 1900, resonance: 1.1,
+        duree: 0.12, timbre1: 0 } },
+    { nom: 'Clap a rebonds', aide: 'trois eclats serres puis la queue : des mains, pas une porte',
+      p: { modele: 'taps', filtre: 'passe-bande', frequence: 1500, resonance: 1.2,
+        duree: 0.16, timbre1: 0.33 } },
+    { nom: 'Caisse claire', aide: 'bruit plus deux sinus accordes : le corps que le bruit seul n a pas',
+      p: { modele: 'caisse', filtre: 'passe-bande', frequence: 1900, resonance: 1.4,
+        duree: 0.16, timbre1: 0.53 } },
+    { nom: 'Rimshot', aide: 'tres court, tres resonant : un coup sur le cercle',
+      p: { modele: 'caisse', filtre: 'passe-bande', frequence: 2800, resonance: 3.5,
+        duree: 0.05, timbre1: 0.8 } },
+    { nom: 'Charleston metallique', aide: 'six carres inharmoniques : le grain des boites a rythmes',
+      p: { modele: 'metal', filtre: 'passe-haut', frequence: 6200, resonance: 0.8,
+        duree: 0.035, timbre1: 0 } },
+    { nom: 'Charleston ouverte', aide: 'la meme, qui tient',
+      p: { modele: 'metal', filtre: 'passe-haut', frequence: 6200, resonance: 0.8,
+        duree: 0.2, timbre1: 0 } },
+    { nom: 'Cymbale', aide: 'metallique, plus grave et bien plus longue',
+      p: { modele: 'metal', filtre: 'passe-haut', frequence: 4100, resonance: 0.6,
+        duree: 0.5, timbre1: 0 } },
+  ],
+  kick: [
+    { nom: 'Sinus long', aide: 'descend loin et tient : la grosse caisse des boites analogiques de 1980',
+      p: { modele: 'propre', depart: 190, arrivee: 42, glisse: 0.09, duree: 0.2, timbre1: 0 } },
+    { nom: 'Claquante', aide: 'chute rapide et clic d attaque : celle des boites de 1983, taillee pour la piste',
+      p: { modele: 'propre', depart: 260, arrivee: 48, glisse: 0.04, duree: 0.16, timbre1: 0.53 } },
+    { nom: 'Sourde', aide: 'grave, longue, sans attaque : elle porte sans se faire entendre',
+      p: { modele: 'propre', depart: 120, arrivee: 35, glisse: 0.12, duree: 0.32, timbre1: 0 } },
+    { nom: 'Saturee', aide: 'passe devant le mix sans monter de niveau',
+      p: { modele: 'sature', depart: 220, arrivee: 55, glisse: 0.06, duree: 0.2, timbre1: 0.33 } },
+  ],
 };

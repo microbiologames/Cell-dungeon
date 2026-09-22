@@ -46,9 +46,10 @@ import {
 
 /* ----------------------------------------------------------- musique ----- */
 
-/** Progression d'accords, en degres. Courte et tournante : c'est une boucle
- *  de roguelike, elle doit supporter douze minutes sans lasser. */
-const PROGRESSION = [0, 5, 3, 6];
+/* Les degres parmi lesquels une progression se promene. On ne tire pas
+   n'importe quel degre : la tonique ouvre toujours, et ceux-la sont les
+   mouvements qui sonnent en mineur sans avoir besoin d'etre prepares. */
+const MOUVEMENTS = [5, 3, 6, 4, 2];
 
 /**
  * Identite sonore par contexte.
@@ -90,6 +91,7 @@ export class Son {
     this.timer = null;
     this.derniereGraine = 0x5eed;
     this.rng = mulberry32(0x5eed);
+    this.composer();
 
     /* Etat observe, lisse image par image. */
     this.intensite = 0;
@@ -275,7 +277,7 @@ export class Son {
       return c;
     });
 
-    this.kick = new Kick(ctx, this.couches.break);
+    this.kick = new Kick(ctx, this.couches.break, this.bruit);
     this.clap = new Percu(ctx, this.couches.break, this.bruit, {});
     this.hat = new Percu(ctx, this.couches.break, this.bruit, {});
     this.tension = new Percu(ctx, this.couches.tension, this.bruit, {});
@@ -317,6 +319,64 @@ export class Son {
   graine(n) {
     this.derniereGraine = n >>> 0;
     this.rng = mulberry32(this.derniereGraine);
+    this.composer();
+  }
+
+  /**
+   * Compose la matiere melodique a partir de la graine.
+   *
+   * Jusqu'ici la progression d'accords et le motif de l'ostinato etaient des
+   * CONSTANTES, et la graine ne pilotait que des densites plus un tirage de
+   * note isole a chaque phrase du lead. Changer de graine ne changeait donc
+   * pas la musique, seulement son grain — et un tirage par note ne fait pas
+   * une melodie : il fait une suite de notes sans forme, qu'on ne retient
+   * pas. Une graine doit donner un MORCEAU different.
+   *
+   * Le hasard est tire d'un flux SEPARE de celui du jeu : sinon la matiere
+   * changerait selon le nombre de charlestons deja jouees, et deux parties
+   * de meme graine ne se ressembleraient plus.
+   */
+  composer() {
+    const r = mulberry32((this.derniereGraine ^ 0x9e3779b9) >>> 0);
+
+    /* La progression ouvre sur la tonique et ne se repete pas d'un accord a
+       l'autre : deux fois le meme degre de suite, et la boucle s'affaisse. */
+    this.progression = [0];
+    for (let i = 0; i < 3; i++) {
+      let d;
+      do { d = MOUVEMENTS[Math.floor(r() * MOUVEMENTS.length)]; }
+      while (d === this.progression[this.progression.length - 1]);
+      this.progression.push(d);
+    }
+
+    /* Le motif de l'ostinato doit etre HYPNOTIQUE : peu de degres
+       differents, et un retour sur un pilier a chaque temps fort. Un motif
+       tire uniformement sonne comme une erreur, pas comme une boucle. */
+    const palette = [0, 2, 4];
+    if (r() < 0.55) palette.push(5);
+    if (r() < 0.4) palette.push(7);
+    this.motif = [];
+    for (let i = 0; i < 8; i++) {
+      if (i % 4 === 0) this.motif.push(r() < 0.75 ? 0 : 4);
+      else this.motif.push(palette[Math.floor(r() * palette.length)]);
+    }
+
+    /* La phrase du lead est FIXE et parcourue dans l'ordre. C'est ce qui la
+       rend entetante : une note tiree au sort a chaque fois s'oublie
+       aussitot, une forme qui revient se retient. */
+    const sauts = [0, 2, 4, 6, 7, 9, 11];
+    const longueur = 4 + Math.floor(r() * 3);
+    this.phrase = [];
+    for (let i = 0; i < longueur; i++) {
+      this.phrase.push(i === 0 ? (r() < 0.6 ? 0 : 4)
+        : sauts[Math.floor(r() * sauts.length)]);
+    }
+    this.phraseIdx = 0;
+  }
+
+  /** Ce que la graine a compose, pour l'afficher. */
+  get melodie() {
+    return { progression: this.progression, motif: this.motif, phrase: this.phrase };
   }
 
   setVolume(v) {
@@ -407,7 +467,7 @@ export class Son {
         this.jouerPas(this.pas, this.prochain);
         this.prochain += this.parPas;
         this.pas = (this.pas + 1) % 32;
-        if (this.pas === 0) this.accordIdx = (this.accordIdx + 1) % PROGRESSION.length;
+        if (this.pas === 0) this.accordIdx = (this.accordIdx + 1) % this.progression.length;
       }
       /* Si on a pris du retard (onglet en arriere-plan), on se recale au lieu
          de rattraper mille pas d'un coup. */
@@ -424,7 +484,7 @@ export class Son {
   jouerPas(pas, t) {
     const amb = this.amb;
     const I = this.intensite;
-    const degreAccord = PROGRESSION[this.accordIdx];
+    const degreAccord = this.progression[this.accordIdx];
     const ambiant = this.ambiance === 'ambiant';
 
     /* --- nappe : toujours la, elle tient l'harmonie -------------------- */
@@ -436,7 +496,9 @@ export class Son {
       /* Dans le lobby, une note isolee de temps en temps, et c'est tout.
          L'echo et la reverbe font le reste du travail. */
       if (pas % 8 === 0 && this.rng() < 0.4) {
-        this.vLead.jouer(t, this.freq(degreAccord + (this.rng() < 0.5 ? 4 : 2), 1), 0.5);
+        const saut = this.phrase[this.phraseIdx % this.phrase.length];
+        this.phraseIdx++;
+        this.vLead.jouer(t, this.freq(degreAccord + saut, 1), 0.5);
       }
       return;
     }
@@ -467,14 +529,17 @@ export class Son {
     }
 
     /* --- ostinato : hypnotique, il ne change qu'a l'accord -------------- */
-    const motif = [0, 4, 2, 4, 0, 5, 2, 4];
     if (pas % 2 === 0) {
-      this.vOsti.jouer(t, this.freq(degreAccord + motif[(pas / 2) % motif.length], 0));
+      const m = this.motif;
+      this.vOsti.jouer(t, this.freq(degreAccord + m[(pas / 2) % m.length], 0));
     }
 
     /* --- melodie : courte, entetante, elle n'arrive qu'en pression ------ */
     if (I > 0.35 && pas % 4 === 0 && this.rng() < (0.28 + 0.4 * I) * amb.melodie) {
-      const saut = [0, 2, 4, 6, 7][Math.floor(this.rng() * 5)];
+      /* On avance DANS la phrase : c'est sa forme qui reste en tete, pas la
+         note. Le hasard decide seulement si elle sonne ou si elle se tait. */
+      const saut = this.phrase[this.phraseIdx % this.phrase.length];
+      this.phraseIdx++;
       this.vLead.jouer(t, this.freq(degreAccord + saut, 1));
     }
 
@@ -498,7 +563,7 @@ export class Son {
     /* Un seul evenement par reveil : deux stingers simultanes sur la meme
        voix monophonique s'annulent, et on n'entend qu'un clic. */
     const type = this.file.shift();
-    const d = PROGRESSION[this.accordIdx];
+    const d = this.progression[this.accordIdx];
     if (type === 'kill') {
       this.stinger.note(t, this.freq(d + 4, 2), 0.09, 0.07,
         { a: 0.002, d: 0.03, s: 0.2, r: 0.08 });

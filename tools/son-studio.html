@@ -108,8 +108,9 @@
         <div class="lig">
           <button class="btn" id="copier">Copier</button>
           <label class="note">graine <input type="number" id="graine" min="0" max="65535" step="1" value="24301" style="width:88px"></label>
-          <button class="btn" id="tirer">Autre graine</button>
+          <button class="btn" id="tirer">Nouvelle melodie</button>
         </div>
+        <p class="note mesure" id="compose" style="margin:8px 0 0">&nbsp;</p>
         <div class="lig" style="margin-top:9px">
           <input type="text" id="charger" placeholder="CD1-milk-…" style="flex:1 1 220px">
           <button class="btn" id="btnCharger">Charger</button>
@@ -126,7 +127,9 @@
       <div class="carte">
         <h2>Rack — le son de chaque voix</h2>
         <div class="puces" id="voix"></div>
-        <p class="note" id="aideVoix" style="margin:10px 0 0">&nbsp;</p>
+        <p class="note" id="aideVoix" style="margin:10px 0 6px">&nbsp;</p>
+        <div class="puces" id="machines"></div>
+        <p class="note" id="aideMachine" style="margin:6px 0 0">&nbsp;</p>
         <div class="lig" style="margin:9px 0 4px">
           <button class="btn" id="solo" aria-pressed="false">Solo</button>
           <button class="btn" id="muet" aria-pressed="false">Muet</button>
@@ -156,7 +159,8 @@
 <script type="module">
 import { son } from '../src/audio/son.js';
 import {
-  PRESETS, CHAMPS, GROUPES, NOMS, RACKS, VOIX, CHAMPS_PAR_GENRE, encoderCode,
+  PRESETS, CHAMPS, GROUPES, NOMS, RACKS, VOIX, CHAMPS_PAR_GENRE, MACHINES, SENS,
+  encoderCode,
 } from '../src/data/son-presets.js';
 
 /* L'etat adopte, fige au chargement : c'est la reference de la comparaison
@@ -256,7 +260,8 @@ function faireRang(ch, lire, ecrire, adopte, rangs) {
   d.className = 'rang';
   d.innerHTML = `<div class="tete"><span class="nom">${ch.nom}</span><span class="val"></span></div>`
     + `<input type="range" min="0" max="${crans(ch)}" step="1">`
-    + (ch.aide ? `<div class="aide">${ch.aide}</div>` : '');
+    + `<div class="aide">${ch.aide || ''}</div>`;
+  d.dataset.cle = ch.cle;
   const input = d.querySelector('input');
   input.oninput = () => { ecrire(depuisCran(ch, +input.value)); appliquer(); rafraichir(); };
   rangs.push(() => {
@@ -276,6 +281,7 @@ let rangsPatch = [];
 function peupler() {
   peuplerAmbiance();
   peuplerVoix();
+  peuplerMachines();
   peuplerPatch();
   rafraichir();
 }
@@ -307,8 +313,28 @@ function peuplerVoix() {
     b.className = 'btn';
     b.textContent = v.nom;
     b.dataset.cle = v.cle;
-    b.onclick = () => { voixCle = v.cle; peuplerPatch(); rafraichir(); };
+    b.onclick = () => { voixCle = v.cle; peuplerMachines(); peuplerPatch(); rafraichir(); };
     boutonsVoix.append(b);
+  }
+}
+
+/* Les machines : des timbres tout faits, a choisir avant de regler. Elles ne
+   touchent pas au niveau de la voix — changer d'instrument ne doit pas faire
+   sauter l'equilibre du mix. */
+function peuplerMachines() {
+  const v = VOIX.find((x) => x.cle === voixCle);
+  $('machines').innerHTML = '';
+  for (const m of MACHINES[v.genre] || []) {
+    const b = document.createElement('button');
+    b.className = 'btn';
+    b.textContent = m.nom;
+    b.onmouseenter = () => { $('aideMachine').textContent = m.aide; };
+    b.onclick = () => {
+      Object.assign(RACKS[ambiance][voixCle], m.p);
+      $('aideMachine').textContent = m.aide;
+      appliquer(); peuplerPatch(); rafraichir();
+    };
+    $('machines').append(b);
   }
 }
 
@@ -345,7 +371,25 @@ function rafraichir() {
   }
   $('solo').setAttribute('aria-pressed', soloCle === voixCle);
   $('muet').setAttribute('aria-pressed', coupees.has(voixCle));
+  /* Les deux boutons de caractere n'ont pas le meme sens d'un modele a
+     l'autre : sans cette legende ce sont deux curseurs anonymes. */
+  const sens = SENS[RACKS[ambiance][voixCle].modele] || ['', ''];
+  for (const [i, cle] of ['timbre1', 'timbre2'].entries()) {
+    const aide = $('patch').querySelector(`.rang[data-cle="${cle}"] .aide`);
+    if (aide) aide.textContent = sens[i] || '';
+  }
   $('codeCourant').textContent = encoderCode(ambiance, PRESETS[ambiance], RACKS[ambiance], graine);
+  majCompose();
+}
+
+/* Ce que la graine a compose. On l'AFFICHE : une graine dont on ne voit pas
+   l'effet ressemble a un bouton qui ne fait rien. */
+function majCompose() {
+  const m = son.melodie;
+  if (!m || !m.motif) return;
+  $('compose').textContent = `accords ${m.progression.join(' ')}`
+    + `   ostinato ${m.motif.join(' ')}`
+    + `   phrase ${m.phrase.join(' ')}`;
 }
 
 $('solo').onclick = () => { soloCle = soloCle === voixCle ? null : voixCle; appliquer(); rafraichir(); };
