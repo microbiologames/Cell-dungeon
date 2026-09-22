@@ -62,6 +62,18 @@ export function renderField(scr, game, pal) {
            doit se distinguer au premier coup d'oeil du globule qui colle. */
         scr.ring(sx, sy, it.r, 1.3, fade32(pal.shield, 0.55 * a));
         scr.ring(sx, sy, it.r * 0.45, 1, fade32(pal.shield, 0.25 * a));
+      } else if (it.el > 1.02) {
+        /* Grain lenticulaire : contour net, coeur plein, et un HILE — la
+           fente centrale d'un grain d'amidon, qui est ce qui le fait
+           reconnaitre au microscope. */
+        const rx = it.r * it.el, ry = it.r;
+        if (bl >= 2) scr.ringE(sx, sy, rx + 1, ry + 1, it.ang, 1.4, fade32(pal.debrisRim, 0.5 * a));
+        scr.ringE(sx, sy, rx * 0.92, ry * 0.92, it.ang, 1.3, fade32(pal.debrisRim, a));
+        scr.ellipse(sx, sy, rx * 0.62, ry * 0.62, it.ang, fade32(pal.debris, a * 0.8), 0);
+        if (s > 0.45 && it.r > 7) {
+          scr.ellipse(sx, sy, Math.max(1, rx * 0.13), Math.max(1, ry * 0.30), it.ang,
+            fade32(pal.debrisRim, a * 0.9), 0);
+        }
       } else {
         if (bl >= 2) scr.ring(sx, sy, it.r + 1, 1.4, fade32(pal.debrisRim, 0.5 * a));
         scr.ring(sx, sy, it.r * 0.85, 1.3, fade32(pal.debrisRim, a));

@@ -348,6 +348,56 @@ function silhouette(scr, spec, x, y, r, ang, phase, fill, rim, g) {
       }
       break;
     }
+    case 'hyphe': {
+      /* UN HYPHE MYCELIEN. Ce n'est pas une grosse cellule : c'est une FILE
+         de cellules separees par des septa, qui pousse par son extremite et
+         se ramifie en chemin. Trois traits le font reconnaitre, et il faut
+         les trois :
+           - la longueur, tres superieure au diametre ;
+           - les SEPTA, les cloisons transversales, regulierement espacees ;
+           - l'apex ARRONDI et un peu renfle, la ou la croissance se fait.
+         Sans septa on dessine un ver ; sans ramification, un cheveu. */
+      const el = spec.elance || 2.4;
+      const len = r * 2 * el, w = r * 0.5;
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      /* Le filament principal, legerement ondule : un hyphe suit le milieu,
+         il n'est pas tendu comme un fil. */
+      const noeuds = 7;
+      /* Les segments se RECOUVRENT. A 0,62 ils laissaient des trous et
+         l'hyphe se lisait comme une file de debris : un filament doit etre
+         continu, ce sont ses septa qui le cloisonnent, pas des vides. */
+      const seg = (len / (noeuds - 1)) * 1.25;
+      for (let i = 0; i < noeuds; i++) {
+        const t = (i / (noeuds - 1) - 0.5);
+        const onde = Math.sin(phase * 0.5 + t * 3.1) * r * 0.16;
+        const px = x + ca * len * t - sa * onde;
+        const py = y + sa * len * t + ca * onde;
+        if (relief) barre(scr, px, py, seg + g, w + g * 2, ang, fill, rim, eclat * 0.7);
+        else scr.cap(px, py, seg + g * 2, w + g * 2, ang, fill, 0);
+      }
+      if (!relief) break;
+      /* Les septa : de fines cloisons claires en travers du filament. */
+      for (let i = 1; i < noeuds; i++) {
+        const t = (i / noeuds - 0.5);
+        const onde = Math.sin(phase * 0.5 + t * 3.1) * r * 0.16;
+        const px = x + ca * len * t - sa * onde;
+        const py = y + sa * len * t + ca * onde;
+        scr.cap(px, py, w * 1.25, Math.max(1, w * 0.26), ang + Math.PI / 2,
+          fade32(clair(fill, 0.55), 0.8), 0);
+      }
+      /* Une ramification laterale, en angle aigu comme dans la realite. */
+      const bAng = ang + 0.62;
+      const bx = x + ca * len * 0.12, by = y + sa * len * 0.12;
+      const bLen = len * 0.34;
+      barre(scr, bx + Math.cos(bAng) * bLen * 0.5, by + Math.sin(bAng) * bLen * 0.5,
+        bLen, w * 0.86, bAng, fill, rim, eclat * 0.6);
+      /* L'APEX : la zone d'extension, plus claire et un peu renflee. C'est
+         le seul endroit ou un hyphe grandit. */
+      boule(scr, x + ca * len * 0.5, y + sa * len * 0.5, w * 0.72,
+        clair(fill, 0.3), rim, eclat);
+      break;
+    }
+
     case 'conidiophore': {
       /* ASPERGILLUS. Tete conidienne en aspergillum (le goupillon a eau
          benite qui a donne son nom au genre) : un stipe dresse, une vesicule

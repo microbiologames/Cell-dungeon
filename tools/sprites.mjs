@@ -110,6 +110,34 @@ if (MODE === 'bake') {
     const pal = MATRICES_PALETTE.milk;
     const out = [];
 
+    /* Dessine une fois et rend la boite englobante opaque, en fraction de
+       la toile. Sert a CADRER sans rien deviner. */
+    const mesurer = (size, draw) => {
+      const cv = document.createElement('canvas');
+      const scr = new Screen(cv, { W: size, H: size, CX: size / 2, CY: size / 2, R: size, mode: 'bake' });
+      scr.beginFrame(0x00000000);
+      scr.clip = false;
+      scr.layer(0);
+      draw(scr, size / 2, size / 2, size / 2 - 0.5);
+      scr.composite(0);
+      const d = scr.image.data;
+      let x0 = size, y0 = size, x1 = -1, y1 = -1;
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const i = (y * size + x) * 4;
+          if (d[i] === 0 && d[i + 1] === 0 && d[i + 2] === 0) continue;
+          if (x < x0) x0 = x; if (x > x1) x1 = x;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+      if (x1 < 0) return 1;
+      /* On repere le PLUS GRAND ecart au centre : un organisme qui deborde
+         d'un seul cote deborderait toujours apres un simple recadrage. */
+      const c = size / 2;
+      const demi = Math.max(c - x0, x1 - c, c - y0, y1 - c);
+      return (2 * demi) / size;
+    };
+
     const bake = (id, size, draw) => {
       const cv = document.createElement('canvas');
       const scr = new Screen(cv, { W: size, H: size, CX: size / 2, CY: size / 2, R: size, mode: 'bake' });
@@ -129,8 +157,23 @@ if (MODE === 'bake') {
     };
 
     /* Avec --size, l'organisme occupe 70 % de la toile et reste centre :
-       il faut de la marge, sinon le generateur rogne au cadre. */
-    const fit = (native) => (forced ? (forced * 0.70) / (native * 2) : 1);
+       il faut de la marge, sinon le generateur rogne au cadre.
+       L'encombrement n'est PAS deux fois le rayon pour tout le monde : un
+       bacille en fait 3,8 fois, un hyphe plus de cinq. On le MESURE donc,
+       au lieu de l'inscrire en dur morphologie par morphologie — sinon
+       chaque nouvelle forme ressort coupee, et une source coupee coute le
+       meme prix qu'une bonne. */
+    const cadrer = (size, dessin) => {
+      if (!forced) return 1;
+      /* On mesure sur une toile QUATRE FOIS plus grande. Sur la toile
+         finale, une forme qui deborde est coupee : sa mesure plafonne a 1
+         et le recadrage ne corrige rien. C'est exactement ce qui se
+         passait, et la source partait coupee au generateur. */
+      const grand = size * 4;
+      const part = mesurer(grand, (s, x, y) => dessin(s, x, y, 1));
+      const etendue = part * grand;             // encombrement, en pixels
+      return etendue > 0 ? Math.min(1, (0.70 * size) / etendue) : 1;
+    };
 
     /* Le joueur est bake avec la palette de la MATRICE, jamais avec celle du
        HUD : UI n'a ni playerRim ni playerCore, donc la toile sortait en
@@ -139,15 +182,23 @@ if (MODE === 'bake') {
     /* Le joueur est un BACILLE : son encombrement vaut 3,8 fois son rayon,
        pas 2 fois. Avec le fit generique, la cellule sortait du cadre et le
        generateur travaillait sur une forme coupee. */
-    const rJoueur = forced ? (forced * 0.70) / 3.8 : 3.4;
-    bake('player', forced || 16, (s, x, y) => drawPlayer(s, x, y, rJoueur, 0, 1.2,
-      pal, { count: 0, mode: 'bundle' }, { drive: 0, bend: 0 }));
+    {
+      const size = forced || 16;
+      const base = forced ? forced / 2 : 3.4;
+      const dessinJ = (s, x, y, k) => drawPlayer(s, x, y, base * k, 0, 1.2,
+        pal, { count: 0, mode: 'bundle' }, { drive: 0, bend: 0 });
+      const k = cadrer(size, dessinJ);
+      bake('player', size, (s, x, y) => dessinJ(s, x, y, k));
+    }
     /* Tout le bestiaire, toutes matrices : la toile de depart d'une espece
        de la conduite se bake exactement comme celle du lait cru. */
     for (const spec of Object.values(BESTIARY)) {
       const size = forced || Math.max(6, Math.ceil(spec.radius * 2) + 2);
       const [fill, rim] = colorOf(spec, pal);
-      bake(spec.id, size, (s, x, y) => drawOrganism(s, spec, x, y, spec.radius * fit(spec.radius), 0, 1.1, fill, rim));
+      const base = forced ? forced / 2 : spec.radius;
+      const dessin = (s, x, y, k) => drawOrganism(s, spec, x, y, base * k, 0, 1.1, fill, rim);
+      const k = cadrer(size, dessin);
+      bake(spec.id, size, (s, x, y) => dessin(s, x, y, k));
     }
     return out;
   }, forcedSize);

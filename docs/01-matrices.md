@@ -307,9 +307,51 @@ Priorité de cible imposée par la matrice, pas par le HUD.
 **Mécanique introduite** : le **gradient d'oxygène sur l'axe Z**. Pour la
 première fois, la profondeur a une valeur intrinsèque, pas seulement optique.
 
+**Les bulles de CO₂** montent par la profondeur et **brassent**. Leur rayon va
+de 4 px — la taille du joueur — à 62 px, soit **la moitié du disque observé**,
+avec un biais qui garde les petites majoritaires : sinon la jarre devient un
+jacuzzi.
+
+Elles ne blessent pas, elles poussent. Deux corrections mesurées :
+
+- La poussée était limitée au rayon géométrique de la bulle et décroissait au
+  carré. Le fluide chassé **déborde** la bulle, et le front d'une vague est
+  large : portée à 1,7 fois le rayon, décroissance en exposant 1,3.
+- La force passe de 320 à **2600**. Mesure sur un joueur immobile, bulle de
+  60 px, dérive naturelle : 320 donnait 24 px/s de crête (×0,4 de la vitesse
+  de nage) et 32 px de déplacement — imperceptible, et c'est ce qui était
+  signalé. 2600 donne 81 px/s (×1,2) et 94 px. Au-delà l'effet **sature**, le
+  joueur sortant de la vague avant d'en profiter.
+
+La masse en **volume** était un contresens : ce qui pousse n'est pas un choc
+mais le fluide, et un corps de même densité que le milieu le suit quelle que
+soit sa taille. Avec l'exposant 3, une moisissure de rayon 38 encaissait
+**1400 fois** moins que le joueur et la vague passait au travers sans rien
+déplacer. Exposant 0,9 : elle encaisse 8,8 fois moins, donc elle bouge.
+
+**L'échelle du règne fongique** a été revue. Une levure faisait une fois et
+demie le joueur, une moisissure trois fois : les deux se lisaient comme de
+gros mobs, pas comme un autre règne.
+
+| | Rayon | × joueur |
+|---|---|---|
+| Bactérie | 2,5 – 3,4 | 1 |
+| Levure | 9 – 11 | 3 |
+| Amas de levures | 26 | 7,6 |
+| Moisissure (tête conidienne) | 34 – 38 | 10 – 11 |
+| **Hyphe mycélien** | **46** | **13,5** |
+
+**L'hyphe** est le seul neutre qui se comporte comme un élément de terrain :
+un mycélium n'est pas une cellule de plus, c'est un réseau, et à cette échelle
+un seul filament traverse le champ. Trois traits le font reconnaître et il
+faut les trois — la longueur, les **septa** (les cloisons transversales), et
+l'**apex** arrondi où se fait la croissance. Sans septa on dessine un ver ;
+sans ramification, un cheveu.
+
 **Flore** : *Acetobacter pasteurianus* · *Gluconacetobacter* ·
 *Komagataeibacter xylinus* (tisseur) · *Brettanomyces bruxellensis* ·
-*Zygosaccharomyces bailii* (osmophile, très résistante) · *Saccharomyces cerevisiae*
+*Zygosaccharomyces bailii* (osmophile, très résistante) · *Saccharomyces cerevisiae*.
+Neutres : *Aspergillus*, *Penicillium*, **hyphes mycéliens**.
 
 **Boss 12:00** — **Le SCOBY** : la pellicule entière s'anime. Régénère tant
 qu'un tisseur est vivant.
@@ -322,12 +364,40 @@ qu'un tisseur est vivant.
 > n'est pas de couvrir du terrain, c'est de circuler.
 
 **Les grains d'amidon sont le stage.** Ils sont **impénétrables** au-delà de
-6 px de rayon — un grain d'amidon est un cristal, pas une gouttelette, et
+5 px de rayon — un grain d'amidon est un cristal, pas une gouttelette, et
 c'est cette différence avec le globule gras du lait cru qui fait du levain un
 **labyrinthe**. On glisse le long, on ne passe pas à travers. La gamme est très
-large et à peine biaisée parce que l'amidon de blé est réellement bimodal :
-grosses lenticulaires A de 15 à 35 µm et nuée de petites sphériques B de 2 à
-10 µm.
+large parce que l'amidon de blé est réellement bimodal : grosses lenticulaires
+A de 15 à 35 µm et nuée de petites sphériques B de 2 à 10 µm.
+
+**Ils sont LENTICULAIRES**, pas ronds (allongement 1,4 à 2,6, orientation
+libre). Un grain d'amidon est une lentille vue de trois quarts : allongé, il
+barre le passage sur sa longueur et se contourne par la tranche. La collision
+suit le dessin — le rayon opposé dépend de l'angle d'approche — parce que
+c'est le dessin que le joueur lit pour naviguer. Le hile, la fente centrale,
+est ce qui le fait reconnaître au microscope, et il est dessiné.
+
+Une pâte est aussi une préparation **mince** : les grains sont resserrés
+autour du plan de mise au point (`zEtalement` 0,45 contre 0,9 ailleurs). Sans
+ce resserrement les deux tiers du champ étaient flous, donc traversables, et
+le labyrinthe n'existait pas.
+
+**Mesure de navigabilité** — distance parcourue en poussant 10 s dans une
+direction fixe, rapportée aux 680 px d'une course libre :
+
+| Matrice | Moyenne | Étendue |
+|---|---|---|
+| Lait cru | 96 % | 633 – 659 px |
+| Kombucha | 96 % | 634 – 661 px |
+| **Levain** | **70 %** | **255 – 631 px** |
+
+C'est la signature d'un labyrinthe et non d'un mur : selon la direction, on
+passe ou on ne passe pas. Une moyenne seule ne l'aurait pas dit.
+
+**Pas de bulles de gaz ici.** Un levain en produit, évidemment — mais la
+remontée de CO₂ est la signature du kombucha, et la reprendre telle quelle
+dans un second stage ouvert dilue les deux. Deux stages ouverts doivent se
+**jouer** différemment, pas se ressembler.
 
 **Flore** : `F. sanfranciscensis` (l'emblème — elle domine la quasi-totalité
 des levains matures du monde) · `L. brevis` · `L. plantarum` ·

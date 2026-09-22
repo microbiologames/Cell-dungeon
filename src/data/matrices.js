@@ -193,8 +193,11 @@ export const KOMBUCHA = {
   arenaRadius: 1100,
   pool: KOMBUCHA_MOBS,
   neutrals: KOMBUCHA_NEUTRALS,
-  /* Peu de neutres, mais enormes : ce sont les baleines du stage. */
-  ambient: 2,
+  /* Peu de neutres, mais enormes : ce sont les baleines du stage. Trois et
+     non deux depuis que les hyphes s'ajoutent au lot : avec deux places
+     pour trois especes, on pouvait traverser un run sans jamais voir de
+     mycelium. */
+  ambient: 3,
   bosses: KOMBUCHA_BOSSES,
 
   /* Une jarre est un milieu riche et encombre : a surface egale, il s'y
@@ -214,8 +217,23 @@ export const KOMBUCHA = {
      et sa cadence monte avec la progression. */
   bulles: {
     debut: 0.16, fin: 0.85,
-    rMin: 16, rMax: 44,
-    vitesseZ: 0.28, poussee: 320,
+    /* De la taille du joueur (3,4) a la MOITIE DU DISQUE observe (rayon
+       124 px) : c'est cette echelle qui rend une jarre vivante. Une bulle
+       de 5 px passe sans qu'on la remarque, une de 60 px chasse tout ce
+       qui se trouve devant elle. Le biais garde les petites majoritaires,
+       sinon la jarre devient un jacuzzi. */
+    rMin: 4, rMax: 62, skew: 2.4,
+    vitesseZ: 0.28,
+    /* Une bulle ne blesse pas, elle BRASSE. Mesure a 320 : le joueur ne
+       sentait rien. Le fluide chasse devant la bulle deplace un volume
+       egal au sien — a cette echelle, c'est une vague. */
+    /* Mesure, derive naturelle, bulle de 60 px sur un joueur immobile :
+       320 donnait 24 px/s de crete (x0,4 de la vitesse de nage) et 32 px de
+       deplacement — imperceptible. 2600 donne 81 px/s (x1,2) et 94 px, soit
+       les trois quarts du rayon du disque observe : la vague prend la main
+       sur la nage, ce qui est exactement ce qu'on veut. Au-dela l'effet
+       sature, le joueur sortant de la vague avant d'en profiter. */
+    poussee: 2600,
   },
 
   /* pH 3,0 : bien plus acide que le lait cru. Une bacterie lactique y est
@@ -270,13 +288,13 @@ export const LEVAIN = {
     { t: 720, type: 'boss', id: 'amasmur' },
   ],
 
-  /* Moins de bulles que dans une jarre, mais elles existent : un levain
-     actif est plein de CO2, et c'est meme a ca qu'on voit qu'il est pret. */
-  bulles: {
-    debut: 0.10, fin: 0.5,
-    rMin: 14, rMax: 34,
-    vitesseZ: 0.24, poussee: 260,
-  },
+  /* PAS de bulles ici. Un levain en produit, evidemment — mais la mecanique
+     de remontee est la signature du kombucha, et la reprendre telle quelle
+     dans un deuxieme stage ouvert dilue les deux. Le levain a deja sa
+     mecanique : l'encombrement. Deux stages ouverts doivent se jouer
+     differemment, pas se ressembler.
+     La fermentation reste lisible autrement : le pH descend, la pate est
+     pleine. */
 
   /* pH 3,9 : acide, mais c'est le domaine des bacteries lactiques. Le joueur
      y est chez lui — c'est la seule matrice apres le lait cru ou il ait cet
@@ -294,14 +312,26 @@ export const LEVAIN = {
      15 a 35 um et une nuee de petites spheriques B de 2 a 10 — d'ou une
      gamme tres large et un biais leger seulement. */
   decor: {
-    kind: 'globule', minR: 2.5, maxR: 28, skew: 1.35,
+    kind: 'globule', minR: 2.5, maxR: 48, skew: 2.0,
     bubbleMinR: 1.8, bubbleMaxR: 10, bubbleSkew: 2.2,
     blocksBullets: true,
-    /* IMPENETRABLES a partir de 6 px de rayon : un grain d'amidon est un
+    /* LENTICULAIRES. Un grain d'amidon de ble est une lentille, pas une
+       bille : allonge, il barre le passage sur sa longueur et se contourne
+       par la tranche. C'est ce qui fait qu'on NAVIGUE entre les grains au
+       lieu de slalomer entre des points. */
+    elongation: [1.4, 2.6],
+    /* Une pate est une preparation MINCE : on ne regarde pas au travers
+       d'une colonne de liquide, les grains sont tous a peu pres dans le
+       plan. Sans ce resserrement, les deux tiers du champ etaient flous
+       donc traversables, et le labyrinthe n'existait pas. */
+    zEtalement: 0.45,
+    /* IMPENETRABLES a partir de 5 px de rayon : un grain d'amidon est un
        cristal, pas une gouttelette. C'est ce qui fait le labyrinthe. */
     solide: true,
-    /* Une pate est PLEINE. */
-    densite: 2.2,
+    solideMinR: 5,
+    /* Une pate est PLEINE. Mesure : a 2,2 on traversait le champ en ligne
+       droite sans toucher un grain. */
+    densite: 4.2,
   },
 };
 

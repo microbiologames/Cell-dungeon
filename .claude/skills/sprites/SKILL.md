@@ -140,8 +140,19 @@ Deux mesures de plus, sur la conduite (20/09/2026, même recette) :
 | `biofilmMur` (masse d'EPS, 52 px) | complexe, **immobile** | **fort** — texture grumeleuse et canaux d'eau, adopté |
 | `mucoid` (bacille long, 24 px) | lisse | **nul** — une dalle rouge avant, une dalle rouge avec du bruit sur les bords après. Refusé |
 
+Troisième mesure, sur le kombucha (22/09/2026, même recette, 96×96) :
+
+| Organisme | Silhouette | Gain réel |
+|---|---|---|
+| `hyphes` (filament septé, 92 px) | allongée et **lisse** | **négatif** — silhouette conservée, mais les **septa effacés** et la teinte virée au vert, alors qu'un neutre doit rester gris délavé. Refusé |
+
 **Règle** : une silhouette riche gagne du volume, une silhouette lisse gagne
 un point blanc. Ne générer que ce qui a de la structure à éclairer.
+
+Corollaire de l'essai `hyphes` : le générateur **efface les détails fins et
+réguliers**. Des septa, des stries, une chaînette régulière sont précisément
+ce qu'il lisse en texture. Si le trait qui identifie l'espèce est un motif
+répété fin, la forme procédurale le gardera et pas lui.
 
 Corollaire mesuré sur `mucoid` : la **taille ne rachète pas** la simplicité.
 Un bacille de 24 px ne gagne pas plus qu'un bacille de 13 px — c'est la
@@ -192,6 +203,22 @@ Les deux ont été portées dans `src/render/organisms.js` (`ombreAxiale`,
 `granules`) et profitent à **tous** les bacilles, pas seulement au joueur.
 Coût : deux générations, 0,054 $, pour une amélioration qui touche une
 douzaine d'espèces. C'est le meilleur rapport mesuré jusqu'ici.
+
+### Le cadrage du bake est MESURÉ, plus deviné
+
+Le `fit` supposait un encombrement de `2 × radius`. C'est faux pour tout ce
+qui est allongé : un bacille fait `3,8 × r`, un hyphe plus de `5 × r`. Chaque
+nouvelle morphologie ressortait donc **coupée au cadre**, et une source
+coupée coûte le même prix qu'une bonne.
+
+Le bake dessine désormais une première fois, **relève la boîte englobante
+opaque**, et recadre pour que le sujet occupe 70 % de la toile. Aucune table
+par morphologie à tenir à jour.
+
+Piège rencontré en l'écrivant : mesurer sur la toile finale ne sert à rien —
+une forme qui déborde y est **coupée**, sa mesure plafonne à 1 et le
+recadrage ne corrige rien. On mesure sur une toile **quatre fois plus
+grande**.
 
 ### Vérifier la TOILE DE DÉPART avant de dépenser
 

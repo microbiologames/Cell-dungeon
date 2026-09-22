@@ -285,6 +285,48 @@ export class Screen {
     }
   }
 
+  /**
+   * Ellipse pleine. Un grain d'amidon de ble est LENTICULAIRE, pas spherique :
+   * le dessiner rond en fait une bulle, et le champ perd sa lecture.
+   *
+   * @param {number} rx demi-grand axe   @param {number} ry demi-petit axe
+   */
+  ellipse(cx, cy, rx, ry, ang, fill, rim = 0) {
+    if (rx < 0.8 || ry < 0.8) { this.disc(cx, cy, Math.max(rx, ry), fill, rim); return; }
+    const ca = Math.cos(-ang), sa = Math.sin(-ang);
+    const R = Math.ceil(Math.max(rx, ry)) + 1;
+    for (let y = -R; y <= R; y++) {
+      for (let x = -R; x <= R; x++) {
+        /* On ramene le pixel dans le repere de l'ellipse, puis on le teste
+           sur le cercle unite : une seule racine par pixel. */
+        const u = (x * ca - y * sa) / rx;
+        const v = (x * sa + y * ca) / ry;
+        const d = Math.sqrt(u * u + v * v);
+        if (d > 1) continue;
+        this.plot(cx + x, cy + y, rim && d > 0.80 ? rim : fill);
+      }
+    }
+  }
+
+  /** Contour d'ellipse : le halo de contraste de phase d'un grain. */
+  ringE(cx, cy, rx, ry, ang, thickness, c) {
+    const ca = Math.cos(-ang), sa = Math.sin(-ang);
+    const R = Math.ceil(Math.max(rx, ry) + thickness) + 1;
+    /* L'epaisseur est donnee en PIXELS : on la convertit en fraction de
+       rayon, sinon un grain allonge a un contour deux fois plus epais sur
+       son petit axe que sur son grand. */
+    const e = thickness / Math.max(1, Math.min(rx, ry));
+    for (let y = -R; y <= R; y++) {
+      for (let x = -R; x <= R; x++) {
+        const u = (x * ca - y * sa) / rx;
+        const v = (x * sa + y * ca) / ry;
+        const d = Math.sqrt(u * u + v * v);
+        if (d < 1 - e || d > 1 + e * 0.4) continue;
+        this.plot(cx + x, cy + y, c);
+      }
+    }
+  }
+
   /** Capsule (bacille) : segment epais a bouts ronds. */
   cap(cx, cy, len, width, ang, fill, rim = 0) {
     const r = width / 2;

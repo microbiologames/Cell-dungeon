@@ -34,6 +34,10 @@ export class Bulles {
     this.finParSec = cfg.fin ?? 0.9;
     this.rMin = cfg.rMin ?? 14;
     this.rMax = cfg.rMax ?? 42;
+    /* Biais vers les petites. Sans lui, une loi uniforme sur une gamme aussi
+       large remplit la jarre de bulles enormes et le stage devient
+       injouable ; avec, les grosses restent des evenements. */
+    this.skew = cfg.skew ?? 1;
     /* Vitesse de remontee, en unites de z par seconde. Lente : une bulle de
        fermentation dans un milieu visqueux et charge ne fuse pas. */
     this.vitesseZ = cfg.vitesseZ ?? 0.30;
@@ -73,13 +77,16 @@ export class Bulles {
        la plupart passeront a cote, et c'est ce qui rend celles qui arrivent
        dessus lisibles. */
     const a = g.rng() * TAU;
-    const d = g.rng() * 150;
+    const r0 = this.rMin + Math.pow(g.rng(), this.skew) * (this.rMax - this.rMin);
+    /* Plus la bulle est grosse, plus loin elle peut naitre : sinon les
+       grosses tombent toujours sur le joueur et on ne les evite jamais. */
+    const d = g.rng() * (150 + r0 * 2.2);
     this.liste.push({
       x: g.player.x + Math.cos(a) * d,
       y: g.player.y + Math.sin(a) * d,
       z: Z_DEPART,
-      r0: this.rMin + g.rng() * (this.rMax - this.rMin),
-      r: this.rMin,
+      r0,
+      r: r0,
       ph: g.rng() * TAU,
       mort: false,
     });
@@ -100,16 +107,23 @@ export class Bulles {
     if (proche <= 0) return;
     b.actif = proche;
 
+    /* Le fluide chasse deborde la bulle : une bulle qui monte pousse aussi
+       ce qui la borde, pas seulement ce qu'elle percute. Limiter la poussee
+       a son rayon geometrique donnait un effet qu'on ne sentait pas. */
+    const R = b.r * 1.7;
     const souffle = (o, masse) => {
       const dx = o.x - b.x, dy = o.y - b.y;
       const d = Math.hypot(dx, dy);
-      if (d > b.r) return;
-      /* Maximal sur l'axe, nul au bord : c'est le deplacement du fluide que
-         la bulle chasse devant elle. */
-      const k = (1 - d / b.r) * proche;
+      if (d > R) return;
+      /* Exposant 1,3 et non 2 : au carre, seul l'axe exact poussait et tout
+         le reste de la bulle etait inerte. La vague a un front large. */
+      const k = Math.pow(1 - d / R, 1.3);
       const nx = d > 0.01 ? dx / d : Math.cos(b.ph);
       const ny = d > 0.01 ? dy / d : Math.sin(b.ph);
-      const f = (this.poussee * k * k) / masse;
+      /* `proche` au carre : la vague culmine au passage du plan et retombe
+         vite. C'est ce qui la fait passer comme une vague et non comme un
+         courant permanent. */
+      const f = (this.poussee * k * proche * proche) / masse;
       o.vx += nx * f * dt;
       o.vy += ny * f * dt;
     };
@@ -117,9 +131,14 @@ export class Bulles {
     souffle(g.player, 1);
     for (const e of g.enemies) {
       if (!e.alive || e.spec.immobile) continue;
-      /* Les gros encaissent : une baleine ne se fait pas bousculer par une
-         bulle. La masse est prise en volume, comme pour l'encombrement. */
-      souffle(e, Math.max(1, Math.pow(e.radius / 3.4, 3)));
+      /* La masse en VOLUME etait un contresens. Ce qui pousse n'est pas un
+         choc mais le fluide que la bulle chasse devant elle — et un corps
+         de meme densite que le milieu suit ce fluide, quelle que soit sa
+         taille. Seule son inertie devant la trainee le fait trainer un peu.
+         L'exposant 3 rendait toute baleine strictement inamovible : une
+         moisissure de rayon 38 encaissait 1400 fois moins que le joueur, et
+         la vague passait a travers elle sans rien deplacer. */
+      souffle(e, Math.max(1, Math.pow(e.radius / 3.4, 0.9)));
     }
     for (const k of g.pickups) if (k.alive) souffle(k, 0.7);
   }

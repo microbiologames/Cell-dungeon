@@ -291,14 +291,14 @@ export const KOMBUCHA_MOBS = [
   M({
     id: 'brettanomyces', label: 'B. BRUXELLENSIS', role: 'splitter',
     kind: 'bud', mot: 'brown', gram: 'fungi',
-    hp: 95, speed: 20, contact: 12, radius: 5.2, aa: 9, zSpeed: 0.16,
+    hp: 95, speed: 20, contact: 12, radius: 9, aa: 9, zSpeed: 0.16,
     ability: 'bourgeonnement',
     note: "Levure de contamination des fermentations, tres tolerante a l'acide et a l'ethanol. Bourgeonnement, et cellules souvent allongees en ogive.",
   }),
   M({
     id: 'zygosaccharomyces', label: 'Z. BAILII', role: 'tank',
     kind: 'bud', mot: 'brown', gram: 'fungi',
-    hp: 180, speed: 24, contact: 14, radius: 6.2, aa: 12, zSpeed: 0.18,
+    hp: 180, speed: 24, contact: 14, radius: 11, aa: 12, zSpeed: 0.18,
     resist: 0.35, ability: 'osmotolerance',
     note: "L'une des levures d'alteration les plus resistantes qu'on connaisse : elle tient des concentrations en sucre et en acide qui steriliseraient tout le reste. La tuer coute cher.",
   }),
@@ -319,22 +319,46 @@ export const KOMBUCHA_MOBS = [
    Leur rayon est volontairement TRES superieur a celui des mobs : une tete
    conidienne d'Aspergillus fait quelques centaines de micrometres contre un
    ou deux pour une bacterie. On compresse enormement, comme partout dans le
-   jeu, mais un rapport de trois a quatre est le minimum pour que la baleine
-   se lise comme une baleine et pas comme un gros mob. */
+   jeu, mais le rapport doit rester lisible A L'ECRAN.
+
+   Echelle retenue, en rayons, le joueur valant 3,4 :
+
+     bacterie      2,5 a 3,4     reference
+     levure        9 a 11        une levure fait quatre a six fois une
+                                 bacterie, c'est le rapport reel
+     amas          26            un bourgeonnement qui n'a pas separe
+     moisissure    34 a 38       tete conidienne : une baleine
+     hyphe         46            le mycelium, qui est encore au-dessus
+
+   Mesure qui a motive la revision : a 5,2 une levure faisait une fois et
+   demie le joueur, et a 22 une moisissure en faisait trois fois — les deux
+   se lisaient comme de gros mobs, pas comme un autre regne. */
 export const KOMBUCHA_NEUTRALS = [
   M({
     id: 'aspergillus', label: 'ASPERGILLUS', role: 'neutral', cost: 0,
     kind: 'conidiophore', mot: 'brown', gram: 'fungi', neutral: true, obstacle: true,
-    hp: 900, speed: 4, contact: 0, radius: 22, aa: 10, zSpeed: 0, zWander: true, zAmp: 0.32,
+    hp: 900, speed: 4, contact: 0, radius: 38, aa: 10, zSpeed: 0, zWander: true, zAmp: 0.32,
     note: "Tete conidienne en aspergillum : un stipe dresse, une vesicule globuleuse, et des chainettes de conidies rayonnantes. Moisissure de surface d'une jarre ouverte. Elle ne s'en prend a personne.",
   }),
   M({
     id: 'penicillium', label: 'PENICILLIUM', role: 'neutral', cost: 0,
     kind: 'penicille', mot: 'brown', gram: 'fungi', neutral: true, obstacle: true,
-    hp: 820, speed: 5, contact: 0, radius: 20, aa: 9, zSpeed: 0, zWander: true, zAmp: 0.32,
+    hp: 820, speed: 5, contact: 0, radius: 34, aa: 9, zSpeed: 0, zWander: true, zAmp: 0.32,
     note: "Son nom vient du pinceau : le conidiophore se ramifie en metules puis en phialides, d'ou partent les chainettes de conidies. Contaminant classique des milieux sucres et acides.",
   }),
 ];
+
+/* Les HYPHES. Un mycelium n'est pas une cellule de plus : c'est un RESEAU,
+   et a l'echelle ou l'on observe, un seul filament traverse le champ. Il ne
+   bouge pratiquement pas et ne veut rien a personne, mais il occupe — c'est
+   le seul neutre qui se comporte comme un element de terrain. */
+KOMBUCHA_NEUTRALS.push(M({
+  id: 'hyphes', label: 'HYPHE MYCELIEN', role: 'neutral', cost: 0,
+  kind: 'hyphe', mot: 'brown', gram: 'fungi', neutral: true, obstacle: true,
+  hp: 1200, speed: 2, contact: 0, radius: 46, aa: 12, zSpeed: 0, zWander: true, zAmp: 0.26,
+  elance: 2.6,
+  note: "Filament vegetatif d'une moisissure : une file de cellules separees par des septa, qui pousse par son extremite et se ramifie. C'est la partie qui colonise, la tete conidienne n'etant que l'organe de reproduction.",
+}));
 
 export const KOMBUCHA_BOSSES = {
   scoby: M({
@@ -397,7 +421,7 @@ export const LEVAIN_MOBS = [
   M({
     id: 'cerevisiae', label: 'S. CEREVISIAE', role: 'tank',
     kind: 'bud', mot: 'brown', gram: 'fungi',
-    hp: 200, speed: 20, contact: 15, radius: 7, aa: 14, zSpeed: 0.18,
+    hp: 200, speed: 20, contact: 15, radius: 11, aa: 14, zSpeed: 0.18,
     ability: 'bourgeonnement',
     note: "La levure de boulangerie. Dans un levain elle coexiste avec les lactobacilles au lieu de les ecraser, parce que le milieu est trop acide pour qu'elle domine.",
   }),
@@ -407,14 +431,14 @@ export const LEVAIN_NEUTRALS = [
   M({
     id: 'grandelevure', label: 'AMAS DE LEVURES', role: 'neutral', cost: 0,
     kind: 'amas', mot: 'brown', gram: 'fungi', neutral: true, obstacle: true,
-    hp: 700, speed: 6, contact: 0, radius: 18, aa: 8, zSpeed: 0, zWander: true, zAmp: 0.30,
+    hp: 700, speed: 6, contact: 0, radius: 26, aa: 8, zSpeed: 0, zWander: true, zAmp: 0.30,
     note: "Un bourgeonnement qui n'a pas separe : les cellules filles restent accrochees et forment un amas pseudomycelien. Massif, lent, et parfaitement indifferent.",
   }),
   M({
     id: 'penicilliumLev', label: 'PENICILLIUM', role: 'neutral', cost: 0,
     kind: 'penicille', mot: 'brown', gram: 'fungi', neutral: true, obstacle: true,
     spriteId: 'penicillium',
-    hp: 820, speed: 5, contact: 0, radius: 20, aa: 9, zSpeed: 0, zWander: true, zAmp: 0.32,
+    hp: 820, speed: 5, contact: 0, radius: 34, aa: 9, zSpeed: 0, zWander: true, zAmp: 0.32,
     note: "La moisissure qui finit par gagner un levain neglige. Conidiophore en pinceau, chainettes de conidies.",
   }),
 ];

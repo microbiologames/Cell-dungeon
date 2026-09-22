@@ -61,6 +61,7 @@ export function forEachDecor(matrix, cx, cy, radius, removed, time, fn) {
         const h2 = hash2(gr * 13, gy * 29 + i);
         const h3 = hash2(gr + i * 101, gy - i * 57);
         const h4 = hash2(gr * 7 - i, gy * 3 + i * 41);
+        const h5 = hash2(gr * 53 + i * 11, gy * 23 - i * 7);
 
         const kind = h4 > 0.84 ? 'bubble' : 'globule';
         /* L'exposant biaise la distribution vers les petites tailles : sans
@@ -73,6 +74,15 @@ export function forEachDecor(matrix, cx, cy, radius, removed, time, fn) {
         /* Mouvement brownien d'amplitude 1/sqrt(taille) : les petits objets
            s'agitent plus. C'est Stokes-Einstein, et c'est gratuit ici
            puisque la position est une fonction du temps, sans etat. */
+        /* ALLONGEMENT. Un globule gras est une gouttelette, donc rond. Un
+           grain d'amidon de ble est LENTICULAIRE — une lentille vue de
+           trois quarts — et c'est ce qui fait qu'un champ de grains se lit
+           comme un encombrement et pas comme un semis de bulles. */
+        const eMin = d.elongation ? d.elongation[0] : 1;
+        const eMax = d.elongation ? d.elongation[1] : 1;
+        const el = kind === 'bubble' ? 1 : eMin + h5 * (eMax - eMin);
+        const ang = h5 * TAU;
+
         const amp = 11 / Math.sqrt(r);
         const f1 = 0.55 + h1 * 0.9, f2 = 0.47 + h2 * 0.8;
         const bx = gx * DECOR_CELL + h1 * DECOR_CELL;
@@ -85,14 +95,32 @@ export function forEachDecor(matrix, cx, cy, radius, removed, time, fn) {
 
         /* La profondeur derive aussi : des objets entrent et sortent du plan
            net tout seuls, ce qui donne au champ sa vie et sa profondeur. */
+        const etal = d.zEtalement ?? 0.9;
         const z = clamp(
-          (hash2(gx - i, gy + i) * 2 - 1) * 0.9 + Math.sin(time * 0.21 + h1 * TAU) * 0.22,
+          (hash2(gx - i, gy + i) * 2 - 1) * etal + Math.sin(time * 0.21 + h1 * TAU) * 0.22,
           -1, 1,
         );
-        fn({ x, y, z, r, kind, key });
+        fn({ x, y, z, r, el, ang, kind, key });
       }
     }
   }
+}
+
+/**
+ * Rayon de l'ellipse dans la direction donnee.
+ *
+ * Un grain allonge n'oppose pas la meme surface selon l'angle d'approche :
+ * on le contourne par la tranche et on le heurte de plein fouet par le
+ * flanc. Traiter sa collision comme celle d'un disque ferait mentir le
+ * dessin — et c'est le dessin que le joueur lit pour naviguer.
+ */
+export function rayonVers(it, nx, ny) {
+  if (!it.el || it.el === 1) return it.r;
+  const a = it.r * it.el, b = it.r;
+  const ca = Math.cos(it.ang), sa = Math.sin(it.ang);
+  const cu = nx * ca + ny * sa;         // composante sur le grand axe
+  const su = -nx * sa + ny * ca;        // composante sur le petit axe
+  return (a * b) / Math.sqrt(b * b * cu * cu + a * a * su * su);
 }
 
 /** Liste des elements proches, pour la physique. */
@@ -113,18 +141,22 @@ export function collectDecor(matrix, cx, cy, radius, removed, time) {
  *   tout. C'est cette difference qui fait du levain un labyrinthe et du
  *   lait cru un champ ouvert.
  */
-export function applyDecor(ent, entRadius, decor, dt, solide = false) {
+export function applyDecor(ent, entRadius, decor, dt, solide = false, d = {}) {
   let slow = 1;
   for (const it of decor) {
     /* Seul ce qui est dans le plan compte : un globule flou est au-dessus
        ou en dessous, on passe dessous sans le toucher. */
     if (Math.abs(it.z) > 0.30) continue;
     const dx = ent.x - it.x, dy = ent.y - it.y;
-    const rr = it.r + entRadius;
     const d2 = dx * dx + dy * dy;
-    if (d2 > rr * rr) continue;
+    /* Test grossier d'abord, sur le grand axe : la trigonometrie de
+       l'ellipse ne se paie que pour les quelques elements qui la meritent. */
+    const rmax = it.r * (it.el || 1) + entRadius;
+    if (d2 > rmax * rmax) continue;
     const d = Math.sqrt(d2) || 0.001;
     const nx = dx / d, ny = dy / d;
+    const rr = rayonVers(it, nx, ny) + entRadius;
+    if (d > rr) continue;
 
     if (it.kind === 'bubble') {
       /* Rebond : on repousse hors de la bulle et on inverse la composante
@@ -141,7 +173,7 @@ export function applyDecor(ent, entRadius, decor, dt, solide = false) {
       const pull = clamp((rr - d) / rr, 0, 1);
       ent.vx -= ent.vx * pull * 3.2 * dt;
       ent.vy -= ent.vy * pull * 3.2 * dt;
-      if (solide && it.r >= 6) {
+      if (solide && it.r >= (d.solideMinR ?? 6)) {
         /* Cristal d'amidon : plein. On est repousse a l'exterieur et on
            GLISSE le long, au lieu de s'y ecraser. */
         const push = rr - d;
@@ -163,8 +195,9 @@ export function decorBlocksBullet(bx, by, br, decor) {
   for (const it of decor) {
     if (it.kind !== 'globule' || Math.abs(it.z) > 0.30) continue;
     const dx = bx - it.x, dy = by - it.y;
-    const rr = it.r * 0.85 + br;
-    if (dx * dx + dy * dy < rr * rr) return true;
+    const d = Math.hypot(dx, dy) || 0.001;
+    const rr = rayonVers(it, dx / d, dy / d) * 0.85 + br;
+    if (d < rr) return true;
   }
   return false;
 }

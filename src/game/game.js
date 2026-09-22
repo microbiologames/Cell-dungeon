@@ -122,7 +122,7 @@ export class Game {
 
     this.computeZoneEffects();
     const solide = !!this.matrix.decor.solide;
-    const decorSlow = applyDecor(this.player, this.player.radius, this.decorNear, dt, solide);
+    const decorSlow = applyDecor(this.player, this.player.radius, this.decorNear, dt, solide, this.matrix.decor);
     this.playerSlowFactor = Math.min(this.playerSlowFactor, decorSlow);
     this.player.update(dt, input.move, this);
 
@@ -137,7 +137,7 @@ export class Game {
       /* Les mobs collent aux globules et rebondissent sur les bulles comme
          le joueur : le decor n'est pas un privilege. */
       if (e.spec.mot !== 'none') {
-        const s = applyDecor(e, e.radius, this.decorNear, dt, solide);
+        const s = applyDecor(e, e.radius, this.decorNear, dt, solide, this.matrix.decor);
         if (s < 1) { e.slow = Math.max(e.slow, 1 - s); e.slowTtl = Math.max(e.slowTtl, 0.12); }
       }
       updateEnemy(e, dt, this);
