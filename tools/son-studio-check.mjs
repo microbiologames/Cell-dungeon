@@ -8,9 +8,11 @@
    navigateur, avec du vrai son.
 
    Ce qu'on verifie :
-     - que le schema tient dans ses bits et que les presets adoptes tombent
-       exactement sur la grille du code (aller-retour = identite) ;
-     - qu'un curseur change reellement le preset ET le code ;
+     - que le schema tient dans ses bits et que les reglages adoptes, AMBIANCE
+       ET RACK, tombent exactement sur la grille du code (aller-retour =
+       identite) ;
+     - qu'un curseur d'ambiance ET un curseur de rack changent le code ;
+     - que chaque voix a bien tous ses champs, et que le solo se voit ;
      - qu'un code se recharge et repositionne les curseurs ;
      - qu'un code faux ne charge RIEN ;
      - que l'arc de partie fait bouger le contexte tout seul ;
@@ -60,20 +62,45 @@ const schema = await pg.evaluate(async () => {
   const m = await import('../src/data/son-presets.js');
   const maux = m.verifierSchema();
   const allers = [];
-  for (const [nom, p] of Object.entries(m.PRESETS)) {
-    const d = m.decoderCode(m.encoderCode(nom, p, 0x5eed));
-    const exact = d && d.graine === 0x5eed
-      && m.CHAMPS.every((ch) => d.preset[ch.cle] === p[ch.cle]);
+  for (const nom of Object.keys(m.PRESETS)) {
+    const p = m.PRESETS[nom], r = m.RACKS[nom];
+    const d = m.decoderCode(m.encoderCode(nom, p, r, 0x5eed));
+    const exact = d && d.graine === 0x5eed && d.rack.desaccord === r.desaccord
+      && m.CHAMPS.every((ch) => d.preset[ch.cle] === p[ch.cle])
+      && m.VOIX.every((v) => m.CHAMPS_PAR_GENRE[v.genre]
+        .every((ch) => d.rack[v.cle][ch.cle] === r[v.cle][ch.cle]));
     if (!exact) allers.push(nom);
   }
-  return { maux, allers, champs: m.CHAMPS.length };
+  /* Un code de la premiere version ne connaissait pas les racks. Il doit
+     encore se relire : un code note a l'oreille represente une soiree
+     d'ecoute, et rien ne justifie de la perdre. */
+  const v1 = m.decoderCode('CD1-milk-F9SJQNM43A6AA5XVER');
+  return { maux, allers,
+    champs: m.CHAMPS.length,
+    voix: m.VOIX.length,
+    champsVoix: Object.fromEntries(m.VOIX.map((v) => [v.cle, m.CHAMPS_PAR_GENRE[v.genre].length])),
+    cd1: !!v1 && v1.preset.bpm === 172 && v1.rack.lead.onde === 'carre' };
 });
 dit(schema.maux.length === 0, `schema et presets sur la grille${schema.maux.length ? ' : ' + schema.maux.join(' | ') : ''}`);
-dit(schema.allers.length === 0, `aller-retour preset -> code -> preset exact${schema.allers.length ? ' SAUF ' + schema.allers.join(', ') : ''}`);
+dit(schema.allers.length === 0, `aller-retour reglages -> code -> reglages exact${schema.allers.length ? ' SAUF ' + schema.allers.join(', ') : ''}`);
+dit(schema.cd1, 'un code CD1 se relit encore, traduit vers le format a rack');
 
 /* --- la page ----------------------------------------------------------- */
 const nb = await pg.locator('#groupes input[type=range]').count();
-dit(nb === schema.champs, `les ${schema.champs} champs ont tous un curseur (${nb} affiches)`);
+dit(nb === schema.champs, `les ${schema.champs} champs d ambiance ont tous un curseur (${nb} affiches)`);
+dit(await pg.locator('#voix .btn').count() === schema.voix,
+  `les ${schema.voix} voix du rack ont toutes un onglet`);
+
+/* Chaque voix doit ouvrir un panneau complet. Une voix dont un champ manque
+   se regle « bien » et se code faux — c'est indetectable a l'oreille. */
+const manques = [];
+for (const [cle, n] of Object.entries(schema.champsVoix)) {
+  await pg.evaluate((c) => document.querySelector(`#voix .btn[data-cle="${c}"]`).click(), cle);
+  const attendu = n + (cle === 'nappe' ? 1 : 0);   // la nappe a son desaccord
+  const vus = await pg.locator('#patch input[type=range]').count();
+  if (vus !== attendu) manques.push(`${cle} : ${vus} au lieu de ${attendu}`);
+}
+dit(manques.length === 0, `chaque voix ouvre un panneau complet${manques.length ? ' SAUF ' + manques.join(', ') : ''}`);
 
 const code0 = await pg.locator('#codeCourant').textContent();
 await pg.click('#jouer');
@@ -83,16 +110,42 @@ dit((await pg.locator('#jouer').textContent()).trim() === 'Couper', 'le moteur d
 await pg.locator('#groupes input[type=range]').first().fill('120');
 await pg.waitForTimeout(150);
 const code1 = await pg.locator('#codeCourant').textContent();
-dit(code1 !== code0, `un curseur change le code (${code0} -> ${code1})`);
+dit(code1 !== code0, 'un curseur d ambiance change le code');
 dit(await pg.locator('#groupes .rang.bouge').count() > 0, 'l ecart a l adopte est signale');
 
-await pg.fill('#charger', 'CD1-pipe-FRR4XRQ34A6AA5XVE8');
+/* Le rack. C'est le sujet : un curseur de timbre doit s'entendre ET se coder. */
+await pg.evaluate(() => document.querySelector('#voix .btn[data-cle="lead"]').click());
+await pg.locator('#patch input[type=range]').first().fill('2');
+await pg.waitForTimeout(150);
+const code2 = await pg.locator('#codeCourant').textContent();
+dit(code2 !== code1, 'un curseur de rack change le code');
+dit(await pg.locator('#patch .rang.bouge').count() > 0, 'l ecart au rack adopte est signale');
+const onde = await pg.evaluate(async () => {
+  const m = await import('../src/data/son-presets.js');
+  return m.RACKS.milk.lead.onde;
+});
+dit(onde === 'scie', `le curseur d onde atteint bien la voix (lead = ${onde})`);
+
+await pg.click('#solo');
+await pg.waitForTimeout(150);
+const solo = await pg.evaluate(() => {
+  const b = [...document.querySelectorAll('#voix .btn')];
+  return { actif: document.querySelector('#solo').getAttribute('aria-pressed'),
+    eteintes: b.filter((x) => x.style.opacity === '0.35').length };
+});
+dit(solo.actif === 'true' && solo.eteintes === schema.voix - 1,
+  `le solo eteint les ${solo.eteintes} autres voix`);
+const codeSolo = await pg.locator('#codeCourant').textContent();
+dit(codeSolo === code2, 'le solo ne contamine pas le code : ce n est pas un reglage');
+await pg.click('#solo');
+
+await pg.fill('#charger', 'CD2-pipe-FRRH68M8F7PYB60CD3BBCJ4SMJHQ61J4WT8D36P2NCH4DCK6QCM495QJ3JYXQW');
 await pg.click('#btnCharger');
 await pg.waitForTimeout(250);
 const apresCharge = (await pg.locator('#codeCourant').textContent()).trim();
-dit(apresCharge === 'CD1-pipe-FRR4XRQ34A6AA5XVE8', `un code se recharge tel quel (${apresCharge})`);
+dit(apresCharge === 'CD2-PIPE-FRRH68M8F7PYB60CD3BBCJ4SMJHQ61J4WT8D36P2NCH4DCK6QCM495QJ3JYXQW'.replace('PIPE', 'pipe'), 'un code se recharge tel quel');
 
-await pg.fill('#charger', 'CD1-pipe-FRR4XRQ34A6AA5XVE9');
+await pg.fill('#charger', 'CD2-pipe-FRRH68M8F7PYB60CD3BBCJ4SMJHQ61J4WT8D36P2NCH4DCK6QCM495QJ3JYXQX');
 await pg.click('#btnCharger');
 await pg.waitForTimeout(150);
 dit((await pg.locator('#codeCourant').textContent()).trim() === apresCharge,
@@ -118,7 +171,7 @@ dit(!verdict.includes('sifflement.') || verdict.includes('pas sifflement'),
 await pg.click('#exporter');
 await pg.waitForTimeout(150);
 const sortie = await pg.locator('#sortie').inputValue();
-dit(sortie.includes('export const PRESETS') && sortie.includes('CD1-'),
+dit(sortie.includes('export const PRESETS') && sortie.includes('export const RACKS') && sortie.includes('CD2-'),
   `l export rend un bloc reutilisable (${sortie.split('\n').length} lignes)`);
 
 dit(errs.length === 0, errs.length ? errs.join(' | ') : 'aucune erreur de page, aucune ressource manquante');

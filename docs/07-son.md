@@ -45,7 +45,9 @@ grain monophonique caractéristique en prime.
 | `triangle` | Basse | Triangulaire |
 | `bruit` | Percussion | LFSR sous-échantillonné : le grain métallique d'une NES, pas du bruit blanc |
 | `sub` | Poids | Sinus. Rien de rétro, et c'est assumé : sans bas du spectre il n'y a pas de drum and bass |
-| `nappe` | Liquide | Trois scies désaccordées. C'est le **désaccord** qui fait l'impression de liquide, pas le nombre de voix. Filtrée **bas** (1,1 kHz plafonné) et sur **deux pôles** : voir « le sifflement » ci-dessous |
+| `nappe` | Liquide | Trois scies désaccordées. C'est le **désaccord** qui fait l'impression de liquide, pas le nombre de voix. Sur **deux pôles** : voir « le sifflement » ci-dessous |
+
+Ces timbres sont désormais **le rack par défaut**, pas du code : voir plus bas.
 
 ## Le moteur observe, on ne lui pousse rien
 
@@ -257,17 +259,64 @@ npm run serve      # puis http://localhost:8080/tools/son-studio.html
 npm run son:studio # le banc qui vérifie que le studio ne ment pas
 ```
 
-### Preset ≠ graine
+### Ambiance, rack, graine
 
-C'est la distinction qui structure tout le fichier `src/data/son-presets.js` :
+Trois choses, et il ne faut pas les confondre :
 
-| | Rôle | Doit bouger ? |
-|---|---|---|
-| **Preset** | Tempo, tonique, mode, couleur des timbres, espace, caractère de batterie | Non. C'est **l'identité** |
-| **Graine** | Quelle note l'ostinato tire, où tombe la variation, quelle charleston passe | Oui. C'est **l'interprétation** |
+| | Rôle | Où | Doit bouger ? |
+|---|---|---|---|
+| **Ambiance** | Tempo, tonique, mode, grain, réverbe, écho, densité mélodique. Ce qui se dit d'un morceau **sans parler de ses instruments** | `son-presets.js` | Non. C'est l'**identité** |
+| **Rack** | Le **son de chaque voix** : onde, filtre, résonance, enveloppe, niveau | `son-instruments.js` | Non |
+| **Graine** | Quelle note l'ostinato tire, où tombe la variation, quelle charleston passe | — | Oui. C'est l'**interprétation** |
 
-Le **code** emballe les deux en dix-huit caractères : `CD1-milk-F9SJQNM43A6AA5XVER`.
-Les deux, parce qu'on les a entendus ensemble.
+Le **code** emballe les trois : `CD2-milk-F9SB86M8F7PYB60CD3…`. Les trois, parce
+qu'on les a entendus ensemble.
+
+### Le rack : neuf voix, un synthétiseur soustractif ordinaire
+
+Chaque voix mélodique — nappe, sub, basse, ostinato, lead — expose une **onde**
+(sinus, triangle, scie, impulsions 8/12,5/25/33 %, carré), un **filtre**
+(passe-bas, passe-bande, passe-haut) avec coupure et résonance, une
+**enveloppe** ADSR et un **niveau**. La grosse caisse a ses deux hauteurs et
+son temps de chute ; la caisse claire, la charleston et la tension ont un
+filtre, une durée et un niveau.
+
+C'est volontairement le vocabulaire le plus banal qui soit. Un rack ne se
+règle pas en lisant une documentation : on tourne un bouton, on entend, on
+garde.
+
+Chaque ambiance a **son** rack — une matrice a sa palette sonore comme elle a
+sa palette visuelle — et le studio sait recopier un rack vers les autres quand
+on ne veut pas tout refaire.
+
+**Les valeurs ne sont pas continues** : chaque champ pioche dans une table.
+Une table de 16 ou 32 entrées tient sur quatre ou cinq bits exactement, et une
+coupure se pense en octaves, pas en hertz — un curseur log donne des crans qui
+s'entendent tous. Les tables contiennent toutes les valeurs d'origine, si bien
+que le rack par défaut **reproduit à l'identique** le moteur d'avant.
+
+#### Où passe la frontière
+
+Ce qui était un réglage **global** et agissait en réalité sur une voix précise
+est descendu dans le rack : les deux rapports cycliques (lead et ostinato), la
+« couleur » (qui ne retouchait que la nappe), le désaccord, le niveau du sub,
+la présence de l'ostinato, le caractère de percussion. L'ambiance n'a gardé
+que ce qui est vraiment transversal.
+
+Les **couches** ne portent plus que la loi d'apparition ; le niveau de chaque
+voix est dans son patch. Mélanger les deux rendait les deux illisibles — on ne
+savait plus si on réglait une dramaturgie ou un timbre.
+
+Le **stinger** des événements n'est pas dans le rack : ce n'est pas un
+instrument dont on règle le timbre, c'est un signal de jeu, et il doit rester
+reconnaissable quoi qu'on fasse des autres voix.
+
+#### Solo et sourdine
+
+Une voix mise en sourdine voit son niveau forcé à zéro dans le rack
+**appliqué**, jamais dans le rack adopté : un solo n'est pas un réglage, et le
+code doit emballer ce qu'on a réglé, pas ce qu'on écoutait à l'instant. Le
+banc le vérifie — mettre une voix en solo ne doit pas changer le code.
 
 Chaque champ tient sur un nombre fixe de bits, avec un pas choisi pour que les
 valeurs adoptées tombent exactement dessus — l'aller-retour preset → code →
@@ -279,18 +328,18 @@ un preset à moitié appliqué se débusque à l'oreille pendant une soirée.
 
 ### Ce qui est réglable, et ce qui ne l'est pas
 
-Quatorze curseurs : tempo, tonique, mode, les deux rapports cycliques,
-couleur, grain, désaccord de nappe, réverbe, écho, sub, caractère de
-percussion, présence de l'ostinato, densité mélodique.
+Sept curseurs d'ambiance, et neuf voix de rack à cinq ou neuf champs chacune.
 
 Restent **côté moteur**, et délibérément : les seuils d'apparition des
 couches, la loi mise au point → passe-bas master, la structure des canaux
-permanents, et les garde-fous anti-sifflement (coupure de nappe plafonnée,
-deuxième pôle, envoi de réverbe réduit en stage). Un curseur dessus, et on
-reconstruit le défaut en trois clics.
+permanents, et la réverbe, dont le gain de boucle a déjà coûté un sifflement
+de huit secondes.
 
-`sub` et `ostinato` sont des **multiplicateurs** sur la loi de couche, pas des
-niveaux : la loi reste au moteur, seule la dose est une décision artistique.
+Une réserve honnête : le plafond de coupure de la nappe est désormais **entre
+tes mains**. Le deuxième pôle du filtre reste, lui, une propriété de
+l'instrument — mais une scie tenue ouverte à 6 kHz peut redevenir sifflante.
+C'est le prix du contrôle, et c'est pour ça que le détecteur de raie est
+allumé en permanence pendant qu'on règle.
 
 ### Trois choses que le studio fait et qu'un simple panneau de curseurs ne fait pas
 

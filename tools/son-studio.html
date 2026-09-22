@@ -124,6 +124,19 @@
       <div id="groupes"></div>
 
       <div class="carte">
+        <h2>Rack — le son de chaque voix</h2>
+        <div class="puces" id="voix"></div>
+        <p class="note" id="aideVoix" style="margin:10px 0 0">&nbsp;</p>
+        <div class="lig" style="margin:9px 0 4px">
+          <button class="btn" id="solo" aria-pressed="false">Solo</button>
+          <button class="btn" id="muet" aria-pressed="false">Muet</button>
+          <span class="note">les couches suivent toujours l intensite : une voix solo reste discrete si son etage n est pas encore monte</span>
+        </div>
+        <div id="patch"></div>
+        <button class="btn" id="diffuser">Copier ce rack vers les autres ambiances</button>
+      </div>
+
+      <div class="carte">
         <h2>Adopter</h2>
         <div class="lig">
           <button class="btn" id="comparer">Maintenir pour comparer a l'adopte</button>
@@ -142,19 +155,48 @@
 
 <script type="module">
 import { son } from '../src/audio/son.js';
-import { PRESETS, CHAMPS, GROUPES, NOMS, encoderCode } from '../src/data/son-presets.js';
+import {
+  PRESETS, CHAMPS, GROUPES, NOMS, RACKS, VOIX, CHAMPS_PAR_GENRE, encoderCode,
+} from '../src/data/son-presets.js';
 
 /* L'etat adopte, fige au chargement : c'est la reference de la comparaison
    et de « tout remettre ». On la copie AVANT que le premier curseur bouge. */
-const ADOPTE = JSON.parse(JSON.stringify(PRESETS));
+const copie = (o) => JSON.parse(JSON.stringify(o));
+const ADOPTE = { presets: copie(PRESETS), racks: copie(RACKS) };
 
 const $ = (id) => document.getElementById(id);
 let ambiance = 'milk';
+let voixCle = 'lead';
 let graine = 24301;
 let arcT = -1;
-let compare = false;
+let soloCle = null;
+const coupees = new Set();
 
-/* --------------------------------------------------------- ambiances ---- */
+/* ------------------------------------------------- sourdines et rack --- */
+
+/**
+ * Le rack REELLEMENT applique : celui de l'ambiance, voix muettes a zero.
+ *
+ * On ne touche pas aux valeurs adoptees — un solo n'est pas un reglage, et
+ * le code doit emballer ce qu'on a regle, pas ce qu'on ecoutait a l'instant.
+ */
+function rackApplique() {
+  const r = copie(RACKS[ambiance]);
+  for (const v of VOIX) {
+    if (coupees.has(v.cle) || (soloCle && soloCle !== v.cle)) r[v.cle].niveau = 0;
+  }
+  return r;
+}
+
+function appliquer() {
+  if (!son.pret) return;
+  son.ambiance = ambiance;
+  son.appliquerAmbiance(ambiance, true);
+  son.appliquerRack(ambiance, true, rackApplique());
+  son.majCouches();
+}
+
+/* --------------------------------------------------------- ambiances --- */
 
 const onglets = $('onglets');
 for (const cle of Object.keys(PRESETS)) {
@@ -165,6 +207,7 @@ for (const cle of Object.keys(PRESETS)) {
   b.onclick = () => { ambiance = cle; majOnglets(); etatType(); appliquer(); peupler(); };
   onglets.append(b);
 }
+
 /* En choisissant un stage, on se place dans un etat de jeu REPRESENTATIF.
    A intensite nulle un stage n'a plus que sa nappe, et la plus haute
    harmonique qui survit sous la coupure s'entend seule — un etat que le jeu
@@ -182,64 +225,140 @@ function majOnglets() {
 }
 majOnglets();
 
-/* ---------------------------------------------------------- curseurs ---- */
+/* ---------------------------------------------------------- curseurs --- */
 
-const rangs = new Map();
+/* Un champ peut etre un choix (une liste de noms), une table (des valeurs
+   echelonnees a l'oreille) ou un intervalle regulier. Le curseur, lui, est
+   toujours un ENTIER : c'est ce qui garantit qu'on ne peut pas regler une
+   valeur que le code ne saurait pas transporter. */
+const crans = (ch) => (ch.choix ? ch.choix.length - 1
+  : (ch.table ? ch.table.length - 1 : Math.round((ch.max - ch.min) / ch.pas)));
+const versCran = (ch, v) => (ch.choix ? Math.max(0, ch.choix.indexOf(v))
+  : (ch.table ? Math.max(0, ch.table.indexOf(v)) : Math.round((v - ch.min) / ch.pas)));
+const depuisCran = (ch, n) => (ch.choix ? ch.choix[n]
+  : (ch.table ? ch.table[n] : Math.round((ch.min + n * ch.pas) * 1000) / 1000));
+
+function texteDe(ch, v) {
+  if (ch.legendes && ch.legendes[v]) return ch.legendes[v];
+  if (ch.choix) return String(v);
+  if (ch.unite) return `${v} ${ch.unite}`;
+  return typeof v === 'number' ? v.toFixed(2) : String(v);
+}
+
+/**
+ * @param {object} ch le champ
+ * @param {function} lire  () => valeur courante
+ * @param {function} ecrire (valeur) => void
+ * @param {function} adopte () => valeur adoptee, pour signaler l'ecart
+ */
+function faireRang(ch, lire, ecrire, adopte, rangs) {
+  const d = document.createElement('div');
+  d.className = 'rang';
+  d.innerHTML = `<div class="tete"><span class="nom">${ch.nom}</span><span class="val"></span></div>`
+    + `<input type="range" min="0" max="${crans(ch)}" step="1">`
+    + (ch.aide ? `<div class="aide">${ch.aide}</div>` : '');
+  const input = d.querySelector('input');
+  input.oninput = () => { ecrire(depuisCran(ch, +input.value)); appliquer(); rafraichir(); };
+  rangs.push(() => {
+    const v = lire();
+    input.value = versCran(ch, v);
+    d.querySelector('.val').textContent = texteDe(ch, v);
+    /* On marque ce qui s'ecarte de l'adopte : apres vingt minutes de
+       curseurs, c'est la seule facon de savoir ce qu'on a vraiment change. */
+    d.classList.toggle('bouge', v !== adopte());
+  });
+  return d;
+}
+
+let rangsAmbiance = [];
+let rangsPatch = [];
+
 function peupler() {
+  peuplerAmbiance();
+  peuplerVoix();
+  peuplerPatch();
+  rafraichir();
+}
+
+function peuplerAmbiance() {
   $('groupes').innerHTML = '';
-  rangs.clear();
+  rangsAmbiance = [];
   for (const groupe of GROUPES) {
     const champs = CHAMPS.filter((c) => c.groupe === groupe);
     if (!champs.length) continue;
     const carte = document.createElement('div');
     carte.className = 'carte';
     carte.innerHTML = `<h2>${groupe}</h2>`;
-    for (const ch of champs) carte.append(faireRang(ch));
+    for (const ch of champs) {
+      carte.append(faireRang(ch,
+        () => PRESETS[ambiance][ch.cle],
+        (v) => { PRESETS[ambiance][ch.cle] = v; },
+        () => ADOPTE.presets[ambiance][ch.cle], rangsAmbiance));
+    }
     $('groupes').append(carte);
   }
-  majValeurs();
 }
 
-function faireRang(ch) {
-  const d = document.createElement('div');
-  d.className = 'rang';
-  const nb = ch.choix ? ch.choix.length - 1 : Math.round((ch.max - ch.min) / ch.pas);
-  d.innerHTML = `<div class="tete"><span class="nom">${ch.nom}</span><span class="val"></span></div>`
-    + `<input type="range" min="0" max="${nb}" step="1">`
-    + (ch.aide ? `<div class="aide">${ch.aide}</div>` : '');
-  const input = d.querySelector('input');
-  input.oninput = () => {
-    const p = PRESETS[ambiance];
-    p[ch.cle] = ch.choix ? ch.choix[+input.value]
-      : Math.round((ch.min + (+input.value) * ch.pas) * 1000) / 1000;
-    appliquer();
-    majValeurs();
-  };
-  rangs.set(ch.cle, { d, input, ch });
-  return d;
-}
-
-function texteDe(ch, v) {
-  if (ch.cle === 'gamme') return v;
-  if (ch.choix) return v.toFixed(3).replace(/0+$/, '');
-  return ch.unite ? `${v} ${ch.unite}` : v.toFixed(2);
-}
-
-function majValeurs() {
-  const p = PRESETS[ambiance];
-  for (const [cle, r] of rangs) {
-    const v = p[cle];
-    const n = r.ch.choix ? r.ch.choix.indexOf(v) : Math.round((v - r.ch.min) / r.ch.pas);
-    r.input.value = n;
-    r.d.querySelector('.val').textContent = texteDe(r.ch, v);
-    /* On marque ce qui s'ecarte de l'adopte : apres vingt minutes de
-       curseurs, c'est la seule facon de savoir ce qu'on a vraiment change. */
-    r.d.classList.toggle('bouge', v !== ADOPTE[ambiance][cle]);
+const boutonsVoix = $('voix');
+function peuplerVoix() {
+  boutonsVoix.innerHTML = '';
+  for (const v of VOIX) {
+    const b = document.createElement('button');
+    b.className = 'btn';
+    b.textContent = v.nom;
+    b.dataset.cle = v.cle;
+    b.onclick = () => { voixCle = v.cle; peuplerPatch(); rafraichir(); };
+    boutonsVoix.append(b);
   }
-  $('codeCourant').textContent = encoderCode(ambiance, p, graine);
 }
 
-/* ---------------------------------------------------------- contexte ---- */
+function peuplerPatch() {
+  const v = VOIX.find((x) => x.cle === voixCle);
+  $('patch').innerHTML = '';
+  rangsPatch = [];
+  $('aideVoix').textContent = v.aide || ' ';
+  for (const ch of CHAMPS_PAR_GENRE[v.genre]) {
+    $('patch').append(faireRang(ch,
+      () => RACKS[ambiance][v.cle][ch.cle],
+      (val) => { RACKS[ambiance][v.cle][ch.cle] = val; },
+      () => ADOPTE.racks[ambiance][v.cle][ch.cle], rangsPatch));
+  }
+  /* Le desaccord n'appartient qu'a la nappe : elle seule a trois voix. */
+  if (v.cle === 'nappe') {
+    const ch = { cle: 'desaccord', nom: 'Desaccord des trois voix', unite: 'cents',
+      min: 0, max: 30, pas: 1,
+      aide: 'C est le desaccord, pas le nombre de voix, qui fait l impression de liquide.' };
+    $('patch').append(faireRang(ch,
+      () => RACKS[ambiance].desaccord,
+      (val) => { RACKS[ambiance].desaccord = val; },
+      () => ADOPTE.racks[ambiance].desaccord, rangsPatch));
+  }
+}
+
+function rafraichir() {
+  for (const f of rangsAmbiance) f();
+  for (const f of rangsPatch) f();
+  for (const b of boutonsVoix.children) {
+    const muette = coupees.has(b.dataset.cle) || (soloCle && soloCle !== b.dataset.cle);
+    b.setAttribute('aria-pressed', b.dataset.cle === voixCle);
+    b.style.opacity = muette ? '0.35' : '1';
+  }
+  $('solo').setAttribute('aria-pressed', soloCle === voixCle);
+  $('muet').setAttribute('aria-pressed', coupees.has(voixCle));
+  $('codeCourant').textContent = encoderCode(ambiance, PRESETS[ambiance], RACKS[ambiance], graine);
+}
+
+$('solo').onclick = () => { soloCle = soloCle === voixCle ? null : voixCle; appliquer(); rafraichir(); };
+$('muet').onclick = () => {
+  if (coupees.has(voixCle)) coupees.delete(voixCle); else coupees.add(voixCle);
+  appliquer(); rafraichir();
+};
+$('diffuser').onclick = () => {
+  for (const cle of Object.keys(RACKS)) if (cle !== ambiance) RACKS[cle] = copie(RACKS[ambiance]);
+  $('etatCode').textContent = 'rack recopie vers les quatre autres ambiances.';
+};
+
+/* ---------------------------------------------------------- contexte --- */
 
 const CONTEXTE = [
   ['intensite', 'Intensite', 'Moitie avancement du run, moitie pression de la horde.'],
@@ -250,7 +369,7 @@ for (const [cle, nom, aide] of CONTEXTE) {
   const d = document.createElement('div');
   d.className = 'rang';
   d.innerHTML = `<div class="tete"><span class="nom">${nom}</span><span class="val">0.00</span></div>`
-    + `<input type="range" min="0" max="1" step="0.01" value="0">`
+    + '<input type="range" min="0" max="1" step="0.01" value="0">'
     + `<div class="aide">${aide}</div>`;
   const input = d.querySelector('input');
   input.oninput = () => {
@@ -276,14 +395,7 @@ function basculerArc() {
 }
 $('arc').onclick = basculerArc;
 
-/* ------------------------------------------------------------ moteur ---- */
-
-function appliquer() {
-  if (!son.pret) return;
-  son.ambiance = ambiance;
-  son.appliquerAmbiance(ambiance, true);
-  son.majCouches();
-}
+/* ------------------------------------------------------------ moteur --- */
 
 let analyse = null;
 $('jouer').onclick = () => {
@@ -306,14 +418,14 @@ $('jouer').onclick = () => {
 };
 $('vol').oninput = () => { son.volume = +$('vol').value; if (son.pret && !son.muet) son.master.gain.value = son.volume; };
 
-/* ------------------------------------------------------------- code ----- */
+/* -------------------------------------------------------------- code --- */
 
-$('graine').oninput = () => { graine = +$('graine').value | 0; son.graine(graine); majValeurs(); };
+$('graine').oninput = () => { graine = +$('graine').value | 0; son.graine(graine); rafraichir(); };
 $('tirer').onclick = () => {
   graine = Math.floor(Math.random() * 65536);
   $('graine').value = graine;
   son.graine(graine);
-  majValeurs();
+  rafraichir();
 };
 $('copier').onclick = async () => {
   try { await navigator.clipboard.writeText($('codeCourant').textContent); $('etatCode').textContent = 'copie.'; }
@@ -329,52 +441,68 @@ $('btnCharger').onclick = () => {
   graine = son.derniereGraine;
   $('graine').value = graine;
   majOnglets(); appliquer(); peupler();
-  $('etatCode').textContent = 'charge.';
+  $('etatCode').textContent = code.toUpperCase().startsWith('CD1')
+    ? 'charge — code CD1 traduit vers le format a rack.' : 'charge.';
 };
 
 /* Maintenir pour entendre l'adopte : l'oreille compare mal deux sons separes
    par dix secondes de reglage, et tres bien deux sons separes par rien. */
-function poserCompare(on) {
-  if (compare === on) return;
-  compare = on;
-  Object.assign(PRESETS[ambiance], (on ? ADOPTE : ETAT_TRAVAIL)[ambiance]);
-  if (on) ETAT_TRAVAIL[ambiance] = { ...PRESETS[ambiance] };
-  appliquer();
-}
-const ETAT_TRAVAIL = JSON.parse(JSON.stringify(PRESETS));
+let travail = null;
 const cmp = $('comparer');
-cmp.onmousedown = () => { ETAT_TRAVAIL[ambiance] = { ...PRESETS[ambiance] }; compare = true; Object.assign(PRESETS[ambiance], ADOPTE[ambiance]); appliquer(); cmp.setAttribute('aria-pressed', true); };
-const relacher = () => { if (!compare) return; compare = false; Object.assign(PRESETS[ambiance], ETAT_TRAVAIL[ambiance]); appliquer(); cmp.setAttribute('aria-pressed', false); };
+const prendre = () => {
+  if (travail) return;
+  travail = { preset: copie(PRESETS[ambiance]), rack: copie(RACKS[ambiance]) };
+  PRESETS[ambiance] = copie(ADOPTE.presets[ambiance]);
+  RACKS[ambiance] = copie(ADOPTE.racks[ambiance]);
+  appliquer();
+  cmp.setAttribute('aria-pressed', 'true');
+};
+const relacher = () => {
+  if (!travail) return;
+  PRESETS[ambiance] = travail.preset;
+  RACKS[ambiance] = travail.rack;
+  travail = null;
+  appliquer();
+  cmp.setAttribute('aria-pressed', 'false');
+};
+cmp.onmousedown = prendre;
 cmp.onmouseup = relacher;
 cmp.onmouseleave = relacher;
-cmp.ontouchstart = (e) => { e.preventDefault(); cmp.onmousedown(); };
+cmp.ontouchstart = (e) => { e.preventDefault(); prendre(); };
 cmp.ontouchend = relacher;
 
 $('remettre').onclick = () => {
-  Object.assign(PRESETS[ambiance], ADOPTE[ambiance]);
-  appliquer(); majValeurs();
+  PRESETS[ambiance] = copie(ADOPTE.presets[ambiance]);
+  RACKS[ambiance] = copie(ADOPTE.racks[ambiance]);
+  appliquer(); rafraichir();
 };
 
 $('exporter').onclick = () => {
-  const lignes = ['export const PRESETS = {'];
+  const l = ['/* --- src/data/son-presets.js --- */', 'export const PRESETS = {'];
   for (const [cle, p] of Object.entries(PRESETS)) {
-    lignes.push(`  ${cle}: {`);
-    lignes.push(`    bpm: ${p.bpm}, tonique: ${p.tonique}, gamme: '${p.gamme}',`);
-    lignes.push(`    rapport1: ${p.rapport1}, rapport2: ${p.rapport2}, coupure: ${p.coupure}, grain: ${p.grain}, desaccord: ${p.desaccord},`);
-    lignes.push(`    reverbe: ${p.reverbe}, echo: ${p.echo},`);
-    lignes.push(`    sub: ${p.sub}, percu: ${p.percu}, ostinato: ${p.ostinato}, melodie: ${p.melodie},`);
-    lignes.push('  },');
+    l.push(`  ${cle}: { bpm: ${p.bpm}, tonique: ${p.tonique}, gamme: '${p.gamme}', grain: ${p.grain},`
+      + ` reverbe: ${p.reverbe}, echo: ${p.echo}, melodie: ${p.melodie} },`);
   }
-  lignes.push('};', '', '/* Codes correspondants :');
-  for (const cle of Object.keys(PRESETS)) lignes.push(`   ${cle.padEnd(9)} ${encoderCode(cle, PRESETS[cle], graine)}`);
-  lignes.push('*/');
+  l.push('};', '', '/* --- src/data/son-instruments.js --- */', 'export const RACKS = {');
+  for (const [cle, r] of Object.entries(RACKS)) {
+    l.push(`  ${cle}: {`);
+    for (const v of VOIX) {
+      const champs = CHAMPS_PAR_GENRE[v.genre]
+        .map((ch) => `${ch.cle}: ${typeof r[v.cle][ch.cle] === 'string' ? `'${r[v.cle][ch.cle]}'` : r[v.cle][ch.cle]}`);
+      l.push(`    ${v.cle}: { ${champs.join(', ')} },`);
+    }
+    l.push(`    desaccord: ${r.desaccord},`, '  },');
+  }
+  l.push('};', '', '/* Codes correspondants :');
+  for (const cle of Object.keys(PRESETS)) l.push(`   ${cle.padEnd(9)} ${encoderCode(cle, PRESETS[cle], RACKS[cle], graine)}`);
+  l.push('*/');
   const t = $('sortie');
   t.hidden = false;
-  t.value = lignes.join('\n');
+  t.value = l.join('\n');
   t.select();
 };
 
-/* ----------------------------------------------------------- spectre ---- */
+/* ----------------------------------------------------------- spectre --- */
 
 const cv = $('spectre');
 const g2 = cv.getContext('2d');
@@ -437,19 +565,17 @@ function dessiner() {
     const el = $('verdict');
     /* Seul le LOBBY est exclu : c'est un drone assume, un accord tenu y est
        le sujet meme du morceau, et le banc hors ligne l'exclut pour la meme
-       raison. Les stages, eux, sont juges A TOUTE INTENSITE. La version
-       precedente suspendait aussi son verdict sous 0,4 « parce que le mix
-       est clairseme » — et c'est exactement dans cet etat que le sifflement
-       de la reverbe a ete signale. Un garde-fou qui ferme les yeux sur le
-       cas qui pose probleme ne garde rien. */
-    const dense = ambiance !== 'ambiant';
+       raison. Les stages sont juges A TOUTE INTENSITE : suspendre le verdict
+       « parce que le mix est clairseme », c'etait fermer les yeux sur
+       exactement l'etat ou le sifflement de la reverbe a ete signale. */
+    const juge = ambiance !== 'ambiant';
     if (r.ratio < 1.5) { el.textContent = 'aucune raie au-dessus du plancher.'; el.className = 'note mesure'; }
     else {
       el.textContent = `raie la plus saillante : x${r.ratio.toFixed(1)} a ${Math.round(r.freq)} Hz`;
-      const siffle = dense && r.ratio >= 9;
+      const siffle = juge && r.ratio >= 9;
       el.className = siffle ? 'note mesure alerte' : 'note mesure';
       el.textContent += siffle ? '  — c est un sifflement.'
-        : (dense ? '  — texture, pas sifflement.' : '  — drone du lobby, verdict suspendu.');
+        : (juge ? '  — texture, pas sifflement.' : '  — drone du lobby, verdict suspendu.');
     }
   }
 }

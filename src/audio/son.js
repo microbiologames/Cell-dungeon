@@ -38,9 +38,11 @@
 
 import { clamp, mulberry32 } from '../core/util.js';
 import {
-  ondePulsee, tamponBruit, courbeGrain, Canal, Percu, Kick, reverbe, delaiPingPong,
+  tamponBruit, courbeGrain, banqueOndes, Canal, Percu, Kick, reverbe, delaiPingPong,
 } from './voix.js';
-import { GAMMES, PRESETS, decoderCode, encoderCode } from '../data/son-presets.js';
+import {
+  GAMMES, PRESETS, RACKS, VOIX, decoderCode, encoderCode,
+} from '../data/son-presets.js';
 
 /* ----------------------------------------------------------- musique ----- */
 
@@ -225,21 +227,17 @@ export class Son {
     }
 
     /* --- voix ----------------------------------------------------------- */
-    this.ondes = {
-      p125: ondePulsee(ctx, 0.125),
-      p25: ondePulsee(ctx, 0.25),
-      p50: ondePulsee(ctx, 0.5),
-    };
+    /* Les voix ne portent plus de timbre en dur : elles recoivent un patch
+       du RACK. Ce qui reste ici est ce qui n'est PAS un reglage — a quelle
+       couche la voix est branchee, et le glissando du lead, qui est une
+       facon de jouer et non un son. */
+    this.ondes = banqueOndes(ctx);
     this.bruit = tamponBruit(ctx, 2, 5);
 
-    this.vLead = new Canal(ctx, this.couches.lead,
-      { onde: this.ondes.p50, coupure: 7000, glisse: 0.012 });
-    this.vOsti = new Canal(ctx, this.couches.ostinato,
-      { onde: this.ondes.p25, coupure: 6000 });
-    this.vBasse = new Canal(ctx, this.couches.sub,
-      { type: 'triangle', coupure: 1800 });
-    this.vSub = new Canal(ctx, this.couches.sub,
-      { type: 'sine', coupure: 260 });
+    this.vLead = new Canal(ctx, this.couches.lead, { glisse: 0.012 });
+    this.vOsti = new Canal(ctx, this.couches.ostinato, {});
+    this.vBasse = new Canal(ctx, this.couches.sub, {});
+    this.vSub = new Canal(ctx, this.couches.sub, {});
     /* La nappe : trois voix legerement desaccordees. C'est le desaccord, pas
        le nombre de voix, qui donne l'impression de liquide. */
     /* Le passe-bas reste BAS et sans coin resonant. Une dent de scie tenue
@@ -249,9 +247,7 @@ export class Son {
        sombre, la nappe laisse la place aux carres incisifs qui doivent,
        eux, couper le mix. */
     this.nappe = [0, 1, 2].map((i) => {
-      const c = new Canal(ctx, this.couches.nappe,
-        { type: 'sawtooth', coupure: 1100, q: 0.7 });
-      c.osc.detune.value = (i - 1) * 9;
+      const c = new Canal(ctx, this.couches.nappe, { coupure: 1250, q: 0.7 });
       /* Deuxieme pole. Un seul biquad, c'est 12 dB par octave : a 2 kHz une
          dent de scie coupee a 1,1 kHz garde encore le quart de ses
          harmoniques, et des que le mix se degarnit elles s'entendent seules.
@@ -280,16 +276,16 @@ export class Son {
     });
 
     this.kick = new Kick(ctx, this.couches.break);
-    this.clap = new Percu(ctx, this.couches.break, this.bruit,
-      { type: 'bandpass', freq: 1900, q: 1.1 });
-    this.hat = new Percu(ctx, this.couches.break, this.bruit,
-      { type: 'highpass', freq: 6200, q: 0.8 });
-    this.tension = new Percu(ctx, this.couches.tension, this.bruit,
-      { type: 'bandpass', freq: 320, q: 3.5 });
+    this.clap = new Percu(ctx, this.couches.break, this.bruit, {});
+    this.hat = new Percu(ctx, this.couches.break, this.bruit, {});
+    this.tension = new Percu(ctx, this.couches.tension, this.bruit, {});
 
-    /* Voix d'evenements : courtes, hors couches, toujours audibles. */
+    /* Voix d'evenements : courtes, hors couches, toujours audibles. Elle
+       n'est PAS dans le rack : un stinger n'est pas un instrument dont on
+       regle le timbre, c'est un signal de jeu, et il doit rester
+       reconnaissable quoi qu'on fasse des autres voix. */
     this.stinger = new Canal(ctx, this.busChip,
-      { onde: this.ondes.p125, coupure: 9000, glisse: 0.006 });
+      { onde: this.ondes.pulse12, coupure: 9000, glisse: 0.006 });
     this.stingerGain = ctx.createGain();
   }
 
@@ -352,17 +348,38 @@ export class Son {
     /* Le lobby est un drone : la nappe y a droit a toute la reverbe. En
        stage elle n'est qu'un fond harmonique, elle en recoit le tiers. */
     this.rampe(this.envoisRev.nappe.gain, nom === 'ambiant' ? 1 : 0.4, t);
-    for (const [i, c] of this.nappe.entries()) {
-      const fc = Math.min(a.coupure * 0.35, 1250);
-      c.filtre.frequency.setTargetAtTime(fc, this.ctx.currentTime, t);
-      c.filtre2.frequency.setTargetAtTime(fc, this.ctx.currentTime, t);
-      c.osc.detune.setTargetAtTime((i - 1) * a.desaccord, this.ctx.currentTime, t);
-    }
-    this.vLead.osc.setPeriodicWave(
-      a.rapport1 === 0.125 ? this.ondes.p125 : (a.rapport1 === 0.25 ? this.ondes.p25 : this.ondes.p50));
-    this.vOsti.osc.setPeriodicWave(
-      a.rapport2 === 0.125 ? this.ondes.p125 : (a.rapport2 === 0.25 ? this.ondes.p25 : this.ondes.p50));
     for (const d of this.echo.temps) d.setTargetAtTime(this.parPas * 3, this.ctx.currentTime, t);
+    this.appliquerRack(nom, immediat);
+  }
+
+  /**
+   * Pousse le rack d'une ambiance dans les voix.
+   *
+   * Public, et appele a chaque geste du studio : c'est ce qui rend le
+   * reglage des instruments AUDIBLE pendant qu'on le fait, au lieu de
+   * demander un rechargement.
+   */
+  appliquerRack(nom = this.ambiance, immediat = false, rack = null) {
+    if (!this.pret) return;
+    /* `rack` permet au studio d'appliquer une version MODIFIEE du rack — les
+       voix mises en sourdine, typiquement — sans toucher aux valeurs
+       adoptees, qui restent celles que le code emballe. */
+    const r = rack || RACKS[nom] || RACKS.milk;
+    const maintenant = this.ctx.currentTime;
+    /* Lissage court et non nul : a zero, un changement de coupure claque. */
+    const t = immediat ? 0.001 : 0.03;
+    this.vSub.appliquerTimbre(r.sub, this.ondes, maintenant, t);
+    this.vBasse.appliquerTimbre(r.basse, this.ondes, maintenant, t);
+    this.vOsti.appliquerTimbre(r.ostinato, this.ondes, maintenant, t);
+    this.vLead.appliquerTimbre(r.lead, this.ondes, maintenant, t);
+    for (const [i, c] of this.nappe.entries()) {
+      c.appliquerTimbre(r.nappe, this.ondes, maintenant, t);
+      c.osc.detune.setTargetAtTime((i - 1) * r.desaccord, maintenant, t);
+    }
+    this.kick.appliquerTimbre(r.kick);
+    this.clap.appliquerTimbre(r.clap);
+    this.hat.appliquerTimbre(r.hat);
+    this.tension.appliquerTimbre(r.tension);
   }
 
   /** Frequence d'un degre de la gamme courante, a l'octave donnee. */
@@ -413,41 +430,32 @@ export class Son {
     /* --- nappe : toujours la, elle tient l'harmonie -------------------- */
     if (pas % 16 === 0) {
       const accord = [0, 2, 4].map((d) => degreAccord + d);
-      this.nappe.forEach((c, i) => {
-        c.note(t, this.freq(accord[i], ambiant ? -1 : 0), this.parPas * 20, 0.09,
-          { a: 0.9, d: 0.6, s: 0.8, r: this.parPas * 18 });
-      });
+      this.nappe.forEach((c, i) => c.jouer(t, this.freq(accord[i], ambiant ? -1 : 0)));
     }
     if (ambiant) {
       /* Dans le lobby, une note isolee de temps en temps, et c'est tout.
          L'echo et la reverbe font le reste du travail. */
       if (pas % 8 === 0 && this.rng() < 0.4) {
-        this.vLead.note(t, this.freq(degreAccord + (this.rng() < 0.5 ? 4 : 2), 1),
-          this.parPas * 4, 0.06, { a: 0.02, d: 0.4, s: 0.3, r: this.parPas * 6 });
+        this.vLead.jouer(t, this.freq(degreAccord + (this.rng() < 0.5 ? 4 : 2), 1), 0.5);
       }
       return;
     }
 
     /* --- sub et basse : le bas du spectre, des la premiere montee ------- */
-    if (KICK.includes(pas)) {
-      this.vSub.note(t, this.freq(degreAccord, -2), this.parPas * 3, 0.5,
-        { a: 0.01, d: 0.12, s: 0.7, r: this.parPas * 3 });
-    }
+    /* Les voix jouent leur PATCH : enveloppe et niveau viennent du rack, et
+       le sequenceur ne passe plus qu'un accent, c'est-a-dire une nuance. */
+    if (KICK.includes(pas)) this.vSub.jouer(t, this.freq(degreAccord, -2));
     if (pas % 8 === 0 || (pas % 8 === 6 && this.rng() < 0.4)) {
-      this.vBasse.note(t, this.freq(degreAccord, -1), this.parPas * 2, 0.16,
-        { a: 0.006, d: 0.08, s: 0.5, r: this.parPas * 2 });
+      this.vBasse.jouer(t, this.freq(degreAccord, -1));
     }
 
     /* --- batterie : le moteur du morceau -------------------------------- */
-    if (KICK.includes(pas)) this.kick.frappe(t, 0.9);
-    /* `percu` deplace toute la batterie en frequence d'un seul geste :
-       sourde en bas, claquante en haut. A 0,6 on retrouve le reglage
-       d'origine, ce qui rend le curseur lisible — on entend ou on est
-       parti. */
-    const pq = amb.percu;
-    if (CLAP.includes(pas)) this.clap.frappe(t, 0.12, 0.5, 1420 + 800 * pq);
+    if (KICK.includes(pas)) this.kick.frappe(t);
+    if (CLAP.includes(pas)) this.clap.frappe(t);
+    /* La caisse claire fantome n'est pas un deuxieme instrument : c'est la
+       meme, plus courte, plus haute et plus douce. */
     if (CLAP_FANTOME.includes(pas) && this.rng() < 0.35 + 0.4 * I) {
-      this.clap.frappe(t, 0.05, 0.18, 2000 + 1000 * pq);
+      this.clap.frappe(t, 0.36, { duree: 0.4, freq: 1.37 });
     }
     /* Charleston en doubles croches, densite croissante : c'est elle qui
        porte le sentiment d'urgence sans changer le tempo. */
@@ -455,27 +463,24 @@ export class Son {
       /* 6 a 8 kHz : c'est la bande d'une charleston, avec un peu de corps.
          Plus haut, il ne reste que de l'air — inaudible sur un haut-parleur
          de telephone, et au bord de Nyquist si le contexte tourne bas. */
-      this.hat.frappe(t, 0.035, 0.07 + 0.05 * I, 4400 + 3000 * pq + this.rng() * 2200);
+      this.hat.frappe(t, 1 + 0.7 * I, { freq: 1 + this.rng() * 0.35 });
     }
 
     /* --- ostinato : hypnotique, il ne change qu'a l'accord -------------- */
     const motif = [0, 4, 2, 4, 0, 5, 2, 4];
     if (pas % 2 === 0) {
-      const d = degreAccord + motif[(pas / 2) % motif.length];
-      this.vOsti.note(t, this.freq(d, 0), this.parPas * 1.6, 0.1,
-        { a: 0.004, d: 0.04, s: 0.35, r: this.parPas * 1.4 });
+      this.vOsti.jouer(t, this.freq(degreAccord + motif[(pas / 2) % motif.length], 0));
     }
 
     /* --- melodie : courte, entetante, elle n'arrive qu'en pression ------ */
     if (I > 0.35 && pas % 4 === 0 && this.rng() < (0.28 + 0.4 * I) * amb.melodie) {
       const saut = [0, 2, 4, 6, 7][Math.floor(this.rng() * 5)];
-      this.vLead.note(t, this.freq(degreAccord + saut, 1), this.parPas * 3, 0.12,
-        { a: 0.006, d: 0.09, s: 0.4, r: this.parPas * 3 });
+      this.vLead.jouer(t, this.freq(degreAccord + saut, 1));
     }
 
     /* --- tension : un battement sourd quand la vie descend -------------- */
     if (this.danger > 0.3 && pas % 8 === 0) {
-      this.tension.frappe(t, 0.5, 0.25 * this.danger, 220 + 160 * this.danger);
+      this.tension.frappe(t, this.danger, { freq: 1 + 0.73 * this.danger });
     }
   }
 
@@ -586,13 +591,12 @@ export class Son {
     const g = this.couches;
     const tau = 0.45;
     this.rampe(g.nappe.gain, ambiant ? 0.5 : 0.18 + 0.1 * (1 - I), tau);
-    /* `sub` et `ostinato` sont des MULTIPLICATEURS sur la loi de couche, pas
-       des niveaux : la loi (les seuils d'apparition) reste au moteur, seule
-       la dose est une decision artistique. */
-    const a = this.amb || AMBIANCES.milk;
-    this.rampe(g.sub.gain, ambiant ? 0.0001 : (0.1 + 0.35 * seuil(0.05, 0.4)) * a.sub, tau);
+    /* Les couches ne portent QUE la loi d'apparition. Le niveau de chaque
+       voix est dans son patch : c'est une decision de timbre, pas de
+       dramaturgie, et melanger les deux rendait les deux illisibles. */
+    this.rampe(g.sub.gain, ambiant ? 0.0001 : 0.1 + 0.35 * seuil(0.05, 0.4), tau);
     this.rampe(g.break.gain, ambiant ? 0.0001 : 0.5 * seuil(0.12, 0.45), tau);
-    this.rampe(g.ostinato.gain, ambiant ? 0.0001 : 0.32 * seuil(0.25, 0.6) * a.ostinato, tau);
+    this.rampe(g.ostinato.gain, ambiant ? 0.0001 : 0.32 * seuil(0.25, 0.6), tau);
     this.rampe(g.lead.gain, ambiant ? 0.22 : 0.3 * seuil(0.4, 0.8), tau);
     this.rampe(g.tension.gain, this.danger * 0.5, 0.8);
 
@@ -621,6 +625,8 @@ export class Son {
     const d = decoderCode(code);
     if (!d) return false;
     Object.assign(AMBIANCES[d.ambiance], d.preset);
+    for (const v of VOIX) Object.assign(RACKS[d.ambiance][v.cle], d.rack[v.cle]);
+    RACKS[d.ambiance].desaccord = d.rack.desaccord;
     this.graine(d.graine);
     if (this.pret && this.ambiance === d.ambiance) this.appliquerAmbiance(d.ambiance, true);
     return true;
@@ -628,7 +634,8 @@ export class Son {
 
   /** Le code de l'ambiance demandee, dans son etat courant. */
   codeActuel(ambiance = this.ambiance, graine = this.derniereGraine) {
-    return encoderCode(ambiance, AMBIANCES[ambiance] || AMBIANCES.milk, graine);
+    const nom = AMBIANCES[ambiance] ? ambiance : 'milk';
+    return encoderCode(nom, AMBIANCES[nom], RACKS[nom], graine);
   }
 
   /** Etat lisible, pour l'overlay de debug. */

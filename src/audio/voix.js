@@ -104,6 +104,31 @@ function enveloppe(param, t, attaque, chute, tenue, relache, pic) {
 }
 
 /** Un canal melodique permanent : un oscillateur, une enveloppe, un filtre. */
+/** Du vocabulaire du rack a celui de Web Audio. */
+export const TYPE_FILTRE = {
+  'passe-bas': 'lowpass', 'passe-bande': 'bandpass', 'passe-haut': 'highpass',
+};
+
+/**
+ * Construit la banque d'ondes une fois pour toutes.
+ *
+ * Une `PeriodicWave` coute cher a fabriquer et ne depend que du contexte :
+ * on n'en cree pas une par changement de curseur. Le studio change d'onde
+ * dix fois par seconde quand on balaye le choix.
+ */
+export function banqueOndes(ctx) {
+  return {
+    sinus: null, triangle: null, scie: null,     // types natifs de l'oscillateur
+    pulse08: ondePulsee(ctx, 0.08),
+    pulse12: ondePulsee(ctx, 0.125),
+    pulse25: ondePulsee(ctx, 0.25),
+    pulse33: ondePulsee(ctx, 0.33),
+    carre: ondePulsee(ctx, 0.5),
+  };
+}
+
+const NATIFS = { sinus: 'sine', triangle: 'triangle', scie: 'sawtooth' };
+
 export class Canal {
   /**
    * @param {AudioContext} ctx
@@ -139,6 +164,41 @@ export class Canal {
     enveloppe(this.gain.gain, t, e.a, e.d, e.s, e.r ?? duree, pic);
   }
 
+  /**
+   * Applique un patch du rack : onde, filtre, resonance.
+   *
+   * L'enveloppe et le niveau ne sont PAS appliques ici — ils sont lus a
+   * chaque note par `jouer()`. Une enveloppe est une propriete de la note,
+   * pas de l'etat du canal, et la confondre avec l'etat oblige a
+   * re-appliquer le patch a chaque changement de curseur pendant qu'une
+   * note sonne.
+   */
+  appliquerTimbre(p, ondes, t = 0, lissage = 0.02) {
+    this.timbre = p;
+    if (NATIFS[p.onde]) this.osc.type = NATIFS[p.onde];
+    else if (ondes[p.onde]) this.osc.setPeriodicWave(ondes[p.onde]);
+    this.filtre.type = TYPE_FILTRE[p.filtre] || 'lowpass';
+    this.filtre.frequency.setTargetAtTime(p.coupure, t, lissage);
+    this.filtre.Q.setTargetAtTime(p.resonance, t, lissage);
+    if (this.filtre2) {
+      this.filtre2.frequency.setTargetAtTime(p.coupure, t, lissage);
+      this.filtre2.Q.setTargetAtTime(Math.min(p.resonance, 1.2), t, lissage);
+    }
+  }
+
+  /**
+   * Joue une note AVEC le patch courant. `accent` multiplie le niveau du
+   * patch : c'est la nuance musicale, pas le reglage d'instrument.
+   */
+  jouer(t, freq, accent = 1) {
+    const p = this.timbre;
+    if (!p) return;
+    const f = this.osc.frequency;
+    if (this.glisse > 0) { f.cancelScheduledValues(t); f.setTargetAtTime(freq, t, this.glisse); }
+    else f.setValueAtTime(freq, t);
+    enveloppe(this.gain.gain, t, p.attaque, p.chute, p.tenue, p.relache, p.niveau * accent);
+  }
+
   /** Coupe net : utile pour un silence rythmique. */
   couper(t) {
     this.gain.gain.cancelScheduledValues(t);
@@ -163,9 +223,24 @@ export class Percu {
     this.src.start();
   }
 
-  frappe(t, duree, pic, freq = null) {
-    if (freq) this.filtre.frequency.setValueAtTime(freq, t);
-    enveloppe(this.gain.gain, t, 0.001, duree * 0.35, 0.25, duree, pic);
+  /**
+   * @param {number} accent multiplicateur du niveau du patch
+   * @param {object} o {duree, freq} multiplicateurs ponctuels — c'est ainsi
+   *   qu'on obtient une caisse claire fantome ou une charleston qui bouge
+   *   sans en faire un deuxieme instrument.
+   */
+  frappe(t, accent = 1, o = {}) {
+    const p = this.timbre;
+    if (!p) return;
+    this.filtre.frequency.setValueAtTime(p.frequence * (o.freq ?? 1), t);
+    const duree = p.duree * (o.duree ?? 1);
+    enveloppe(this.gain.gain, t, 0.001, duree * 0.35, 0.25, duree, p.niveau * accent);
+  }
+
+  appliquerTimbre(p) {
+    this.timbre = p;
+    this.filtre.type = TYPE_FILTRE[p.filtre] || 'bandpass';
+    this.filtre.Q.value = p.resonance;
   }
 }
 
@@ -181,13 +256,17 @@ export class Kick {
     this.osc.start();
   }
 
-  frappe(t, pic = 0.9) {
+  frappe(t, accent = 1) {
+    const p = this.timbre;
+    if (!p) return;
     const f = this.osc.frequency;
     f.cancelScheduledValues(t);
-    f.setValueAtTime(190, t);
-    f.exponentialRampToValueAtTime(42, t + 0.09);
-    enveloppe(this.gain.gain, t, 0.002, 0.06, 0.4, 0.22, pic);
+    f.setValueAtTime(p.depart, t);
+    f.exponentialRampToValueAtTime(p.arrivee, t + p.glisse);
+    enveloppe(this.gain.gain, t, 0.002, p.duree * 0.3, 0.4, p.duree, p.niveau * accent);
   }
+
+  appliquerTimbre(p) { this.timbre = p; }
 }
 
 /* ------------------------------------------------------------- effets ---- */
