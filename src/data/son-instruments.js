@@ -172,11 +172,18 @@ export const CHAMPS_PAR_GENRE = {
   kick: CHAMPS_KICK,
 };
 
-/* Le rack de base, celui qui reproduit exactement le moteur d'avant. */
+/* Le rack de base : ce que les cinq ambiances ont EN COMMUN, une fois la
+   direction artistique calee a l'oreille. Les valeurs ne reproduisent plus
+   le moteur d'origine — elles sont adoptees.
+
+   La nappe, notamment, n'est plus une scie filtree en passe-bas : c'est un
+   UNISSON en PASSE-BANDE a 1800 Hz. Le passe-bande lui retire son grave, ce
+   qui lui laisse sa place au-dessus du sub sans encombrer le bas du spectre,
+   et l'unisson lui donne la largeur qu'un seul oscillateur n'a pas. */
 const BASE = {
-  nappe: { onde: 'scie', filtre: 'passe-bas', coupure: 1250, resonance: 0.7,
-    attaque: 0.9, chute: 0.6, tenue: 0.8, relache: 1.6, niveau: 0.09,
-    modele: 'soustractif', timbre1: 0, timbre2: 0 },
+  nappe: { onde: 'scie', filtre: 'passe-bande', coupure: 1800, resonance: 0.7,
+    attaque: 0.9, chute: 0.6, tenue: 0.8, relache: 1.6, niveau: 0.12,
+    modele: 'super', timbre1: 0.6, timbre2: 0.47 },
   sub: { onde: 'sinus', filtre: 'passe-bas', coupure: 260, resonance: 0.7,
     attaque: 0.01, chute: 0.12, tenue: 0.7, relache: 0.26, niveau: 0.5,
     modele: 'soustractif', timbre1: 0, timbre2: 0 },
@@ -209,13 +216,34 @@ const rack = (o = {}) => {
   return r;
 };
 
-/** Un rack par ambiance : une matrice a sa palette sonore. */
+/**
+ * Un rack par ambiance. Apres le calage a l'oreille, seul le LAIT CRU
+ * s'ecarte du rack commun — et il s'en ecarte franchement :
+ *
+ *   ostinato   un unisson de scies, sombre et lent : il cesse d'etre un
+ *              motif pique pour devenir une nappe rythmique de plus ;
+ *   lead       un ACIDE, filtre resonant balaye a chaque note, coupure
+ *              basse et niveau fort. C'est lui qui porte le morceau ;
+ *   kick       la grosse caisse SOURDE, grave et longue, qui laisse la
+ *              place a ce lead au lieu de lui disputer l'attaque.
+ *
+ * Les quatre autres partagent le rack commun : la matiere musicale y
+ * change par le tempo, la tonique, le mode et l'espace, pas par les
+ * timbres. C'est une decision, pas un oubli.
+ */
 export const RACKS = {
-  ambiant: rack({ nappe: { coupure: 850 }, lead: { onde: 'carre' }, ostinato: { onde: 'pulse25' } }),
-  milk: rack(),
-  pipe: rack({ lead: { onde: 'pulse12' }, ostinato: { onde: 'carre' }, desaccord: 14 }),
-  kombucha: rack({ lead: { onde: 'pulse25' }, ostinato: { onde: 'pulse12' } }),
-  levain: rack({ lead: { onde: 'carre' }, ostinato: { onde: 'carre' } }),
+  ambiant: rack(),
+  milk: rack({
+    ostinato: { onde: 'scie', coupure: 1500, attaque: 0.04, chute: 1.1,
+      tenue: 0.7, relache: 0.5, modele: 'super', timbre1: 0.27, timbre2: 0.6 },
+    lead: { onde: 'scie', coupure: 700, resonance: 5, attaque: 0.002,
+      chute: 0.12, tenue: 0.3, relache: 0.12, niveau: 0.5, modele: 'acide',
+      timbre1: 0.6, timbre2: 0.2 },
+    kick: { depart: 120, arrivee: 35, glisse: 0.12, duree: 0.32 },
+  }),
+  pipe: rack(),
+  kombucha: rack(),
+  levain: rack(),
 };
 
 /* ----------------------------------------------------------- machines --- */

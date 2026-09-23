@@ -144,7 +144,9 @@ const res = await pg.evaluate(async () => {
        a tort qu'il n'y a pas d'aigu. On mesurait le banc, pas le moteur. */
     const SR = 44100;
     const ctx = new OfflineAudioContext(2, Math.ceil(SR * duree), SR);
-    s.graine(0x5eed);
+    /* La graine ADOPTEE, pas une graine de banc : on mesure ce qui sera
+       joue, y compris la matiere melodique qu'elle compose. */
+    s.graine(mod.GRAINE_ADOPTEE ?? 0x5eed);
     s.init(ctx);
     if (!s.pret) return { nom, erreur: 'init a echoue' };
     reglage(s);

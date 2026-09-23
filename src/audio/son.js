@@ -41,8 +41,11 @@ import {
   tamponBruit, courbeGrain, banqueOndes, Canal, Percu, Kick, reverbe, delaiPingPong,
 } from './voix.js';
 import {
-  GAMMES, PRESETS, RACKS, VOIX, decoderCode, encoderCode,
+  GAMMES, PRESETS, RACKS, VOIX, GRAINE_ADOPTEE, decoderCode, encoderCode,
 } from '../data/son-presets.js';
+
+/* Reexporte pour les bancs : ils doivent mesurer la graine qui SERA jouee. */
+export { GRAINE_ADOPTEE } from '../data/son-presets.js';
 
 /* ----------------------------------------------------------- musique ----- */
 
@@ -89,8 +92,8 @@ export class Son {
     this.volume = 0.7;
     this.ctx = null;
     this.timer = null;
-    this.derniereGraine = 0x5eed;
-    this.rng = mulberry32(0x5eed);
+    this.derniereGraine = GRAINE_ADOPTEE;
+    this.rng = mulberry32(GRAINE_ADOPTEE);
     this.composer();
 
     /* Etat observe, lisse image par image. */

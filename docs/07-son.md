@@ -455,6 +455,62 @@ Deux règles, payées cher :
   celle du dépôt. Vérifier la page qu'on garde n'est pas vérifier la page
   qu'on livre.
 
+### Ce qui a été adopté (22/09/2026)
+
+Cinq codes, une seule graine : **23105**. Elle fait partie de la DA au même
+titre qu'un timbre — c'est elle qui a composé la progression, le motif et la
+phrase qu'on a validés. En tirer une au hasard à chaque partie donnerait un
+autre morceau ; ce serait défendable, et ce serait une **autre** décision.
+
+**Le rack commun a changé sur un point majeur** : la nappe n'est plus une scie
+en passe-bas mais un **unisson en passe-bande à 1800 Hz**. Le passe-bande lui
+retire son grave — elle laisse donc la place au sub au lieu de l'encombrer —
+et l'unisson lui donne une largeur qu'un oscillateur seul n'a pas.
+
+**Seul le lait cru s'écarte du rack commun**, et franchement :
+
+| Voix | Ce qu'elle devient |
+|---|---|
+| `ostinato` | un unisson de scies sombre et lent : il cesse d'être un motif piqué pour devenir une nappe rythmique de plus |
+| `lead` | un **acide** — filtre résonant balayé à chaque note, coupure 700 Hz, niveau 0,5. C'est lui qui porte le morceau |
+| `kick` | la grosse caisse **sourde**, grave et longue, qui laisse la place à ce lead au lieu de lui disputer l'attaque |
+
+Les quatre autres partagent le rack commun : la matière y change par le tempo,
+la tonique, le mode et l'espace, pas par les timbres. C'est une décision, pas
+un oubli.
+
+Le **lobby** est le changement le plus radical : 58 → **170 BPM**, grain à
+fond, réverbe et écho au maximum. Toujours aucune batterie — la couche n'y
+monte jamais — mais la nappe respire toutes les 1,4 s au lieu de 4,1. Ce n'est
+plus un drone lent, c'est une masse qui pulse.
+
+#### Deux écarts de niveau, mesurés après coup
+
+RMS sur 12 s, stages à intensité 0,8, graine adoptée :
+
+| Ambiance | RMS | Écart / conduite |
+|---|---|---|
+| Lobby | 0,0127 | **−15,9 dB** |
+| Lait cru | 0,1043 | **+2,4 dB** |
+| Conduite | 0,0789 | 0 |
+| Kombucha | 0,0803 | +0,2 |
+| Levain | 0,0805 | +0,2 |
+
+Les trois stages « ouverts » sont à 0,2 dB les uns des autres : très cohérent.
+Deux exceptions, toutes deux conséquences directes de choix assumés :
+
+- **le lait cru est 2,4 dB plus fort** que les autres stages — c'est le lead
+  acide à 0,5. Un cran de niveau (0,5 → 0,4) le ramènerait à +0,5 dB ;
+- **le lobby est 16 dB sous les stages** (contre −11,6 avant). Le passe-bande
+  de la nappe lui retire son grave, et au lobby elle joue une octave plus bas
+  que partout ailleurs : c'est là que la coupe se voit le plus. Le passage
+  lobby → stage est donc un saut de niveau marqué.
+
+Ni l'un ni l'autre n'est un défaut : ce sont des conséquences chiffrées de la
+DA choisie, laissées telles quelles faute d'une décision contraire. Le studio
+ne permet pas de comparer deux ambiances au même niveau, ce qui explique
+qu'elles aient pu passer inaperçues.
+
 ### Adopter
 
 « Exporter » rend le bloc à recopier dans `src/data/son-presets.js`, plus les

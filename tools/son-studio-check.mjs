@@ -113,18 +113,29 @@ const code1 = await pg.locator('#codeCourant').textContent();
 dit(code1 !== code0, 'un curseur d ambiance change le code');
 dit(await pg.locator('#groupes .rang.bouge').count() > 0, 'l ecart a l adopte est signale');
 
-/* Le rack. C'est le sujet : un curseur de timbre doit s'entendre ET se coder. */
+/* Le rack. C'est le sujet : un curseur de timbre doit s'entendre ET se coder.
+   On vise un cran DIFFERENT de celui en place, sans jamais supposer lequel :
+   le banc a deja echoue le jour ou la valeur adoptee est tombee sur l'indice
+   qu'il poussait en dur, et il a accuse le produit a la place du banc. */
 await pg.evaluate(() => document.querySelector('#voix .btn[data-cle="lead"]').click());
-await pg.locator('#patch input[type=range]').first().fill('2');
+const curseur = pg.locator('#patch input[type=range]').first();
+const vise = await pg.evaluate(() => {
+  const i = document.querySelector('#patch input[type=range]');
+  const max = +i.max;
+  return String((+i.value + 1) % (max + 1));
+});
+await curseur.fill(vise);
 await pg.waitForTimeout(150);
 const code2 = await pg.locator('#codeCourant').textContent();
-dit(code2 !== code1, 'un curseur de rack change le code');
+dit(code2 !== code1, `un curseur de rack change le code (cran ${vise})`);
 dit(await pg.locator('#patch .rang.bouge').count() > 0, 'l ecart au rack adopte est signale');
-const onde = await pg.evaluate(async () => {
+const onde = await pg.evaluate(async (n) => {
   const m = await import('../src/data/son-presets.js');
-  return m.RACKS.milk.lead.onde;
-});
-dit(onde === 'scie', `le curseur d onde atteint bien la voix (lead = ${onde})`);
+  const ch = m.CHAMPS_PAR_GENRE.melodique.find((c) => c.cle === 'onde');
+  return { pose: m.RACKS.milk.lead.onde, attendu: ch.choix[+n] };
+}, vise);
+dit(onde.pose === onde.attendu,
+  `le curseur d onde atteint bien la voix (lead = ${onde.pose}, attendu ${onde.attendu})`);
 
 await pg.click('#solo');
 await pg.waitForTimeout(150);

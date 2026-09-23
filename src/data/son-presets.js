@@ -86,14 +86,28 @@ export const GROUPES = ['Tempo et harmonie', 'Espace', 'Jeu'];
  * la tonalite, le mode, l'espace — et desormais le rack.
  */
 export const PRESETS = {
-  /* Lobby et bestiaire : pas de batterie du tout, et un tempo qui ne sert
-     qu'a cadencer les respirations de la nappe. */
-  ambiant: { bpm: 58, tonique: 45, gamme: 'dorien', grain: 0.15, reverbe: 0.85, echo: 0.55, melodie: 1 },
-  milk: { bpm: 172, tonique: 50, gamme: 'dorien', grain: 0.55, reverbe: 0.4, echo: 0.3, melodie: 1 },
+  /* Lobby et bestiaire : toujours AUCUNE batterie — la couche n'y monte
+     jamais — mais le tempo cadence les respirations de la nappe, et a 170
+     elle respire toutes les 1,4 s au lieu de 4,1. Avec le grain a fond et
+     l'espace ouvert en grand, ce n'est plus un drone lent : c'est une masse
+     qui pulse. Adopte a l'oreille. */
+  ambiant: { bpm: 170, tonique: 45, gamme: 'dorien', grain: 1, reverbe: 1.55, echo: 1.55, melodie: 1 },
+  milk: { bpm: 172, tonique: 50, gamme: 'dorien', grain: 0.55, reverbe: 0.5, echo: 1.1, melodie: 1 },
   pipe: { bpm: 176, tonique: 42, gamme: 'mineure', grain: 0.85, reverbe: 0.3, echo: 0.4, melodie: 1 },
   kombucha: { bpm: 168, tonique: 49, gamme: 'phrygien', grain: 0.5, reverbe: 0.6, echo: 0.45, melodie: 1 },
   levain: { bpm: 170, tonique: 45, gamme: 'pentamineure', grain: 0.4, reverbe: 0.5, echo: 0.35, melodie: 1 },
 };
+
+/**
+ * La graine adoptee avec les presets.
+ *
+ * Elle fait partie de la direction artistique au meme titre qu'un timbre :
+ * c'est elle qui a compose la progression, le motif de l'ostinato et la
+ * phrase du lead qu'on a valides a l'oreille. En tirer une au hasard a
+ * chaque partie donnerait un autre morceau — ce serait defendable, et ce
+ * serait une AUTRE decision.
+ */
+export const GRAINE_ADOPTEE = 23105;
 
 /** Nom lisible de chaque ambiance, pour le studio. */
 export const NOMS = {
