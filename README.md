@@ -6,10 +6,20 @@ de vos victimes et vous volez leurs gènes.
 
 **État : maquette jouable.** Tout est dessiné procéduralement, avec quelques
 sprites pour les silhouettes que le procédural ne rend pas.
-Deux matrices jouables — le **lait cru** (goutte, fond clair) et la
-**conduite** (couloir d'acier, courant, biofilm, NEP) — plus un **lobby** et
-un **bestiaire vivant**. Le kombucha et le sang sont spécifiés dans
-`docs/01-matrices.md` mais pas encore implémentés.
+
+**Quatre matrices jouables** — le **lait cru** (goutte, fond clair), la
+**conduite** (couloir d'acier, courant, biofilm, NEP), le **kombucha** (jarre,
+bulles de CO₂ qui brassent, moisissures-baleines) et le **levain** (pâte
+dense, labyrinthe de grains d'amidon) — plus un **lobby** et un **bestiaire
+vivant**. Le **sang** est spécifié dans `docs/01-matrices.md` et délibérément
+gardé pour la fin : ce n'est pas une goutte mais un réseau vasculaire.
+
+La **bande son est générative et adaptative**, entièrement synthétisée en Web
+Audio : aucun fichier, aucune bibliothèque. Elle s'écrit et se règle dans un
+studio dédié (`docs/07-son.md`).
+
+Pour travailler sur le projet, commencer par **`CLAUDE.md`** : conventions,
+invariants, bancs de mesure et chantiers ouverts.
 
 ## Le lobby et le bestiaire
 
