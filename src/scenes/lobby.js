@@ -8,16 +8,24 @@
 
    Le puits montre donc litteralement ce dans quoi on va tomber : c'est plus
    parlant qu'une liste, et ca reutilise tout le moteur de rendu.
+
+   La SOUCHE se choisit de la meme facon : quatre petites colonies posees sur
+   la gelose, entre les puits et la paroi. On nage dans l'une, on DEVIENT la
+   cellule qu'elle contient — le nageur change de morphologie et de couleur
+   sur-le-champ. Un menu de personnages aurait demande un ecran de plus et
+   une navigation au clavier, la ou le lobby sait deja faire choisir en
+   nageant, y compris au doigt sur un telephone.
 --------------------------------------------------------------------------- */
 
 import { VIEW, Screen, fade32, rgba } from '../core/pixel.js';
 import { drawTextCentered, drawText } from '../core/font.js';
 import { sceneText } from './hud-anchor.js';
 import { clamp, TAU, hash2 } from '../core/util.js';
-import { UI, MATRICES_PALETTE } from '../data/palette.js';
+import { UI, MATRICES_PALETTE, souchePalette } from '../data/palette.js';
 import { MATRICES } from '../data/matrices.js';
 import { BESTIARY } from '../data/bestiary.js';
 import { drawOrganism, drawPlayer, colorOf } from '../render/organisms.js';
+import { ESPECES, ESPECE_DEFAUT, especeOf } from '../data/especes.js';
 import { Swimmer } from './swimmer.js';
 
 const WELL_R = 21;
@@ -40,13 +48,32 @@ const SLOTS = (() => {
   return out;
 })();
 
+/* Les colonies de souches vivent DANS LES INTERVALLES de la couronne, a 84
+   du centre. Mesure : a ce rayon la colonie la plus serree garde 13 px de
+   marge avec le puits voisin, et reste a 83 du centre pour 92 de nage — on
+   les atteint toutes sans jamais toucher la paroi. Les poser sur la couronne
+   elle-meme les collait aux puits, et un choix de souche declenche alors un
+   depart de partie. */
+const SOUCHE_R = 9;
+const SOUCHE_SLOTS = ESPECES.map((espece, k) => {
+  const a = -Math.PI / 2 + ((k + 0.5) / 5) * Math.PI * 2;
+  return {
+    id: `souche:${espece.id}`, espece,
+    x: Math.round(Math.cos(a) * 84), y: Math.round(Math.sin(a) * 84 * 0.86),
+    r: SOUCHE_R, kind: 'souche',
+  };
+});
+
 export class Lobby {
-  constructor(onPick) {
+  constructor(onPick, especeId = ESPECE_DEFAUT) {
     this.onPick = onPick;
     this.swim = new Swimmer(0, -76);
     this.time = 0;
     this.focus = null;
     this.enterHold = 0;
+    /* La souche survit d'une partie a l'autre : on rejoue tres souvent avec
+       la meme, et la redemander a chaque retour au lobby serait une taxe. */
+    this.especeId = especeId;
     this.wells = SLOTS.map((s) => {
       if (s.id === 'bestiaire') return { ...s, r: s.r || WELL_R, kind: 'bestiaire' };
       const mat = MATRICES[s.id];
@@ -62,7 +89,11 @@ export class Lobby {
         })),
       };
     });
+    this.wells.push(...SOUCHE_SLOTS.map((s) => ({ ...s })));
   }
+
+  /** La souche jouee, objet complet. */
+  get espece() { return especeOf(this.especeId); }
 
   update(dt, input) {
     this.time += dt;
@@ -77,12 +108,19 @@ export class Lobby {
     this.focus = best;
 
     /* On entre en RESTANT dedans : pas de touche a trouver, et pas
-       d'entree accidentelle en passant. */
-    if (best && bd < best.r * 0.72 && (best.kind === 'bestiaire' || best.playable)) {
+       d'entree accidentelle en passant. Changer de souche est reversible et
+       gratuit, donc son maintien est deux fois plus court qu'un depart de
+       partie : 0,3 s contre 0,65 s. */
+    const souche = best && best.kind === 'souche' && best.espece.id !== this.especeId;
+    const entree = best && (best.kind === 'bestiaire' || best.playable);
+    if (best && bd < best.r * 0.72 && (souche || entree)) {
       this.enterHold += dt;
-      if (this.enterHold > 0.65) {
+      const seuil = souche ? 0.30 : 0.65;
+      if (this.enterHold > seuil) {
         this.enterHold = 0;
-        this.onPick(best.kind === 'bestiaire' ? { bestiaire: true } : { matrice: best.id });
+        if (souche) this.especeId = best.espece.id;
+        else this.onPick(best.kind === 'bestiaire' ? { bestiaire: true }
+          : { matrice: best.id, espece: this.especeId });
       }
     } else {
       this.enterHold = Math.max(0, this.enterHold - dt * 2);
@@ -113,10 +151,20 @@ export class Lobby {
     for (const w of this.wells) this.drawWell(scr, w, toX, toY);
 
     scr.layer(Screen.layerFor(-0.1, 0));
-    drawPlayer(scr, toX(this.swim.x), toY(this.swim.y), this.swim.radius,
+    const esp = this.espece;
+    drawPlayer(scr, toX(this.swim.x), toY(this.swim.y),
+      /* Le rayon suit la hitbox de la souche : on voit AVANT de jouer qu'une
+         levure est une grosse cible et un coque une petite. */
+      this.swim.radius * (esp.stats.hitbox ? esp.stats.hitbox / 3.4 : 1),
       this.swim.ang, this.swim.phase, MATRICES_PALETTE.milk, { count: 2, mode: 'bundle' },
       { drive: this.swim.drive, bend: 0, lean: this.swim.lean,
-        sillage: this.swim.sillage, trouble: this.swim.trouble });
+        sillage: this.swim.sillage, trouble: this.swim.trouble,
+        morpho: esp.morpho, couleurs: souchePalette(MATRICES_PALETTE.milk, esp.id),
+        /* Dans le lobby, la caracteristique est montree au repos : la spore
+           en reserve, l'amas au complet, un bourgeon a mi-course. */
+        trait: { spores: 1, amas: esp.trait && esp.trait.id === 'amas' ? 3 : 1,
+          bourgeon: 0.55, dormance: 0 },
+      });
 
     scr.composite();
     drawRim(scr, fieldR, rgba(150, 146, 128, 255));
@@ -126,6 +174,7 @@ export class Lobby {
   drawWell(scr, w, toX, toY) {
     const sx = toX(w.x), sy = toY(w.y);
     if (sx < -60 || sy < -60 || sx > VIEW.W + 60 || sy > VIEW.H + 60) return;
+    if (w.kind === 'souche') { this.drawSouche(scr, w, sx, sy); return; }
     const actif = this.focus === w;
     const dispo = w.kind === 'bestiaire' || w.playable;
 
@@ -168,11 +217,56 @@ export class Lobby {
     }
   }
 
+  /**
+   * Une colonie de souche : une goutte de milieu ou vit UNE cellule, dessinee
+   * exactement comme le joueur le sera. Montrer la vraie morphologie plutot
+   * qu'une vignette evite la promesse non tenue — on voit la grappe se
+   * deconstruire et le bourgeon grossir avant meme de choisir.
+   */
+  drawSouche(scr, w, sx, sy) {
+    const actif = this.focus === w;
+    const choisie = w.espece.id === this.especeId;
+    const pal = MATRICES_PALETTE.milk;
+    const col = souchePalette(pal, w.espece.id);
+
+    scr.layer(Screen.layerFor(0.2, 0));
+    scr.disc(sx, sy, w.r, rgba(236, 233, 218, 255), 0);
+
+    scr.layer(Screen.layerFor(0.05, 0));
+    const a = this.time * 0.4 + w.x;
+    drawPlayer(scr, sx, sy, 3.0, a, this.time, pal, { count: 0, mode: 'bundle' },
+      { drive: 0.25, bend: 0, lean: 0,
+        morpho: w.espece.morpho, couleurs: col,
+        trait: { spores: 1, amas: 4, bourgeon: 0.6, dormance: 0 } });
+
+    scr.layer(Screen.layerFor(-0.05, 0));
+    /* La souche choisie porte un anneau plein de SA couleur : c'est le seul
+       endroit ou l'on peut verifier d'un coup d'oeil qui l'on est. */
+    scr.ring(sx, sy, w.r + 1.5, choisie ? 2 : 1.2,
+      choisie ? col.fill : (actif ? UI.textHot : rgba(150, 146, 128, 190)));
+    if (actif && this.enterHold > 0 && !choisie) {
+      const frac = clamp(this.enterHold / 0.30, 0, 1);
+      for (let t = -Math.PI / 2; t < -Math.PI / 2 + frac * TAU; t += 0.08) {
+        scr.disc(sx + Math.cos(t) * (w.r + 4), sy + Math.sin(t) * (w.r + 4), 1, UI.textHot, 0);
+      }
+    }
+  }
+
   drawHud(scr) {
     const t = sceneText(scr);
     t.ligne('CELL DUNGEON', UI.text, 2).saut(3);
-    if (this.focus) {
-      const w = this.focus;
+    const w = this.focus;
+    if (w && w.kind === 'souche') {
+      /* Devant une colonie, on parle de la SOUCHE : son nom, ce qu'elle
+         tire, et sa caracteristique unique. C'est la seule information qui
+         decide du choix, donc c'est la seule affichee. */
+      const e = w.espece;
+      t.ligne(e.label, UI.textHot, 2);
+      t.ligne(e.sous, UI.textDim, 1);
+      t.ligne(e.trait ? e.trait.label : 'AUCUNE CAPACITE PROPRE', UI.text, 1);
+      t.ligne(e.id === this.especeId ? 'SOUCHE ACTIVE' : 'RESTE DEDANS POUR DEVENIR',
+        e.id === this.especeId ? UI.textHot : UI.textDim, 1);
+    } else if (w) {
       const bestiaire = w.kind === 'bestiaire';
       t.ligne(bestiaire ? 'BESTIAIRE' : w.label, UI.textHot, 2);
       t.ligne(bestiaire ? 'OBSERVER LA FLORE' : (w.playable ? w.sub : 'MATRICE A VENIR'),
@@ -180,6 +274,7 @@ export class Lobby {
       if (!bestiaire && !w.playable) t.ligne('PAS ENCORE JOUABLE', UI.textDim, 1);
       else t.ligne('RESTE DEDANS POUR ENTRER', UI.textDim, 1);
     } else {
+      t.ligne(`SOUCHE : ${this.espece.label}`, UI.text, 1);
       t.ligne('NAGE VERS UN PUITS', UI.textDim, 1);
     }
   }

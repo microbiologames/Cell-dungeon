@@ -93,9 +93,15 @@ function renderBottom(scr, game, pal) {
 
   gauge(scr, game, { x: 16, y: gy, len: W - 32, vertical: false });
 
+  /* La caracteristique unique passe AVANT les pastilles d'evolution : elle
+     compte les vies, elles comptent les bonus. */
+  const ty = sy - 10;
+  const trait = traitHud(scr, p, 3, ty);
+
   /* Pastilles d'evolution : juste sous le disque, la ou il reste du noir. */
   const chipTop = VIEW.CY + VIEW.R + 8;
-  if (sy - chipTop > 8) chips(scr, p, 3, chipTop, W - 6, sy - 6);
+  const chipBas = (trait ? ty : sy) - 6;
+  if (chipBas - chipTop > 8) chips(scr, p, 3, chipTop, W - 6, chipBas);
 }
 
 /* -------------------------------------------------------------- paysage -- */
@@ -125,6 +131,7 @@ function renderSides(scr, game, pal) {
   drawText(scr, `${p.kills} TUES`, lx, 104, UI.textDim, 1, 1);
   drawText(scr, dominantWay(p), lx, 114, UI.textDim, 1, 1);
   let cy = 126;
+  if (traitHud(scr, p, lx, cy)) cy += 12;
   if (game.conduite) { renderNep(scr, game, lx, cy); cy += 24; }
   chips(scr, p, lx, cy, colW, VIEW.H - 4);
 
@@ -133,6 +140,68 @@ function renderSides(scr, game, pal) {
     x: VIEW.CX + VIEW.R + Math.round(colW / 2) + 3,
     y: 18, len: VIEW.H - 36, vertical: true,
   });
+}
+
+/* ------------------------------------------------- caracteristique unique - */
+
+/** Petit carre plein ou vide : une unite de credit, lisible a 3 px. */
+function pastille(scr, x, y, plein, col) {
+  for (let j = 0; j < 3; j++) {
+    for (let i = 0; i < 3; i++) {
+      const bord = i === 0 || j === 0 || i === 2 || j === 2;
+      if (plein || bord) scr.direct(x + i, y + j, plein ? col : fade32(col, 0.45));
+    }
+  }
+}
+
+/**
+ * La caracteristique unique de la souche, affichee en permanence.
+ *
+ * Elle n'est PAS une evolution : elle ne figure donc pas dans les pastilles
+ * d'evolution, et sans cette ligne le joueur n'aurait aucun moyen de savoir
+ * combien de spores il lui reste ni si son bourgeon est mur. C'est un
+ * compteur de vies : il se lit d'un coup d'oeil ou il ne sert a rien, d'ou
+ * les pastilles plutot qu'un nombre.
+ *
+ * Rend `true` si quelque chose a ete dessine — le lactobacille n'a pas de
+ * trait, et sa ligne ne doit pas laisser un trou.
+ */
+function traitHud(scr, p, x, y) {
+  const t = p.espece.trait;
+  if (!t) return false;
+
+  if (p.trait === 'sporulation') {
+    drawText(scr, t.court, x, y, UI.textDim, 1, 1);
+    const x0 = x + textWidth(t.court, 1) + 4;
+    const n = p.sporesMax;
+    for (let i = 0; i < n; i++) {
+      pastille(scr, x0 + i * 5, y, i < p.spores, i < p.spores ? UI.textHot : UI.textDim);
+    }
+    if (p.dormance > 0) {
+      drawText(scr, 'GERMINATION', x0 + n * 5 + 4, y, UI.acid, 1, 1);
+    }
+    return true;
+  }
+
+  if (p.trait === 'amas') {
+    drawText(scr, t.court, x, y, UI.textDim, 1, 1);
+    const x0 = x + textWidth(t.court, 1) + 4;
+    const n = p.amasMax, vivant = p.amasVivant;
+    for (let i = 0; i < n; i++) {
+      pastille(scr, x0 + i * 5, y, i < vivant, i < vivant ? UI.player : UI.textDim);
+    }
+    return true;
+  }
+
+  if (p.trait === 'bourgeonnement') {
+    drawText(scr, t.court, x, y, UI.textDim, 1, 1);
+    const x0 = x + textWidth(t.court, 1) + 4;
+    const mur = p.bourgeon >= 1;
+    bar(scr, x0, y + 1, 26, 3, p.bourgeon, mur ? UI.textHot : UI.player, BG_BAR);
+    if (mur) drawText(scr, 'PRET', x0 + 30, y, UI.textHot, 1, 1);
+    return true;
+  }
+  return false;
 }
 
 /* ---------------------------------------------------------------- pieces - */

@@ -568,19 +568,24 @@ export function drawOrganism(scr, spec, x, y, r, ang, phase, fill, rim, opts = n
 /* ---------------------------------------------------------------------- */
 
 /**
- * Le joueur : un LACTOBACILLE.
+ * Le joueur.
+ *
+ * Quatre souches jouables, quatre morphologies. Le corps est le seul endroit
+ * ou la souche se voit en permanence : le HUD dit son nom une fois, le corps
+ * le dit a chaque image. On paie donc ici le prix d'un dessin par souche.
  *
  * Le diplocoque de depart etait une impasse de lisibilite : deux disques
  * plats de sept pixels n'ont ni avant ni arriere, donc aucune des animations
- * qui rendent un personnage vivant n'avait de prise. Un lactobacille a un
- * axe, et c'est tout ce qu'il fallait.
+ * qui rendent un personnage vivant n'avait de prise. Un bacille a un axe, et
+ * c'est tout ce qu'il fallait.
  *
  * Ce n'est pas un compromis : un Lactobacillus fait reellement 2 a 8 um de
  * long pour 0,5 a 1 um de large, la ou un Lactococcus fait 0,5 a 1,5 um. Le
  * personnage grandit donc DANS le vrai, pas contre lui.
  *
- * Le corps est une COLONNE VERTEBRALE echantillonnee, pas une capsule rigide.
- * Deux deformations s'y ajoutent, toutes deux en repere cellule :
+ * Le corps d'un bacille est une COLONNE VERTEBRALE echantillonnee, pas une
+ * capsule rigide. Deux deformations s'y ajoutent, toutes deux en repere
+ * cellule :
  *
  *   dandinement  une onde laterale qui court de la tete a la queue, dont
  *                l'amplitude suit l'effort de nage. C'est ce qui fait qu'une
@@ -590,9 +595,14 @@ export function drawOrganism(scr, spec, x, y, r, ang, phase, fill, rim, opts = n
  *                preparation se lit comme un corps qui se cambre — c'est la
  *                seule facon de rendre l'axe Z en deux dimensions.
  *
- * @param {object} [opts] {drive, bend, lean, sillage, trouble} — effort de
- *   nage, cambrure de profondeur, inclinaison de virage, memoire de cap et
- *   desordre du faisceau.
+ * Un coque et une levure n'ont pas d'axe : ces deux-la ne se dandinent pas,
+ * et c'est normal. Leur vie vient d'ailleurs — la grappe qui se deconstruit
+ * pour l'un, le bourgeon qui grossit pour l'autre. Les deux sont des ETATS
+ * DE JEU rendus sur le corps, pas des animations decoratives.
+ *
+ * @param {object} [opts] {drive, bend, lean, sillage, trouble, espece, trait}
+ *   effort de nage, cambrure de profondeur, inclinaison de virage, memoire de
+ *   cap, desordre du faisceau, souche jouee et etat de sa caracteristique.
  */
 export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null, opts = null) {
   const f = flagellation || { count: 0, mode: 'bundle' };
@@ -600,17 +610,49 @@ export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null, o
   const drive = clamp(o.drive ?? 0, 0, 1);
   const bend = clamp(o.bend ?? 0, -1, 1);
   const lean = clamp(o.lean ?? 0, -1, 1);
+  const morpho = o.morpho || 'bacille';
+  const etat = o.trait || {};
+  const col = o.couleurs || { fill: pal.player, rim: pal.playerRim, core: pal.playerCore };
 
-  /* Proportions d'un lactobacille : long, mince, bouts arrondis. Un
-     Lactobacillus fait trois a huit fois plus long que large ; en deca de
-     deux fois, on retombe sur un gros coque. */
-  const hw = r * 1.90;          // demi-longueur
-  const hh = r * 0.66;          // demi-largeur
-  const ca = Math.cos(ang), sa = Math.sin(ang);
+  /* Gabarit du corps : demi-longueur et demi-largeur, en multiples du rayon
+     de collision. C'est lui qui dit ou s'accrochent les flagelles, donc il
+     se calcule AVANT eux. */
+  const G = {
+    /* Long et mince : trois fois plus long que large. En deca de deux fois,
+       on retombe sur un gros coque. Bouts ARRONDIS (profil 2) et corps
+       souple : un lactobacille se dandine franchement. */
+    bacille: { hw: 1.90, hh: 0.66, flag: 3.2, profil: 2, souplesse: 1 },
+    /* B. cereus est un GROS bacille a BOUTS CARRES. Les deux caracteres
+       comptent autant l'un que l'autre : mesure faite sur la planche
+       (tools/player-look.mjs souches), la seule largeur ne suffisait pas a
+       le distinguer du lactobacille, les deux se lisaient comme le meme
+       batonnet de couleur differente. Le profil 4 aplatit les extremites —
+       c'est le bacille a bouts droits du frottis — et la souplesse reduite
+       dit le corps rigide d'une grosse cellule. */
+    bacillelong: { hw: 1.80, hh: 0.84, flag: 3.0, profil: 4, souplesse: 0.55 },
+    /* Un coque n'a pas d'axe : le gabarit est rond, la grappe s'etale
+       ensuite toute seule autour. */
+    amas: { hw: 1.0, hh: 1.0, flag: 2.6 },
+    /* Une levure est ovoide et pese : les flagelles, si le joueur s'en
+       offre, sont courts par rapport a elle. */
+    levure: { hw: 1.05, hh: 0.90, flag: 2.0 },
+  }[morpho] || { hw: 1.90, hh: 0.66, flag: 3.2 };
 
-  /* Les flagelles d'abord : ils passent DERRIERE le corps. Une bacterie
-     lactique n'est pas mobile, mais celle-ci vole des genes a tout le monde,
-     flagelline comprise — c'est le sujet du jeu. */
+  const hw = r * G.hw, hh = r * G.hh;
+
+  /* Une spore en germination n'a plus de corps : la cellule mere s'est lysee
+     en la liberant. On ne dessine donc qu'elle — ni flagelles, ni paroi. */
+  if (etat.dormance > 0) {
+    dessinerSpore(scr, x, y, r * 1.05, ang, pal, col, true);
+    return;
+  }
+
+  /* Les flagelles d'abord : ils passent DERRIERE le corps. Aucune de ces
+     quatre especes n'est mobile dans la nature ; celle-ci l'est parce
+     qu'elle vole des genes a tout le monde, flagelline comprise — c'est le
+     sujet du jeu. On les dessine donc pour toutes les souches, sinon les
+     evolutions de flagellation appliqueraient leurs stats sans rien
+     montrer. */
   drawFlagella(scr, {
     x, y, ang, hw, hh,
     count: f.count, mode: f.mode, phase, drive,
@@ -620,18 +662,34 @@ export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null, o
     /* Un flagelle fait plusieurs fois la longueur de la cellule : le
        raccourcir pour "faire propre" lui enlevait justement l'allure de
        flagelle. */
-    len: hw * (f.mode === 'polaire' ? 3.8 : 3.2),
-    col: fade32(pal.playerRim, 0.62), width: 1,
+    len: hw * (f.mode === 'polaire' ? G.flag * 1.19 : G.flag),
+    col: fade32(col.rim, 0.62), width: 1,
   });
+
+  if (morpho === 'amas') { corpsAmas(scr, x, y, r, ang, phase, pal, col, etat); return; }
+  if (morpho === 'levure') { corpsLevure(scr, x, y, r, ang, phase, pal, col, etat, bend); return; }
+  corpsBacille(scr, x, y, r, ang, phase, pal, col, {
+    hw, hh, drive, bend, lean,
+    profil: G.profil || 2, souplesse: G.souplesse ?? 1,
+    spore: morpho === 'bacillelong' && etat.spores > 0,
+  });
+}
+
+/* ------------------------------------------------------------- bacille -- */
+
+function corpsBacille(scr, x, y, r, ang, phase, pal, col, o) {
+  const { hw, hh, drive, bend, lean } = o;
+  const profil = o.profil || 2, souplesse = o.souplesse ?? 1;
+  const ca = Math.cos(ang), sa = Math.sin(ang);
 
   /* --- la colonne vertebrale ------------------------------------------ */
   const N = 9;
   const pts = [];
   for (let i = 0; i <= N; i++) {
     const u = (i / N) * 2 - 1;                 // -1 queue, +1 tete
-    /* Onde qui court vers la queue. Un lactobacille ne nage pas en ligne
-       droite comme une fleche : il se dandine. */
-    const dandine = Math.sin(phase * (7 + 9 * drive) - u * 1.4) * hh * 0.5 * drive;
+    /* Onde qui court vers la queue. Un bacille ne nage pas en ligne droite
+       comme une fleche : il se dandine. */
+    const dandine = Math.sin(phase * (7 + 9 * drive) - u * 1.4) * hh * 0.5 * drive * souplesse;
     /* Cambrure de PROFONDEUR : un arc, maximal au milieu, nul aux poles.
        C'est le changement de plan focal qui la pilote. */
     const cambre = bend * hh * 0.95 * (1 - u * u);
@@ -640,10 +698,13 @@ export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null, o
        la tete mene. C'est ce qui fait lire un virage comme un virage. */
     const chasse = -lean * hh * 1.45 * Math.pow((1 - u) / 2, 1.5);
     const lat = dandine + cambre + chasse;
-    /* Profil de largeur : plat au centre, arrondi aux deux bouts. */
+    /* Profil de largeur : plat au centre, ferme aux deux bouts. L'exposant
+       decide de la FORME du bout — 2 donne une calotte hemispherique, 4 un
+       bout presque droit. C'est le caractere qui separe un lactobacille d'un
+       Bacillus a l'oeil, bien avant la couleur. */
     const c = 1 - hh / hw;
     const t = clamp((Math.abs(u) - c) / Math.max(1e-3, 1 - c), 0, 1);
-    const rad = hh * Math.sqrt(Math.max(0, 1 - t * t));
+    const rad = hh * Math.sqrt(Math.max(0, 1 - Math.pow(t, profil)));
     pts.push({
       sx: x + (u * hw) * ca - lat * sa,
       sy: y + (u * hw) * sa + lat * ca,
@@ -665,27 +726,179 @@ export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null, o
   const o2 = ombreAxiale(ang);
   for (const q of pts) {
     if (q.rad < 0.2) continue;
-    scr.disc(q.sx, q.sy, q.rad, pal.playerRim, 0);
+    scr.disc(q.sx, q.sy, q.rad, col.rim, 0);
   }
   for (const q of pts) {
     if (q.rad < 0.5) continue;
-    scr.disc(q.sx + o2.x * q.rad * 0.32, q.sy + o2.y * q.rad * 0.32, q.rad * 0.78, pal.player, 0);
+    scr.disc(q.sx + o2.x * q.rad * 0.32, q.sy + o2.y * q.rad * 0.32, q.rad * 0.78, col.fill, 0);
   }
 
   /* Granulations cytoplasmiques : deux inclusions figees dans le repere de
      la cellule, donc solidaires du corps. Elles cassent l'aplat, et les
-     lactobacilles en ont reellement (polyphosphates, lipides). */
+     bacilles en ont reellement (polyphosphates, lipides). */
   for (const gu of [-0.42, 0.34]) {
     const i = Math.round(((gu + 1) / 2) * N);
     const q = pts[clamp(i, 0, N)];
     if (q.rad < 0.9) continue;
     scr.disc(q.sx, q.sy, Math.max(0.6, q.rad * 0.30),
-      fade32(clair(pal.player, 0.45), 0.8), 0);
+      fade32(clair(col.fill, 0.45), 0.8), 0);
+  }
+
+  /* L'ENDOSPORE EN RESERVE, chez B. cereus : refringente donc claire,
+     centrale a subterminale, et elle ne deforme pas le sporange. On la voit
+     par transparence dans la cellule mere — c'est exactement ce qu'on
+     observe au microscope, et c'est le compteur de vies du personnage rendu
+     sur son corps. Les mobs Bacillus la portent deja de la meme facon :
+     meme signe, meme sens, pour le joueur comme pour eux. */
+  if (o.spore) {
+    const q = pts[Math.round(N * 0.68)];
+    /* Dimensionnee sur la LARGEUR du sporange, pas sur une fraction choisie
+       a l'oeil : mesuree a 0,84 x hh elle sortait comme une moucheture parmi
+       les granulations. A 1,15 x hh elle occupe presque toute la section,
+       ce qui est exactement ce qu'on voit au microscope — et elle devient le
+       compteur de vies lisible d'un coup d'oeil. */
+    const rs = hh * 1.15;
+    scr.ell(q.sx, q.sy, rs * 0.92, rs * 0.74, ang, col.rim, 0);
+    scr.ell(q.sx, q.sy, rs * 0.66, rs * 0.50, ang, pal.spore || 0xfff4f8e8, 0);
+    /* Le point de refringence : c'est lui qui dit "spore" et pas "trou". */
+    scr.disc(q.sx + LX * rs * 0.22, q.sy + LY * rs * 0.22, Math.max(0.5, rs * 0.22),
+      0xffffffff, 0);
   }
 
   /* Reflet speculaire : deux pixels vers la tete, du cote de la lumiere.
      C'est lui qui vend le volume. */
   const tete = pts[N - 1];
   scr.disc(tete.sx + o2.x * tete.rad * 0.56, tete.sy + o2.y * tete.rad * 0.56,
-    Math.max(0.5, tete.rad * 0.30), pal.playerCore, 0);
+    Math.max(0.5, tete.rad * 0.30), col.core, 0);
+}
+
+/* ------------------------------------------------------------ spore ----- */
+
+/**
+ * L'endospore libre, quand le joueur germe.
+ *
+ * Elle se lit a un seul caractere : la REFRINGENCE. Paroi tres epaisse et
+ * sombre, coeur presque blanc. C'est ce qui la fait reconnaitre au microscope
+ * en une fraction de seconde, et c'est aussi ce qui la distingue du corps
+ * qu'elle remplace — sinon le joueur ne verrait pas qu'il a change d'etat.
+ */
+function dessinerSpore(scr, x, y, r, ang, pal, col, halo) {
+  if (halo && pal.phase) scr.ell(x, y, r * 1.25, r * 0.92, ang, pal.phase, 0);
+  scr.ell(x, y, r * 1.12, r * 0.80, ang, col.rim, 0);
+  scr.ell(x, y, r * 0.80, r * 0.52, ang, pal.spore || 0xfff4f8e8, 0);
+  scr.disc(x + LX * r * 0.34, y + LY * r * 0.26, Math.max(0.5, r * 0.20), 0xffffffff, 0);
+}
+
+/* --------------------------------------------------------------- amas --- */
+
+/**
+ * Dispositions de la grappe, de une a six cellules.
+ *
+ * Elles sont ECRITES, pas calculees : une couronne reguliere se lit comme une
+ * fleur, pas comme un amas. S. aureus se divise dans des plans successifs
+ * perpendiculaires sans separer ses filles, ce qui donne un tas irregulier —
+ * le caractere qui l'identifie au frottis. Les coordonnees sont en multiples
+ * du rayon d'un coque, et chaque tableau est centre sur son barycentre.
+ */
+const AMAS = [
+  [[0, 0]],
+  [[-0.86, 0.02], [0.86, -0.02]],
+  [[-0.92, -0.48], [0.88, -0.56], [0.04, 0.92]],
+  [[-0.88, -0.82], [0.90, -0.74], [-0.80, 0.86], [0.86, 0.80]],
+  [[0.02, -0.04], [-1.42, -0.64], [1.36, -0.72], [-1.06, 1.10], [1.14, 1.06]],
+  [[-0.10, -0.12], [-1.50, -0.78], [1.34, -0.86], [-1.30, 1.02], [0.44, 1.46], [1.72, 0.52]],
+];
+
+function corpsAmas(scr, x, y, r, ang, phase, pal, col, etat) {
+  const n = clamp(Math.round(etat.amas || 1), 1, AMAS.length);
+  /* Plus la grappe compte de cellules, plus chacune est petite : le rayon de
+     collision, lui, a deja grossi de 10 % par cellule. Sans cette
+     compensation, un amas de six debordait tres au-dela de sa hitbox et le
+     joueur se croyait touche a vide. */
+  const rc = r * (1 - 0.07 * (n - 1));
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  /* La grappe RESPIRE : un souffle lent de 4 % qui l'empeche d'etre un
+     decalque fige. Elle ne se dandine pas — un coque n'a pas d'axe. */
+  const souffle = 1 + Math.sin(phase * 2.2) * 0.04;
+
+  const cellules = AMAS[n - 1].map(([u, v]) => ({
+    sx: x + (u * rc * souffle) * ca - (v * rc * souffle) * sa,
+    sy: y + (u * rc * souffle) * sa + (v * rc * souffle) * ca,
+  }));
+  /* De haut en bas : la cellule du dessous recouvre celle du dessus, et le
+     septum se trace tout seul a l'intersection. Deux disques dessines l'un
+     apres l'autre font le plan de division sans qu'on ait a le peindre. */
+  cellules.sort((a, b) => a.sy - b.sy);
+
+  if (pal.phase) for (const c of cellules) scr.disc(c.sx, c.sy, rc * 0.80 + 0.85, pal.phase, 0);
+  for (const c of cellules) boule(scr, c.sx, c.sy, rc * 0.80, col.fill, col.rim, 0.42);
+  /* Un dernier reflet, sur la cellule la plus haute a gauche : c'est lui qui
+     dit d'ou vient la lampe pour la grappe entiere. */
+  const tete = cellules.reduce((m, c) => (c.sy + c.sx < m.sy + m.sx ? c : m), cellules[0]);
+  scr.disc(tete.sx + LX * rc * 0.42, tete.sy + LY * rc * 0.42,
+    Math.max(0.5, rc * 0.26), col.core, 0);
+}
+
+/* ------------------------------------------------------------- levure --- */
+
+/**
+ * La levure et son bourgeon.
+ *
+ * Le bourgeon n'est pas un ornement : sa TAILLE est la jauge du trait. Il
+ * part d'un renflement a peine visible et finit a 60 % de la mere, moment ou
+ * la division peut prendre le relais d'une mort. Le joueur lit donc sa
+ * seconde vie sur son propre corps, sans quitter le champ des yeux.
+ *
+ * La vacuole est le deuxieme caractere : une levure n'est pas pleine, elle
+ * est creusee d'une grande vacuole qui la fait paraitre plus claire au
+ * centre. C'est ce qui la distingue d'un gros coque a l'oeil.
+ */
+function corpsLevure(scr, x, y, r, ang, phase, pal, col, etat, bend) {
+  const mur = clamp(etat.bourgeon ?? 0, 0, 1);
+  /* La cellule se deforme un peu quand on change de plan focal : une paroi
+     de levure est souple, et c'est le seul rappel de la cambrure du bacille. */
+  const ry = r * (0.86 + bend * 0.06);
+  const ba = ang + 2.2;
+  const rb = r * (0.16 + 0.44 * mur);
+  /* Le bourgeon DEBORDE : mesure sur la planche, a 0,92 x r il restait
+     enfonce dans la mere et l'ensemble se lisait comme un seul pate. A 1,05
+     il depasse franchement et la silhouette redevient une levure. */
+  const bx = x + Math.cos(ba) * (r * 1.05 + rb * 0.50);
+  const by = y + Math.sin(ba) * (ry * 1.05 + rb * 0.50);
+
+  if (pal.phase) {
+    scr.ell(x, y, r + 0.9, ry + 0.9, ang, pal.phase, 0);
+    if (rb > 0.8) scr.disc(bx, by, rb + 0.8, pal.phase, 0);
+  }
+
+  /* Le col d'abord, sous les deux corps : sans lui, le bourgeon se lit comme
+     une cellule voisine qui passe par la, pas comme une fille attachee. Il
+     est ETROIT — mesure a rb x 1,05, il remplissait l'espace entre les deux
+     corps et l'ensemble faisait un seul pate ou l'on ne distinguait plus la
+     mere de la fille. */
+  if (rb > 0.9) {
+    scr.cap((x + bx) / 2, (y + by) / 2, r * 0.35, rb * 0.62, ba, col.rim, 0);
+  }
+
+  scr.ell(x, y, r, ry, ang, col.rim, 0);
+  scr.ell(x + LX * r * 0.20, y + LY * ry * 0.20, r * 0.80, ry * 0.78, ang, col.fill, 0);
+  /* Vacuole : decentree vers l'ombre, donc elle ne mange pas le reflet. Une
+     levure n'est pas pleine, et c'est le caractere qui la distingue d'un gros
+     coque a l'oeil — a 0,55 d'opacite elle etait invisible sur la planche. */
+  scr.ell(x - LX * r * 0.24, y - LY * ry * 0.24, r * 0.38, ry * 0.34, ang,
+    fade32(clair(col.fill, 0.42), 0.85), 0);
+  scr.disc(x + LX * r * 0.48, y + LY * ry * 0.48, Math.max(0.6, r * 0.20), col.core, 0);
+
+  if (rb > 0.6) {
+    /* Le bourgeon est redessine PAR-DESSUS la mere avec sa propre paroi, et
+       cette paroi est EPAISSIE d'un pixel : c'est ce lisere sombre, et lui
+       seul, qui trace le col de bourgeonnement. Le lisere que `boule` pose
+       seul faisait moins d'un pixel a cette taille et les deux cellules
+       fusionnaient. */
+    scr.disc(bx, by, rb + 1, col.rim, 0);
+    boule(scr, bx, by, rb, col.fill, col.rim, 0.42);
+    /* Bourgeon MUR : un lisere clair, le seul moment ou il change d'aspect.
+       C'est le signal que la division est armee. */
+    if (mur >= 1) scr.ring(bx, by, rb + 1.2, 1, fade32(col.core, 0.55 + 0.35 * Math.sin(phase * 6)));
+  }
 }

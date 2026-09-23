@@ -174,15 +174,51 @@ opposés du même compromis : porter loin et large, ou concentrer et mordre.
 
 ---
 
-## Note : la spore appartient aux mobs, pas au joueur
+## Les cartes réservées aux souches
+
+Six évolutions ne sortent que pour **une** souche jouable. Elles n'améliorent
+pas des stats : elles améliorent la **caractéristique unique** de leur souche,
+laquelle est acquise dès la première seconde et ne se tire jamais.
+
+| carte | souche | rangs |
+|---|---|---|
+| Sporulation multiple | *B. cereus* | 3 |
+| Germination rapide | *B. cereus* | 2 |
+| Division multiplan | *S. aureus* | 5 |
+| Quorum accessoire (agr) | *S. aureus* | 2 |
+| Ségrégation fidèle | *S. cerevisiae* | 2 |
+| Bourgeonnement précoce | *S. cerevisiae* | 3 |
+
+Une carte réservée dans la main d'une autre souche serait une **carte morte**,
+et une main de trois cartes n'a pas les moyens d'en gaspiller une. Le champ
+`espece` de `src/data/evolutions.js` porte cette restriction, et
+`tools/especes.mjs` vérifie qu'aucune ne fuit.
+
+**Tout le reste du catalogue est ouvert aux quatre souches.** Ce qui change
+est la *probabilité* : chaque souche pondère les voies par ce qu'elle est
+(table `biais` dans `src/data/especes.js`). Un coque immobile tire 8,7 % de
+cartes « flagelle » là où le bacille nageur en tire 17,5 % — mesuré sur 1500
+mains. Il en tire quand même : le transfert horizontal de gènes est le sujet
+du jeu, et un staphylocoque flagellé reste une histoire que le jeu sait
+raconter. Détail dans `docs/08-especes-jouables.md`.
+
+## Note : la spore appartient aux *Bacillus*, pas aux lactiques
 
 Une bactérie lactique **ne sporule pas**. L'endospore est l'affaire des
 *Bacillus* et *Clostridium* : c'est une structure de survie que les
-Firmicutes lactiques ont perdue. Faire sporuler le joueur était une erreur.
+Firmicutes lactiques ont perdue. Faire sporuler le lactobacille du joueur
+était une erreur.
 
 L'évolution de résurrection est donc devenue la **dormance VBNC** (viable but
 non-culturable), un état de ralentissement métabolique documenté chez les
 lactiques, d'où la cellule repart. Même effet de jeu, mécanisme exact.
+
+Depuis qu'on peut jouer *B. cereus*, la spore est **aussi** du côté du joueur —
+mais seulement de celui-là, et comme **caractéristique d'espèce**, pas comme
+évolution. C'est la même règle, appliquée dans l'autre sens : ce n'est pas le
+joueur qui gagne la sporulation, c'est l'espèce qui la porte. Chez cette
+souche, la dormance VBNC voit d'ailleurs sa probabilité divisée par quatre —
+elle ferait doublon avec ce que la cellule sait déjà faire.
 
 La spore reste **intégralement** dans le jeu, du côté des mobs :
 

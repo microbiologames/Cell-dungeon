@@ -1,8 +1,15 @@
 # Cell Dungeon
 
-Roguelite d'arène microbiologique. Vous êtes une **bactérie lactique** observée
-au microscope, vous tirez de l'acide lactique, vous absorbez les acides aminés
-de vos victimes et vous volez leurs gènes.
+Roguelite d'arène microbiologique. Vous êtes une **cellule** observée au
+microscope, vous tirez votre propre toxine, vous absorbez les acides aminés de
+vos victimes et vous volez leurs gènes.
+
+**Quatre souches jouables** : *L. plantarum* (la référence, acide lactique),
+*B. cereus* (céréulide, **sporule au lieu de mourir**), *S. aureus*
+(alpha-hémolysine, **amas doré qui se déconstruit avec les PV**) et
+*S. cerevisiae* (éthanol, **bourgeonne et renaît en perdant la moitié de son
+génome**). Elles se choisissent en nageant dans leur colonie, au lobby —
+`docs/08-especes-jouables.md`.
 
 **État : maquette jouable.** Tout est dessiné procéduralement, avec quelques
 sprites pour les silhouettes que le procédural ne rend pas.
@@ -57,7 +64,18 @@ Sur GitHub Pages : activer Pages sur la branche, racine du dépôt.
 Les touches sont lues par position physique (`event.code`), donc AZERTY et
 QWERTY fonctionnent sans réglage.
 
-## Le personnage : un lactobacille
+## Le personnage : quatre souches, un même moteur
+
+La souche décide de quatre choses et de rien d'autre : les stats de base, la
+toxine, la morphologie et la **caractéristique unique**. L'inertie de nage, la
+mise au point, les acides aminés et le catalogue d'évolutions sont communs —
+une souche est un jeu de nombres et un trait, pas un second personnage à
+maintenir. Le détail, les mesures et les évolutions réservées sont dans
+[`docs/08-especes-jouables.md`](docs/08-especes-jouables.md).
+
+Ce qui suit décrit la souche de référence, et vaut pour les quatre corps.
+
+### Le bacille lactique
 
 Vous êtes un **bacille lactique**, pas un coque. Ce n'est pas un choix
 esthétique : un *Lactobacillus* fait réellement 2 à 8 µm de long pour 0,5 à
@@ -185,6 +203,8 @@ carte en fausses couleurs. Fabriquer son terrain devient une tactique.
 | [`docs/04-vagues-equilibrage.md`](docs/04-vagues-equilibrage.md) | Courbes, invariants, vérification |
 | [`docs/05-roadmap-assets.md`](docs/05-roadmap-assets.md) | Où brancher les sprites, contraintes de taille |
 | [`docs/06-heritage-wet-mount.md`](docs/06-heritage-wet-mount.md) | Audit critique de ce qu'on reprend de `wet-mount.html` |
+| [`docs/07-son.md`](docs/07-son.md) | La bande son générative, le studio, les presets adoptés |
+| [`docs/08-especes-jouables.md`](docs/08-especes-jouables.md) | Les 4 souches jouables, leurs toxines, leurs caractéristiques uniques |
 
 ## Règle de véracité
 
@@ -200,6 +220,7 @@ et la biologie réelle l'explique.
 npm run balance          # invariants d'equilibrage, 400 runs (modele abstrait)
 npm run playtest         # la VRAIE boucle de jeu, 3 runs de 12 min sans rendu
 npm run smoke            # chargement, jeu, cartes, tactile
+npm run especes          # les 4 souches : stats, tirages cloisonnes, toxines, traits
 npm run visual           # captures : portrait, paysage, vue pH, boss
 npm run sheet            # planche de contact des organismes
 npm run sprites:bake     # toiles de depart editables -> assets/sprites/
@@ -210,6 +231,12 @@ npm run sprites:import   # PNG -> src/render/sprite-data.js
 sont rompus. Il partage ses constantes avec le jeu : il n'existe pas de second
 jeu de nombres à tenir à jour.
 
+`especes` sort en code 1 si une souche dérive : DPS hors bande, carte réservée
+qui fuit chez une autre souche, toxine qui perd sa chimie, caractéristique
+unique qui ne se déclenche plus. Il déclenche chaque trait **dans la vraie
+boucle de jeu** — un trait qui ne se déclenche jamais ne lève aucune exception
+et ne se voit sur aucune capture.
+
 ## Structure
 
 ```
@@ -217,7 +244,7 @@ index.html            page unique, zéro build
 src/core/pixel.js     tampon 256x352, 8 calques de profondeur, flou séparable
 src/core/input.js     clavier par position physique + tactile
 src/core/font.js      fonte bitmap 3x5
-src/data/             matrices, bestiaire, évolutions, palettes
+src/data/             matrices, bestiaire, évolutions, souches jouables, palettes
 src/game/             stats, joueur, entités, directeur de vagues, orchestration
 src/render/           champ, organismes procéduraux, HUD
 src/ui/overlay.js     menus et cartes d'évolution (DOM)
@@ -226,6 +253,7 @@ tools/                simulateur d'équilibrage, tests navigateur
 
 ## Ce qui reste à faire
 
-- Matrices 2 à 4 (spécifiées dans `docs/01-matrices.md`)
+- Le sang (spécifié dans `docs/01-matrices.md`, gardé pour la fin)
+- Vignettes de cartes pour les six évolutions réservées aux souches
 - Assets (`docs/05-roadmap-assets.md`) — le rendu procédural est le repli
 - Son

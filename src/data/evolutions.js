@@ -1,11 +1,17 @@
 /* ---------------------------------------------------------------------------
    Catalogue des evolutions. Source de verite : docs/03-evolutions.md.
 
-   mods  : modificateurs de stats cumules par rang.
-           suffixe Mul -> additionne puis applique en (1 + somme)
-           suffixe Add -> ajout plat
-   flag  : capacite comportementale, lue par le jeu (le rang module l'effet)
-   way   : voie implicite, sert aux synergies et a l'affichage
+   mods   : modificateurs de stats cumules par rang.
+            suffixe Mul -> additionne puis applique en (1 + somme)
+            suffixe Add -> ajout plat
+   flag   : capacite comportementale, lue par le jeu (le rang module l'effet)
+   way    : voie implicite, sert aux synergies et a l'affichage
+   espece : RESERVE a une souche jouable. Sans ce champ, la carte est
+            universelle et toutes les souches peuvent la tirer — c'est le
+            cas de l'immense majorite. Une carte reservee n'ameliore qu'une
+            CARACTERISTIQUE UNIQUE (la spore, l'amas, le bourgeon) : elle n'a
+            litteralement rien a faire chez les autres, ou elle serait une
+            carte morte dans la main.
 --------------------------------------------------------------------------- */
 
 export const RARITY = {
@@ -229,6 +235,39 @@ export const EVOLUTIONS = [
     desc: 'Tout le champ est net, mais le champ retrecit de 25 %.', flag: 'immersion',
     mods: { dofAdd: 3.0 },
     note: "Immersion a huile : resolution maximale, champ minimal." },
+
+  /* ------------------------------------------- RESERVEES AUX SOUCHES -- */
+  /* Elles n'ameliorent pas des stats : elles ameliorent la caracteristique
+     unique d'une souche, qui, elle, est acquise des la premiere seconde.
+     Voir src/data/especes.js. */
+
+  { id: 'sporeplus', label: 'Sporulation multiple', rarity: 'peucommune', ranks: 3,
+    way: 'cuirasse', espece: 'cereus',
+    desc: '+1 spore de reserve par rang.',
+    note: "Une cellule de Bacillus ne forme qu'UNE endospore, et une seule : le sporange se lyse en la liberant. Au-dela de la premiere, c'est le privilege du joueur, pas de la microbiologie." },
+  { id: 'germination', label: 'Germination rapide', rarity: 'peucommune', ranks: 2,
+    way: 'cuirasse', espece: 'cereus',
+    desc: 'Sortie de spore plus rapide, et davantage de PV rendus.',
+    note: "La germination d'une endospore demande la rehydratation du coeur et la degradation des couches de peptidoglycane : c'est cette etape qui prend du temps, pas le reveil du metabolisme." },
+
+  { id: 'multiplan', label: 'Division multiplan', rarity: 'commune', ranks: 5,
+    way: 'cuirasse', espece: 'aureus',
+    desc: "+1 cellule dans l'amas et +16 PV par rang.",
+    mods: { maxHpAdd: 16 },
+    note: "S. aureus se divise selon des plans successifs perpendiculaires sans separer ses cellules filles : c'est ce qui donne la grappe, et c'est le caractere qui l'identifie au frottis." },
+  { id: 'agr', label: 'Quorum accessoire (agr)', rarity: 'peucommune', ranks: 2,
+    way: 'diffuseur', espece: 'aureus',
+    desc: "+8 % de degats par cellule vivante de l'amas et par rang.",
+    note: "Le locus agr detecte la densite cellulaire par un peptide auto-inducteur et bascule la cellule des adhesines de surface vers les toxines secretees. Plus l'amas est dense, plus il empoisonne." },
+
+  { id: 'segregation', label: 'Segregation fidele', rarity: 'rare', ranks: 2,
+    way: 'neutre', espece: 'cerevisiae',
+    desc: 'La division ne coute plus que 34 % des evolutions, puis 22 %.',
+    note: "Cohesines et point de controle du fuseau : ce sont eux qui garantissent que la cellule fille recoit un jeu complet de chromosomes. Les relacher, c'est l'aneuploidie." },
+  { id: 'precoce', label: 'Bourgeonnement precoce', rarity: 'peucommune', ranks: 3,
+    way: 'neutre', espece: 'cerevisiae',
+    desc: 'Le bourgeon murit 25 % plus vite par rang.',
+    note: "Le passage de START, en fin de G1, engage la cellule dans le cycle. Les cyclines G1 en sont l'accelerateur." },
 ];
 
 export const EVO_BY_ID = Object.fromEntries(EVOLUTIONS.map((e) => [e.id, e]));

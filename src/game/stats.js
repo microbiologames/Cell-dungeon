@@ -1,6 +1,11 @@
 /* ---------------------------------------------------------------------------
    Calcul des statistiques du joueur a partir des evolutions prises.
    Convention : suffixe Mul -> somme puis (1 + somme) ; suffixe Add -> plat.
+
+   BASE est la table de la souche de REFERENCE, le lactobacille. Une autre
+   souche ne redefinit que ce qui change chez elle (src/data/especes.js) :
+   garder une seule table de reference evite le jeu de nombres parallele qui
+   finit toujours par diverger.
 --------------------------------------------------------------------------- */
 
 import { EVO_BY_ID } from '../data/evolutions.js';
@@ -63,9 +68,11 @@ const ADD_KEYS = {
 
 /**
  * @param {Map<string, number>} taken  id d'evolution -> rang possede
+ * @param {object|null} espece  souche jouee ; ses `stats` remplacent BASE
  * @returns {{stats: object, flags: Set<string>, rank: (id:string)=>number}}
  */
-export function computeStats(taken) {
+export function computeStats(taken, espece = null) {
+  const B = espece && espece.stats ? { ...BASE, ...espece.stats } : BASE;
   const muls = {};
   const adds = {};
   let auraDps = 0, auraRadius = 0;
@@ -85,29 +92,29 @@ export function computeStats(taken) {
   }
 
   const s = {
-    maxHp: (BASE.maxHp + (adds.maxHp || 0)) * (1 + (muls.maxHp || 0)),
-    regen: BASE.regen + (adds.regen || 0),
-    speed: BASE.speed * (1 + (muls.speed || 0)),
+    maxHp: (B.maxHp + (adds.maxHp || 0)) * (1 + (muls.maxHp || 0)),
+    regen: B.regen + (adds.regen || 0),
+    speed: B.speed * (1 + (muls.speed || 0)),
     /* L'agilite ne descend jamais sous 35 % : une cellule lourde reste
        pilotable, elle est juste patraque. */
-    accel: BASE.accel * Math.max(0.35, 1 + (muls.accel || 0)),
-    pull: BASE.pull * (1 + (muls.pull || 0)),
-    dmg: BASE.dmg * (1 + (muls.dmg || 0)),
-    fireRate: BASE.fireRate * (1 + (muls.fireRate || 0)),
-    bulletSpeed: BASE.bulletSpeed * (1 + (muls.bulletSpeed || 0)),
-    bulletRadius: BASE.bulletRadius * (1 + (muls.bulletRadius || 0)),
-    range: BASE.range * (1 + (muls.range || 0)),
-    pierce: BASE.pierce + (adds.pierce || 0),
-    projectiles: BASE.projectiles + (adds.projectiles || 0),
-    spread: BASE.spread + (adds.spread || 0),
-    aaGain: BASE.aaGain * (1 + (muls.aaGain || 0)),
-    pickup: BASE.pickup * (1 + (muls.pickup || 0)),
-    hitbox: BASE.hitbox * (1 + (muls.hitbox || 0)),
-    dof: BASE.dof + (adds.dof || 0),
-    focusPenalty: clamp(BASE.focusPenalty * (1 + (muls.focusPenalty || 0)), 0.15, 1),
+    accel: B.accel * Math.max(0.35, 1 + (muls.accel || 0)),
+    pull: B.pull * (1 + (muls.pull || 0)),
+    dmg: B.dmg * (1 + (muls.dmg || 0)),
+    fireRate: B.fireRate * (1 + (muls.fireRate || 0)),
+    bulletSpeed: B.bulletSpeed * (1 + (muls.bulletSpeed || 0)),
+    bulletRadius: B.bulletRadius * (1 + (muls.bulletRadius || 0)),
+    range: B.range * (1 + (muls.range || 0)),
+    pierce: B.pierce + (adds.pierce || 0),
+    projectiles: B.projectiles + (adds.projectiles || 0),
+    spread: B.spread + (adds.spread || 0),
+    aaGain: B.aaGain * (1 + (muls.aaGain || 0)),
+    pickup: B.pickup * (1 + (muls.pickup || 0)),
+    hitbox: B.hitbox * (1 + (muls.hitbox || 0)),
+    dof: B.dof + (adds.dof || 0),
+    focusPenalty: clamp(B.focusPenalty * (1 + (muls.focusPenalty || 0)), 0.15, 1),
     aura: { dps: auraDps, radius: auraDps > 0 ? Math.max(auraRadius, 22) : 0 },
     /* Les resistances saturent : aucune n'atteint jamais l'immunite. */
-    resist: clamp(BASE.resist + (adds.resist || 0), -0.5, 0.75),
+    resist: clamp(B.resist + (adds.resist || 0), -0.5, 0.75),
     gramPierce: clamp(adds.gramPierce || 0, 0, 0.7),
     fungiDmg: adds.fungiDmg || 0,
     acidResist: clamp(adds.acidResist || 0, 0, 0.9),

@@ -1,8 +1,9 @@
 # Cell Dungeon — à lire avant de toucher au code
 
-Roguelite d'arène microbiologique jouable au navigateur. On est une **bactérie
-lactique** observée au microscope ; on tire de l'acide, on absorbe les acides
-aminés de ses victimes, on vole leurs gènes.
+Roguelite d'arène microbiologique jouable au navigateur. On pilote une
+**cellule** observée au microscope — quatre souches jouables, du lactobacille
+à la levure ; on tire sa propre toxine, on absorbe les acides aminés de ses
+victimes, on vole leurs gènes.
 
 **Zéro dépendance, zéro build.** Modules ES vanilla servis tels quels.
 `npm run serve` puis `http://localhost:8080/`. Playwright n'est là que pour les
@@ -31,6 +32,10 @@ un commentaire qui dit « mesuré à 0,18 : le mix perdait 60 % de son niveau »
 - **Les mobs n'ont que des capacités réelles et documentées.** Pas d'invention.
   Le **joueur**, lui, peut briser le réalisme — c'est justifié en jeu par le
   transfert horizontal de gènes.
+- **La caractéristique unique d'une souche jouable n'est pas une évolution.**
+  Elle est acquise dès la première seconde ; seules des évolutions *dédiées*,
+  réservées à cette souche, l'améliorent. Toutes les souches piochent dans le
+  **même** catalogue : ce qui change est la probabilité, jamais l'accès.
 - **La forme porte l'espèce, la couleur porte la menace** (le rôle : `chaff`
   vert, `runner` or, `tank` violet, `ranged` rose, `splitter` havane, `denier`
   cyan, `predator` bleu, boss rouge, neutre gris délavé). Exceptions
@@ -75,6 +80,7 @@ C'est ce qui distingue ce dépôt. Quatre règles payées cher :
 
 ```
 npm run smoke      # le jeu se charge, tourne, reagit — rien n'est casse
+npm run especes    # les 4 souches jouables : stats, tirages, toxines, traits declenches
 npm run visual     # captures en jeu, portrait et paysage
 npm run balance    # simulation d'equilibrage : plateau, decrochage, TTK
 npm run sheet      # planche de contact : chaque espece a sa taille reelle
@@ -120,11 +126,12 @@ node tools/jeu-publier.mjs   # idem pour le jeu
 | `docs/05-roadmap-assets.md` | l'état des assets |
 | `docs/06-heritage-wet-mount.md` | le rendu : profondeur, flou, mise au point |
 | `docs/07-son.md` | la bande son, le studio, les presets adoptés |
+| `docs/08-especes-jouables.md` | les quatre souches jouables, leurs toxines et leurs traits |
 | `.claude/skills/sprites/SKILL.md` | la chaîne sprites et **ce que la génération sait et ne sait pas faire** |
 
 Le code lui-même est commenté en profondeur : `src/audio/son.js`,
-`src/game/decor.js`, `src/render/organisms.js` et `src/game/pipe-geo.js`
-portent l'essentiel du raisonnement.
+`src/game/decor.js`, `src/render/organisms.js`, `src/game/pipe-geo.js` et
+`src/data/especes.js` portent l'essentiel du raisonnement.
 
 ---
 
@@ -142,6 +149,10 @@ portent l'essentiel du raisonnement.
   stages, le lait cru 2,4 dB au-dessus des trois autres. Conséquences chiffrées
   de choix faits à l'oreille, laissées telles quelles faute d'une décision
   contraire.
+- **Souches jouables, suite** : les quatre premières sont là
+  (`docs/08-especes-jouables.md`). Restent des vignettes de cartes pour les six
+  évolutions réservées, et la question ouverte d'une souche par matrice — un
+  *Gluconacetobacter* pour le kombucha aurait sa place.
 - **Le sang** reste à faire, et délibérément en dernier : ce n'est pas une
   goutte mais un **réseau vasculaire** — couloirs, courant pulsatile, système
   immunitaire, hématies qui bousculent. Il réutilisera la conduite.

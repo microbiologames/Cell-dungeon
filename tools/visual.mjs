@@ -34,15 +34,16 @@ const FFWD = `() => {
   g.player.invuln = 1e6;
 }`;
 
-async function shot(name, viewport, steps) {
+async function shot(name, viewport, steps, souche = 'lactobacillus') {
   const ctx = await browser.newContext({ viewport });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errs.push(`${name}: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errs.push(`${name}: ${m.text()}`); });
   await page.goto('http://localhost:8098/');
   await page.click('#btnStart');
-/* Le bouton mene au LOBBY : on entre explicitement dans la matrice. */
-await page.evaluate(() => window.__startMatrice('milk'));
+  /* Le bouton mene au LOBBY : on entre explicitement dans la matrice, avec
+     la souche demandee. */
+  await page.evaluate((s) => window.__startMatrice('milk', s), souche);
   await page.evaluate(FFWD);
   await page.waitForTimeout(5000);
   if (steps) await steps(page);
@@ -105,6 +106,46 @@ await shot('14-flagelles', { width: 960, height: 540 }, async (page) => {
   });
   await page.waitForTimeout(160);
 });
+
+/* Une capture par SOUCHE JOUABLE, en pleine action et a mi-parcours. C'est
+   le seul endroit ou l'on voit le personnage a sa taille reelle, au milieu
+   de sa foule, avec son HUD et sa toxine : la planche de tools/player-look
+   montre le corps, pas la lisibilite en jeu. */
+const { ESPECES } = await import('../src/data/especes.js');
+for (const e of ESPECES) {
+  await shot(`15-souche-${e.id}`, { width: 420, height: 840 }, async (page) => {
+    await page.evaluate(() => {
+      const g = window.__game;
+      g.damagePlayer = () => {};
+      /* On arme la caracteristique unique : spores en reserve, amas au
+         complet, bourgeon mur. Sinon la capture montre un personnage neutre
+         et ne dit rien de ce qui le distingue. */
+      const p = g.player;
+      if (p.trait === 'amas') for (let i = 0; i < 5; i++) p.take('multiplan');
+      if (p.trait === 'bourgeonnement') p.bourgeon = 1;
+      p.hp = p.stats.maxHp;
+    });
+    await page.waitForTimeout(1200);
+  }, e.id);
+}
+
+/* Le lobby : les quatre colonies de souches doivent se voir et se lire. */
+{
+  const ctx = await browser.newContext({ viewport: { width: 420, height: 840 } });
+  const page = await ctx.newPage();
+  page.on('pageerror', (ev) => errs.push(`16-lobby: ${ev.message}`));
+  await page.goto('http://localhost:8098/');
+  await page.click('#btnStart');
+  /* On nage jusqu'a la colonie de S. aureus pour montrer la selection. */
+  await page.evaluate(() => {
+    const l = window.__lobby;
+    l.swim.x = 80; l.swim.y = 22;
+  });
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: `${OUT}/16-lobby-souches.png` });
+  console.log('16-lobby-souches'.padEnd(18), 'lobby avec les colonies');
+  await ctx.close();
+}
 
 console.log(errs.length ? 'ERREURS: ' + errs.join(' | ') : 'aucune erreur');
 await browser.close();

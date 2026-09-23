@@ -16,6 +16,7 @@ import { Overlay } from './ui/overlay.js';
 import { MATRICES_PALETTE } from './data/palette.js';
 import { forEachDecor } from './game/decor.js';
 import { Lobby } from './scenes/lobby.js';
+import { ESPECE_DEFAUT } from './data/especes.js';
 import { Bestiary } from './scenes/bestiary.js';
 /* Active les sprites adoptes. Le registre ne contient que ceux-la ; toute
    espece absente garde sa forme procedurale et son animation. */
@@ -38,6 +39,9 @@ let scene = SCENE.LOBBY;
 let game = null;
 let bestiaire = null;
 let lobby = null;
+/* La souche choisie survit au retour au lobby et aux parties suivantes :
+   elle vit donc ici, pas dans le lobby qui est reconstruit a chaque fois. */
+let especeId = ESPECE_DEFAUT;
 let prevState = null;
 let hintsUntil = 0;
 let lastPanelId = null;
@@ -66,14 +70,16 @@ function goLobby() {
       bestiaire = new Bestiary(goLobby);
       scene = SCENE.BESTIAIRE;
     } else {
-      startMatrice(choix.matrice);
+      especeId = choix.espece || especeId;
+      startMatrice(choix.matrice, especeId);
     }
-  });
+  }, especeId);
   overlay.hideAll();
 }
 
-function startMatrice(id) {
-  game = new Game(id, (Math.random() * 0xffffffff) >>> 0);
+function startMatrice(id, souche = especeId) {
+  especeId = souche;
+  game = new Game(id, (Math.random() * 0xffffffff) >>> 0, souche);
   game.input = input;
   game.showHints = true;
   game.start();

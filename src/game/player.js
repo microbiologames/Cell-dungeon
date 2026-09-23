@@ -1,12 +1,18 @@
 /* ---------------------------------------------------------------------------
-   Le joueur : une bacterie lactique qui vole des genes a tout le monde.
-   Le transfert horizontal (plasmides, phages, ilots) est la justification
-   diegetique du fait qu'en fin de run elle ne ressemble plus a rien de connu.
+   Le joueur : une cellule qui vole des genes a tout le monde. Le transfert
+   horizontal (plasmides, phages, ilots) est la justification diegetique du
+   fait qu'en fin de run elle ne ressemble plus a rien de connu.
+
+   La SOUCHE (src/data/especes.js) decide des stats de base, de la toxine, de
+   la morphologie et de la caracteristique unique. Tout le reste — inertie,
+   nage, evolutions, mise au point — est commun : une souche est un jeu de
+   nombres et un trait, pas un deuxieme personnage a maintenir.
 --------------------------------------------------------------------------- */
 
 import { computeStats } from './stats.js';
 import { EVOLUTIONS, EVO_BY_ID, rarityWeight } from '../data/evolutions.js';
 import { XP_FOR_LEVEL } from '../data/matrices.js';
+import { especeOf, tirOf, ESPECE_DEFAUT } from '../data/especes.js';
 import { clamp, weightedPick, girer, TAU } from '../core/util.js';
 import { Sillage } from '../render/flagella.js';
 
@@ -42,8 +48,10 @@ export const NAGE = {
 };
 
 export class Player {
-  constructor(game) {
+  constructor(game, especeId = ESPECE_DEFAUT) {
     this.game = game;
+    this.espece = especeOf(especeId);
+    this.tir = tirOf(this.espece);
     this.x = 0; this.y = 0;
     this.vx = 0; this.vy = 0;
     this.ang = -Math.PI / 2;
@@ -55,6 +63,7 @@ export class Player {
     this.aa = 0;
     this.recompute();
     this.hp = this.stats.maxHp;
+    this.initTrait();
     this.fireCd = 0;
     this.dashCd = 0;
     this.dashTtl = 0;
@@ -90,12 +99,162 @@ export class Player {
   }
 
   recompute() {
-    const r = computeStats(this.taken);
+    const r = computeStats(this.taken, this.espece);
     this.stats = r.stats;
     this.flags = r.flags;
     this.rankOf = r.rank;
-    this.radius = this.stats.hitbox;
+    this.radius = this.stats.hitbox * this.encombrementAmas();
     if (this.hp !== undefined) this.hp = Math.min(this.hp, this.stats.maxHp);
+  }
+
+  /* --------------------------------------------- caracteristique unique -- */
+
+  /**
+   * Etat de depart du trait de la souche.
+   *
+   * Un trait n'est PAS une evolution : il est acquis a la premiere seconde et
+   * ne se tire jamais. Les evolutions reservees (src/data/evolutions.js) ne
+   * font que le muscler.
+   */
+  initTrait() {
+    const t = this.espece.trait;
+    this.trait = t ? t.id : null;
+    this.spores = t && t.id === 'sporulation' ? this.sporesMax : 0;
+    this.sporesBrulees = 0;
+    this.dormance = 0;          // germination en cours, en secondes
+    this.bourgeon = 0;          // maturite du bourgeon, 0 a 1
+    this.divisions = 0;         // nombre de fois ou la fille a pris la place
+  }
+
+  /** B. cereus : credit de spores, donc de vies. */
+  get sporesMax() {
+    const t = this.espece.trait;
+    if (!t || t.id !== 'sporulation') return 0;
+    return t.base + this.rankOf('sporeplus');
+  }
+
+  /** S. aureus : taille maximale de l'amas, gagnee par l'evolution dediee. */
+  get amasMax() {
+    const t = this.espece.trait;
+    if (!t || t.id !== 'amas') return 1;
+    return Math.min(t.max, t.base + this.rankOf('multiplan'));
+  }
+
+  /**
+   * S. aureus : cellules ENCORE ACCROCHEES.
+   *
+   * L'amas se deconstruit proportionnellement aux PV. Ce n'est pas un decor :
+   * c'est la jauge de vie elle-meme, lue sur le corps du personnage. Un
+   * staphylocoque blesse perd des cellules, donc perd de la toxine — la
+   * spirale de la mort est visible avant d'etre subie, et c'est ce qui rend
+   * le personnage lisible sans regarder le HUD.
+   */
+  get amasVivant() {
+    const n = this.amasMax;
+    if (n <= 1) return 1;
+    const frac = clamp(this.hp / Math.max(1, this.stats.maxHp), 0, 1);
+    return clamp(Math.ceil(n * frac), 1, n);
+  }
+
+  /** Une grappe encombre plus qu'un coque isole : +10 % de hitbox par cellule. */
+  encombrementAmas() {
+    if (this.trait !== 'amas') return 1;
+    return 1 + 0.10 * (this.amasVivant - 1);
+  }
+
+  /** Multiplicateur de degats de l'amas. agr le renforce par rang. */
+  get facteurAmas() {
+    if (this.trait !== 'amas') return 1;
+    const parCellule = 0.18 + 0.08 * this.rankOf('agr');
+    return 1 + parCellule * (this.amasVivant - 1);
+  }
+
+  /** S. cerevisiae : duree de maturation du bourgeon, en secondes. */
+  get bourgeonDuree() {
+    const t = this.espece.trait;
+    if (!t || t.id !== 'bourgeonnement') return Infinity;
+    return t.base * Math.pow(0.75, this.rankOf('precoce'));
+  }
+
+  /** S. cerevisiae : part des rangs d'evolution perdus a la division. */
+  get perteDivision() {
+    const t = this.espece.trait;
+    if (!t || t.id !== 'bourgeonnement') return 0;
+    /* La segregation fidele n'annule jamais la perte : une division qui ne
+       couterait rien ferait du trait une seconde vie gratuite, et le
+       personnage n'aurait plus de contrepartie. */
+    return [t.perte, 0.34, 0.22][Math.min(2, this.rankOf('segregation'))];
+  }
+
+  /**
+   * B. cereus : sporulation au lieu de la lyse.
+   *
+   * La cellule mere est perdue ; la spore reste sur place, DORMANTE — donc
+   * immobile et muette — le temps de germer. C'est le prix de la vie
+   * supplementaire, et c'est ce que fait reellement une endospore : la
+   * germination demande la rehydratation du coeur, elle n'est pas instantanee.
+   */
+  sporuler() {
+    if (this.trait !== 'sporulation' || this.spores <= 0) return false;
+    this.spores--;
+    this.sporesBrulees++;
+    const rang = this.rankOf('germination');
+    this.dormance = 1.8 * Math.pow(0.7, rang);
+    /* Les PV sont rendus TOUT DE SUITE : la spore existe deja, elle ne peut
+       pas mourir une seconde fois pendant qu'elle germe. */
+    this.hp = this.stats.maxHp * Math.min(1, 0.70 + 0.15 * rang);
+    this.invuln = Math.max(this.invuln, this.dormance + 1.5);
+    this.vx = 0; this.vy = 0;
+    return true;
+  }
+
+  /**
+   * S. cerevisiae : la cellule fille prend la place de la mere.
+   *
+   * On ne recopie pas le personnage : c'est le MEME objet qui continue, avec
+   * des PV pleins et un genome ampute. Faire naitre une seconde instance
+   * aurait oblige a rebrancher la camera, le son, le ciblage et le decor sur
+   * un nouvel objet a chaque division, pour un resultat identique a l'ecran.
+   */
+  diviser() {
+    if (this.trait !== 'bourgeonnement' || this.bourgeon < 1) return false;
+    const perdues = this.amputerGenome(this.perteDivision);
+    this.bourgeon = 0;
+    this.divisions++;
+    this.recompute();
+    this.hp = this.stats.maxHp;
+    this.invuln = Math.max(this.invuln, 1.6);
+    /* La fille nait sur le flanc de la mere : le personnage se DEPLACE d'un
+       rayon, ce qui rend la division visible meme sans regarder le HUD. */
+    const a = this.ang + 2.2;
+    this.x += Math.cos(a) * this.radius;
+    this.y += Math.sin(a) * this.radius;
+    return perdues;
+  }
+
+  /**
+   * Retire une part des RANGS acquis, au hasard.
+   *
+   * On tire rang par rang et non evolution par evolution : perdre d'un coup
+   * les cinq rangs d'une carte commune et rien d'autre serait une loterie
+   * bien plus violente que la moitie annoncee.
+   */
+  amputerGenome(part) {
+    const rangs = [];
+    for (const [id, n] of this.taken) for (let i = 0; i < n; i++) rangs.push(id);
+    const aRetirer = Math.round(rangs.length * part);
+    if (aRetirer <= 0) return 0;
+    const rng = this.game.rng;
+    for (let i = rangs.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [rangs[i], rangs[j]] = [rangs[j], rangs[i]];
+    }
+    for (let i = 0; i < aRetirer; i++) {
+      const id = rangs[i];
+      const n = (this.taken.get(id) || 0) - 1;
+      if (n > 0) this.taken.set(id, n); else this.taken.delete(id);
+    }
+    return aRetirer;
   }
 
   /**
@@ -113,17 +272,23 @@ export class Player {
     return { count: base + peri * 2 + pole * 2, mode };
   }
 
-  /** Cadence effective : siderophores, plus le confort acide.
-   *  Une bacterie lactique fonctionne mieux dans l'acide qu'elle produit. */
+  /**
+   * Cadence effective : siderophores, plus le confort acide.
+   *
+   * Le confort acide est SIGNE et propre a la souche. Une lactique travaille
+   * mieux dans l'acide qu'elle fabrique ; B. cereus ne pousse plus sous pH
+   * 4,9 et y perd de la cadence. Le meme terrain n'a donc pas le meme sens
+   * selon qui le foule, ce qui est exactement ce qu'on veut d'un champ de pH.
+   */
   get fireRate() {
     const sid = this.sideroTtl > 0 ? 1 + 0.02 * this.sideroStacks : 1;
-    const acid = 1 + 0.14 * (this.game.acidComfort || 0);
+    const acid = 1 + this.espece.confortAcide * (this.game.acidComfort || 0);
     return this.stats.fireRate * sid * acid;
   }
 
-  /** Degats effectifs : quorum sensing et CRISPR s'ajoutent ici. */
+  /** Degats effectifs : amas, quorum sensing et CRISPR s'ajoutent ici. */
   damageAgainst(enemy, sharpFactor) {
-    let d = this.stats.dmg * sharpFactor;
+    let d = this.stats.dmg * sharpFactor * this.facteurAmas;
     if (this.flags.has('quorum')) {
       d *= 1 + Math.min(0.60, 0.06 * this.game.sharpEnemyCount);
     }
@@ -157,20 +322,41 @@ export class Player {
 
   handSize() { return this.flags.has('hypermutateur') ? 4 : 3; }
 
+  /**
+   * Ponderation de tirage propre a la souche.
+   *
+   * Toutes les souches piochent dans le meme catalogue : ce qui change est la
+   * PROBABILITE. Fermer des cartes aurait produit quatre listes a maintenir
+   * et aurait tue le seul argument du jeu — qu'une cellule finit par ne plus
+   * ressembler a son espece. Un coque immobile tire donc moins de flagelles,
+   * pas zero.
+   */
+  biaisDe(evo) {
+    const b = this.espece.biais || {};
+    const voie = (b.voies && b.voies[evo.way]) || 1;
+    const carte = (b.cartes && b.cartes[evo.id]) || 1;
+    return voie * carte;
+  }
+
   /** Tire une main sans doublon, hors evolutions deja au rang maximal. */
   draw(minRarity = null) {
     const hyper = this.flags.has('hypermutateur');
     const order = ['commune', 'peucommune', 'rare', 'epique', 'legendaire'];
     const minIdx = minRarity ? order.indexOf(minRarity) : 0;
     const pool = EVOLUTIONS.filter((e) => (this.taken.get(e.id) || 0) < e.ranks
-      && order.indexOf(e.rarity) >= minIdx);
+      && order.indexOf(e.rarity) >= minIdx
+      /* Une carte reservee a une autre souche n'est pas rare : elle n'existe
+         pas. Sans ce filtre, un lactobacille pouvait tirer 'Division
+         multiplan' et gagner 16 PV pour des cellules qu'il n'a pas. */
+      && (!e.espece || e.espece === this.espece.id));
     const hand = [];
     const used = new Set();
     const n = minRarity ? 1 : this.handSize();
     for (let i = 0; i < n; i++) {
       const cands = pool.filter((e) => !used.has(e.id));
       if (!cands.length) break;
-      const pick = weightedPick(this.game.rng, cands, (e) => rarityWeight(e.rarity, hyper));
+      const pick = weightedPick(this.game.rng, cands,
+        (e) => rarityWeight(e.rarity, hyper) * this.biaisDe(e));
       if (!pick) break;
       used.add(pick.id);
       hand.push(pick);
@@ -222,6 +408,26 @@ export class Player {
         this.hypermutTimer = 45;
         game.hypermutate();
       }
+    }
+
+    /* L'amas suit les PV a chaque image : c'est la meme grandeur vue deux
+       fois, donc elle ne peut pas deriver. */
+    if (this.trait === 'amas') this.radius = this.stats.hitbox * this.encombrementAmas();
+
+    /* Le bourgeon murit en continu, y compris a l'arret : c'est une horloge
+       cellulaire, pas une recompense d'action. */
+    if (this.trait === 'bourgeonnement') {
+      this.bourgeon = Math.min(1, this.bourgeon + dt / this.bourgeonDuree);
+    }
+
+    /* Spore en germination : immobile, muette, invulnerable. C'est le prix
+       de la vie rendue — et sans cet etat, sporuler n'aurait aucun cout. */
+    if (this.dormance > 0) {
+      this.dormance -= dt;
+      this.vx = 0; this.vy = 0;
+      this.drive = 0;
+      if (this.dormance <= 0) game.announce('GERMINATION');
+      return;
     }
 
     /* Phagocyte : sans endolysine, on ne peut rien faire. */

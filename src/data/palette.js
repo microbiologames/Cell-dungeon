@@ -76,6 +76,36 @@ const BRIGHT = {
   boss: hexToRgba('#b8322a'), bossRim: hexToRgba('#631411'),
   /* L'endospore est refringente : claire, a paroi tres marquee. */
   spore: hexToRgba('#fbfbf0'), sporeRim: hexToRgba('#4f4f3c'),
+
+  /* --- couleurs des SOUCHES JOUABLES ------------------------------------
+     Regle du jeu : la forme porte l'espece, la couleur porte la menace. Elle
+     s'applique aux MOBS. Le joueur, lui, est seul de son espece a l'ecran :
+     sa couleur peut donc dire QUI il est, et c'est la seule information qui
+     manquerait sinon quand quatre souches partagent le meme champ.
+
+     Deux teintes sur quatre sont des caracteres d'identification reels :
+     la staphyloxanthine dore vraiment S. aureus (c'est son nom), et le
+     violet de B. cereus est celui du cristal violet du Gram, qui colore
+     tous les Gram positif. */
+  souches: {
+    lactobacillus: { fill: hexToRgba('#2f9e5e'), rim: hexToRgba('#14512f'), core: hexToRgba('#b7f2ce') },
+    cereus: { fill: hexToRgba('#5e3aa8'), rim: hexToRgba('#2a1552'), core: hexToRgba('#d9c8ff') },
+    aureus: { fill: hexToRgba('#a8790a'), rim: hexToRgba('#4f3500'), core: hexToRgba('#ffdf8a') },
+    /* Sepia et non or : en fond clair, le doré de la levure tombait sur la
+       teinte `yeast` des mobs splitter (#8a6a22) et le joueur se confondait
+       avec un Kluyveromyces a deux cases de lui. */
+    cerevisiae: { fill: hexToRgba('#6b4a2a'), rim: hexToRgba('#2e1d0c'), core: hexToRgba('#f0dfc0') },
+  },
+  /* --- couleurs des TOXINES ---------------------------------------------
+     Chaque tir prend la teinte de ce qu'il est reellement : l'acide lactique
+     jaune-vert du lactate, la cereulide d'un cristal cireux, l'hemolysine du
+     dore de la souche qui la secrete, l'ethanol presque incolore. */
+  tirs: {
+    lactate: { fill: hexToRgba('#7d9c0e'), rim: hexToRgba('#4d6106'), core: hexToRgba('#d8ee7c') },
+    cereulide: { fill: hexToRgba('#4a4a66'), rim: hexToRgba('#20203a'), core: hexToRgba('#e6e6f5') },
+    alphatoxine: { fill: hexToRgba('#9a5a00'), rim: hexToRgba('#4d2c00'), core: hexToRgba('#ffd79a') },
+    ethanol: { fill: hexToRgba('#5d7f8c'), rim: hexToRgba('#2b4650'), core: hexToRgba('#dff1f7') },
+  },
 };
 
 /* --- jeu de couleurs pour un FOND NOIR (marquage vital) ----------------- */
@@ -106,6 +136,21 @@ const DARK = {
   neutral: hexToRgba('#8d94a8'), neutralRim: hexToRgba('#4a5060'),
   boss: hexToRgba('#ff6b52'), bossRim: hexToRgba('#a32c18'),
   spore: hexToRgba('#f4f7e8'), sporeRim: hexToRgba('#7c8a6a'),
+
+  /* Memes souches, en marquage vital sur fond noir : les teintes montent en
+     luminosite mais gardent leur identite (voir le bloc clair). */
+  souches: {
+    lactobacillus: { fill: hexToRgba('#7dff9b'), rim: hexToRgba('#2ea84f'), core: hexToRgba('#d8ffe4') },
+    cereus: { fill: hexToRgba('#b98cff'), rim: hexToRgba('#6a3fc0'), core: hexToRgba('#eadcff') },
+    aureus: { fill: hexToRgba('#ffc23a'), rim: hexToRgba('#b06b00'), core: hexToRgba('#ffeeb0') },
+    cerevisiae: { fill: hexToRgba('#e8dcb0'), rim: hexToRgba('#9a8a55'), core: hexToRgba('#fff8e0') },
+  },
+  tirs: {
+    lactate: { fill: hexToRgba('#c9ff5a'), rim: hexToRgba('#7fbf16'), core: hexToRgba('#f2ffd0') },
+    cereulide: { fill: hexToRgba('#cfd4ff'), rim: hexToRgba('#7b7fc0'), core: hexToRgba('#ffffff') },
+    alphatoxine: { fill: hexToRgba('#ffb347'), rim: hexToRgba('#b06a00'), core: hexToRgba('#ffe6bf') },
+    ethanol: { fill: hexToRgba('#cfe9f5'), rim: hexToRgba('#6f9fb0'), core: hexToRgba('#ffffff') },
+  },
 };
 
 export const MATRICES_PALETTE = {
@@ -175,6 +220,25 @@ export const MATRICES_PALETTE = {
     tint: hexToRgba('#20040d', 40),
   },
 };
+
+/**
+ * Couleurs du corps d'une souche jouable, avec repli sur l'ancien jeu de
+ * couleurs du joueur. Le repli n'est pas decoratif : il garde le lobby, le
+ * bestiaire et les bancs fonctionnels tant qu'une palette de matrice n'a pas
+ * encore sa table `souches`.
+ */
+export function souchePalette(pal, id) {
+  const t = pal.souches && pal.souches[id];
+  if (t) return t;
+  return { fill: pal.player, rim: pal.playerRim, core: pal.playerCore };
+}
+
+/** Couleurs d'une toxine, meme convention de repli sur l'acide. */
+export function tirPalette(pal, id) {
+  const t = pal.tirs && pal.tirs[id];
+  if (t) return t;
+  return { fill: pal.acid, rim: pal.acidRim, core: pal.acidCore };
+}
 
 export const RARITY_COLOR = {
   commune: hexToRgba('#9aa8a0'),

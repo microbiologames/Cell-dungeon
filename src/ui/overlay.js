@@ -133,12 +133,30 @@ export class Overlay {
     const evos = p.summary()
       .map(({ evo, rank }) => `${escapeHtml(evo.label)}${rank > 1 ? ` x${rank}` : ''}`)
       .join(' · ');
+    /* Le bilan de la caracteristique unique : combien de spores brulees,
+       combien de divisions. C'est l'histoire de la partie en un chiffre, et
+       ca n'existe nulle part ailleurs — les evolutions perdues a une division
+       ne laissent aucune trace dans la liste ci-dessous. */
+    const trait = p.espece.trait ? traitBilan(p) : '';
     return `
+      <p class="stat">SOUCHE <b>${escapeHtml(p.espece.label)}</b>${trait}</p>
       <p class="stat">TEMPS <b>${mmss(g.time)}</b> — NIVEAU <b>${p.level}</b> — TUES <b>${p.kills}</b></p>
       <p class="stat">DEGATS <b>${p.stats.dmg.toFixed(1)}</b> — CADENCE <b>${p.fireRate.toFixed(2)}/s</b>
          — PV <b>${Math.round(p.stats.maxHp)}</b> — VITESSE <b>${Math.round(p.stats.speed)}</b></p>
       <p class="stat" style="margin-top:6px">${evos || 'AUCUNE EVOLUTION'}</p>`;
   }
+}
+
+/** Une phrase courte sur l'etat de la caracteristique unique. */
+function traitBilan(p) {
+  if (p.trait === 'sporulation') {
+    return ` — SPORES <b>${p.spores}</b> EN RESERVE, <b>${p.sporesBrulees}</b> CONSOMMEES`;
+  }
+  if (p.trait === 'amas') return ` — AMAS <b>${p.amasVivant}</b> / ${p.amasMax}`;
+  if (p.trait === 'bourgeonnement') {
+    return ` — DIVISIONS <b>${p.divisions}</b>, BOURGEON <b>${Math.round(p.bourgeon * 100)} %</b>`;
+  }
+  return '';
 }
 
 function escapeHtml(s) {

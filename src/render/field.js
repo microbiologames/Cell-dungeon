@@ -6,6 +6,7 @@
 import { Screen, VIEW, fade32, mix32, rgba, bayer } from '../core/pixel.js';
 import { clamp, TAU, hash2 } from '../core/util.js';
 import { drawOrganism, drawPlayer, colorOf } from './organisms.js';
+import { souchePalette, tirPalette } from '../data/palette.js';
 import { driveOf } from './flagella.js';
 import { sharpness } from '../game/entities.js';
 import { forEachDecor } from '../game/decor.js';
@@ -186,7 +187,7 @@ export function renderField(scr, game, pal) {
     if (b.hostile) {
       scr.disc(toX(b.x), toY(b.y), b.radius, fade32(pal.hostile, 0.35 + 0.65 * s), 0);
     } else {
-      drawAcidDrop(scr, toX(b.x), toY(b.y), b, pal);
+      drawToxine(scr, toX(b.x), toY(b.y), b, pal);
     }
   }
 
@@ -203,7 +204,8 @@ export function renderField(scr, game, pal) {
          points et ne se sent pas. */
       const k = 1 - vie;
       const rr = q.r + (q.r1 - q.r) * (1 - (1 - k) * (1 - k));
-      const [fill] = q.spec ? colorOf(q.spec, pal) : [pal.acid];
+      const [fill] = q.joueur ? [souchePalette(pal, game.player.espece.id).fill]
+        : q.spec ? colorOf(q.spec, pal) : [pal.acid];
       scr.ring(sx, sy, rr, 1 + 1.6 * vie, fade32(fill, 0.75 * vie));
       continue;
     }
@@ -211,7 +213,12 @@ export function renderField(scr, game, pal) {
     if (q.kind === 'shard') {
       /* Fragment de paroi : allonge, il tourne. Il porte la couleur de
          l'espece, donc on voit QUI vient d'eclater. */
-      const [fill, rim] = q.spec ? colorOf(q.spec, pal) : [pal.acid, pal.acidRim];
+      /* Les fragments de la cellule du JOUEUR portent la couleur de sa
+         souche : c'est ce qui fait lire une sporulation ou une division
+         comme sa propre lyse, et non comme celle d'un mob. */
+      const sp = q.joueur ? souchePalette(pal, game.player.espece.id) : null;
+      const [fill, rim] = sp ? [sp.fill, sp.rim]
+        : q.spec ? colorOf(q.spec, pal) : [pal.acid, pal.acidRim];
       const len = q.r * 2.2;
       scr.cap(sx, sy, len, Math.max(1, q.r * 0.8), q.ang || 0,
         fade32(fill, 0.35 + 0.65 * vie), fade32(rim, 0.35 + 0.65 * vie));
@@ -264,10 +271,22 @@ export function renderField(scr, game, pal) {
     /* Englouti : on ne voit plus que la vacuole de l'hote. */
     scr.ring(toX(p.x), toY(p.y), p.radius + 5, 2, fade32(pal.hostile, 0.8));
   }
-  const blink = p.invuln > 0 && Math.floor(p.phase * 12) % 2 === 0;
+  /* Une spore en germination ne clignote pas : elle est invulnerable tout du
+     long, et la faire disparaitre une image sur deux aurait cache le seul
+     retour visuel de l'etat le plus important du personnage. */
+  const blink = p.invuln > 0 && p.dormance <= 0 && Math.floor(p.phase * 12) % 2 === 0;
   if (!blink) {
     drawPlayer(scr, toX(p.x), toY(p.y), p.radius, p.ang, p.phase, pal, p.flagellation,
-      { drive: p.drive, bend: p.bend, lean: p.lean, sillage: p.sillage, trouble: p.trouble });
+      {
+        drive: p.drive, bend: p.bend, lean: p.lean, sillage: p.sillage, trouble: p.trouble,
+        morpho: p.espece.morpho, couleurs: souchePalette(pal, p.espece.id),
+        /* Le corps porte l'etat du trait : spore en reserve, cellules encore
+           accrochees, maturite du bourgeon, germination en cours. */
+        trait: {
+          spores: p.spores, amas: p.amasVivant,
+          bourgeon: p.bourgeon, dormance: p.dormance,
+        },
+      });
   }
 
   scr.composite();
@@ -283,6 +302,72 @@ export function renderField(scr, game, pal) {
 }
 
 /**
+ * Aiguillage des toxines.
+ *
+ * Chaque souche tire autre chose, et ce qu'on voit doit dire QUOI : une
+ * goutte qui se dilue, un cristal qui ne se dilue pas, un pore, une bouffee
+ * volatile. Le comportement de jeu est deja different (voir TIRS dans
+ * src/data/especes.js) ; si le dessin ne suivait pas, le joueur subirait ces
+ * differences sans jamais les comprendre.
+ */
+function drawToxine(scr, sx, sy, b, pal) {
+  const id = b.tir ? b.tir.id : 'lactate';
+  const c = tirPalette(pal, id);
+  switch (b.tir ? b.tir.forme : 'goutte') {
+    case 'cristal': return drawCristal(scr, sx, sy, b, c);
+    case 'pore': return drawPore(scr, sx, sy, b, c);
+    case 'bouffee': return drawBouffee(scr, sx, sy, b, c);
+    default: return drawAcidDrop(scr, sx, sy, b, pal, c);
+  }
+}
+
+/**
+ * Le cristal de cereulide.
+ *
+ * Un depsipeptide cyclique thermostable ne se dilue pas : il ne se separe
+ * donc jamais en gouttelettes et garde sa taille du depart a l'arrivee.
+ * C'est exactement ce qui le distingue a l'oeil de l'acide — et c'est aussi
+ * pour ca qu'il garde toute sa puissance a bout de portee. Il TOURNE sur
+ * lui-meme, comme un grain solide emporte par le fluide : la seule facon de
+ * montrer qu'un objet est rigide.
+ */
+function drawCristal(scr, sx, sy, b, c) {
+  const a = b.uid * 0.7 + (b.age || 0) * 5.5;
+  const r = Math.max(1, b.radius);
+  scr.ell(sx, sy, r * 1.35, r * 0.72, a, c.rim, 0);
+  scr.ell(sx, sy, r * 1.05, r * 0.48, a, c.fill, 0);
+  scr.disc(sx, sy, Math.max(0.5, r * 0.34), c.core, 0);
+}
+
+/**
+ * Le pore d'alpha-hemolysine.
+ *
+ * L'heptamere perce un TROU : un anneau, pas un disque. Sous 2,2 px de
+ * rayon l'anneau n'a plus assez de pixels pour se lire et redevient une
+ * pastille — mieux vaut une pastille nette qu'un anneau devine.
+ */
+function drawPore(scr, sx, sy, b, c) {
+  const r = Math.max(1, b.radius);
+  scr.disc(sx, sy, r, c.fill, 0);
+  if (r >= 2.2) scr.disc(sx, sy, r * 0.42, fade32(c.rim, 0.95), 0);
+  else scr.disc(sx, sy, Math.max(0.5, r * 0.42), c.core, 0);
+  scr.ring(sx, sy, r + 0.6, 1, fade32(c.core, 0.45));
+}
+
+/**
+ * La bouffee d'ethanol.
+ *
+ * Volatile et miscible : elle gonfle vite, s'effiloche et pales. On reutilise
+ * le lobe tramee des zones (softBlob) plutot que des disques : un disque net
+ * se lit comme un objet, et l'ethanol n'en est pas un.
+ */
+function drawBouffee(scr, sx, sy, b, c) {
+  const t = clamp(b.diffuse || 0, 0, 1);
+  softBlob(scr, sx, sy, b.radius * 1.25, c.fill, 0.85 - 0.45 * t, false, 1 - 0.5 * t);
+  if (t < 0.5) scr.disc(sx, sy, Math.max(0.6, b.radius * 0.40), fade32(c.core, 1 - t * 1.6), 0);
+}
+
+/**
  * Une goutte d'acide lactique en vol.
  *
  * Trois etats, qui racontent la dilution : la goutte part COMPACTE et
@@ -291,14 +376,14 @@ export function renderField(scr, game, pal) {
  * Les decalages derivent de l'identifiant du projectile, donc ils sont
  * stables d'une image a l'autre : pas de scintillement.
  */
-function drawAcidDrop(scr, sx, sy, b, pal) {
+function drawAcidDrop(scr, sx, sy, b, pal, c) {
   const t = clamp(b.diffuse || 0, 0, 1);
   const r0 = b.r0 || b.radius;
 
   if (t < 0.30) {
     /* Compacte : un noyau clair dans une enveloppe, elle file droit. */
-    scr.disc(sx, sy, b.radius, fade32(pal.acid, 0.95), 0);
-    scr.disc(sx, sy, Math.max(0.6, b.radius * 0.45), pal.acidCore, 0);
+    scr.disc(sx, sy, b.radius, fade32(c.fill, 0.95), 0);
+    scr.disc(sx, sy, Math.max(0.6, b.radius * 0.45), c.core, 0);
     return;
   }
 
@@ -319,14 +404,14 @@ function drawAcidDrop(scr, sx, sy, b, pal) {
     const d = spread * (0.35 + 0.65 * h);
     const px = sx + Math.cos(a) * d + bx * spread * 0.45;
     const py = sy + Math.sin(a) * d + by * spread * 0.45;
-    scr.disc(px, py, sub * (0.6 + 0.4 * h), fade32(pal.acid, alpha), 0);
+    scr.disc(px, py, sub * (0.6 + 0.4 * h), fade32(c.fill, alpha), 0);
   }
 
   /* En fin de course, le halo de dilution : l'acide est encore la, mais
      trop dilue pour mordre. */
   if (u > 0.55) {
     scr.ring(sx + bx * spread * 0.45, sy + by * spread * 0.45,
-      spread * 1.05, 1, fade32(pal.acidRim, 0.30 * (1 - u)));
+      spread * 1.05, 1, fade32(c.rim, 0.30 * (1 - u)));
   }
 }
 

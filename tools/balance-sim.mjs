@@ -70,7 +70,11 @@ const INVARIANTS = {
 };
 
 function drawHand(rng, taken, size, hyper) {
-  const pool = EVOLUTIONS.filter((e) => (taken.get(e.id) || 0) < e.ranks);
+  /* Les cartes reservees a une souche sont exclues : ce simulateur travaille
+     sur le joueur de REFERENCE (le lactobacille), et une carte qu'il ne peut
+     pas tirer n'a rien a faire dans sa courbe. Le banc des souches
+     (tools/especes.mjs) s'occupe des trois autres. */
+  const pool = EVOLUTIONS.filter((e) => (taken.get(e.id) || 0) < e.ranks && !e.espece);
   const hand = [];
   const used = new Set();
   for (let i = 0; i < size && pool.length; i++) {

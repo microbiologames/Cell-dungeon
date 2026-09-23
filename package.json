@@ -6,6 +6,7 @@
   "description": "Roguelite d'arene microbiologique jouable au navigateur",
   "scripts": {
     "balance": "node tools/balance-sim.mjs",
+    "especes": "node tools/especes.mjs",
     "smoke": "node tools/smoke.mjs",
     "visual": "node tools/visual.mjs",
     "serve": "python3 -m http.server 8080",

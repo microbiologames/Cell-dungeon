@@ -2,10 +2,15 @@
 
 ## Pitch
 
-Vous êtes une **bactérie lactique** observée au microscope. Vous survivez à des vagues
-de micro-organismes dans des **matrices réelles** (lait cru, conduite industrielle,
-kombucha, sang), vous tirez de l'**acide lactique**, et vous digérez les **acides aminés**
-de vos victimes pour **muter**.
+Vous êtes une **cellule** observée au microscope. Vous survivez à des vagues
+de micro-organismes dans des **matrices réelles** (lait cru, conduite
+industrielle, kombucha, sang), vous tirez votre **toxine** — acide lactique,
+céréulide, alpha-hémolysine ou éthanol selon la souche — et vous digérez les
+**acides aminés** de vos victimes pour **muter**.
+
+Quatre **souches jouables**, chacune avec ses stats, sa toxine, sa morphologie
+et une **caractéristique unique** qui n'est pas une évolution :
+`docs/08-especes-jouables.md`.
 
 Roguelite d'arène, vue de dessus, tir automatique, run de 12 minutes par matrice.
 

@@ -6,6 +6,7 @@ import { clamp, mulberry32, TAU } from '../core/util.js';
 import { MATRICES } from '../data/matrices.js';
 import { BESTIARY } from '../data/bestiary.js';
 import { Player } from './player.js';
+import { ESPECE_BY_ID, ESPECE_DEFAUT } from '../data/especes.js';
 import { makeArena } from './arena.js';
 import { PhField } from './phfield.js';
 import { collectDecor, applyDecor, decorBlocksBullet, convection } from './decor.js';
@@ -31,10 +32,14 @@ export const STATE = {
 };
 
 export class Game {
-  constructor(matrixId = 'milk', seed = Date.now()) {
+  constructor(matrixId = 'milk', seed = Date.now(), especeId = ESPECE_DEFAUT) {
     this.matrix = MATRICES[matrixId];
     this.rng = mulberry32(seed >>> 0);
     this.seed = seed >>> 0;
+    /* La souche est choisie dans le lobby et ne change pas en cours de
+       partie : elle est donc portee par la partie, pas par le joueur, sinon
+       un reset la perdrait. */
+    this.especeId = ESPECE_BY_ID[especeId] ? especeId : ESPECE_DEFAUT;
     this.reset();
   }
 
@@ -50,7 +55,7 @@ export class Game {
     this.zones = [];
     this.particles = [];
     this.removedDecor = new Set();
-    this.player = new Player(this);
+    this.player = new Player(this, this.especeId);
     this.director = new Director(this);
     /* Mecaniques propres a la matrice. Seule la conduite en a pour l'instant :
        courant, plaques de biofilm et Nettoyage En Place. */
@@ -186,6 +191,9 @@ export class Game {
   autoFire(dt) {
     const p = this.player;
     if (p.phagocytosedBy) return;
+    /* Une spore ne tire pas : elle est deshydratee et son metabolisme est a
+       l'arret. C'est la moitie du cout de la sporulation. */
+    if (p.dormance > 0) return;
     if (p.fireCd > 0) return;
     const target = pickTarget(this);
     if (!target) return;
@@ -209,6 +217,10 @@ export class Game {
           protease: p.flags.has('protease'),
         },
       );
+      /* La TOXINE voyage avec le projectile : un tir deja en vol garde la
+         chimie de la souche qui l'a lache, meme si le joueur change d'etat
+         entre-temps. C'est aussi ce que lit le rendu pour le dessiner. */
+      b.tir = p.tir;
       b.hits = new Set();
       /* Duree de vie calculee pour que la goutte atteigne REELLEMENT la
          portee de ciblage. Avec une trainee exponentielle, la distance
@@ -235,9 +247,13 @@ export class Game {
       b.ttl -= dt;
       if (b.ttl <= 0) {
         /* Fin de course : la goutte acheve de se diffuser et laisse sa
-           charge acide sur place. C'est le lien entre le tir et le pH. */
-        if (!b.hostile) {
-          this.phField.acidify(b.x, b.y, this.matrix.chem.phDeposit, b.radius * 4.5);
+           charge acide sur place. C'est le lien entre le tir et le pH — et
+           il n'existe que pour l'acide lactique. Un depsipeptide, une
+           proteine et un alcool sont neutres : ils ne changent pas le pH,
+           donc ces souches-la ne preparent pas leur terrain. */
+        const acidifie = b.tir ? b.tir.acidifie : 1;
+        if (!b.hostile && acidifie > 0) {
+          this.phField.acidify(b.x, b.y, this.matrix.chem.phDeposit * acidifie, b.radius * 4.5);
         }
         b.alive = false;
         continue;
@@ -247,16 +263,25 @@ export class Game {
 
       /* Une goutte d'acide lactique n'est pas une balle : ejectee bien
          formee, elle s'etale et ralentit. Elle touche donc de plus en plus
-         large et de moins en moins fort, et acidifie derriere elle. */
+         large et de moins en moins fort, et acidifie derriere elle.
+
+         C'est vrai de l'ACIDE. Un cristal de cereulide, thermostable et
+         insoluble, ne se dilue pas du tout ; l'ethanol, lui, se disperse
+         deux fois plus vite. La diffusion est donc une propriete de la
+         TOXINE, pas du moteur. */
       if (!b.hostile && b.life) {
+        const tir = b.tir || null;
         b.age += dt;
         const t = clamp(b.age / b.life, 0, 1);
         b.diffuse = t;
-        b.radius = b.r0 * (1 + 1.6 * t);
+        b.radius = b.r0 * (1 + (tir ? tir.diffusion : 1.6) * t);
         const drag = Math.exp(-BULLET_DRAG * dt);
         b.vx *= drag; b.vy *= drag;
         const chem = this.matrix.chem;
-        this.phField.acidify(b.x, b.y, chem.phTrail * (0.3 + t) * dt, b.radius);
+        const acidifie = tir ? tir.acidifie : 1;
+        if (acidifie > 0) {
+          this.phField.acidify(b.x, b.y, chem.phTrail * (0.3 + t) * dt * acidifie, b.radius);
+        }
       }
       if (b.zDrift) b.z -= Math.sign(b.z) * Math.min(Math.abs(b.z), b.zDrift * dt);
 
@@ -264,8 +289,14 @@ export class Game {
 
       /* Un globule gras arrete la goutte : l'acide lactique est
          hydrosoluble et ne penetre pas la phase grasse. C'est donc un abri,
-         pour le joueur comme pour les mobs. */
-      if (!b.hostile && decorBlocksBullet(b.x, b.y, b.radius, this.decorNear)) {
+         pour le joueur comme pour les mobs.
+
+         Il ne l'est PAS pour tout le monde : la cereulide et l'ethanol sont
+         lipophiles, la phase grasse est leur solvant et non leur mur. Deux
+         souches traversent donc un decor qui abrite les autres, et c'est un
+         vrai avantage de terrain dans le lait cru. */
+      if (!b.hostile && (!b.tir || b.tir.grasArrete)
+        && decorBlocksBullet(b.x, b.y, b.radius, this.decorNear)) {
         this.phField.acidify(b.x, b.y, this.matrix.chem.phDeposit * 0.5, b.radius * 3);
         this.spark(b.x, b.y, 2);
         b.alive = false;
@@ -304,8 +335,11 @@ export class Game {
            ne serait qu'un bonus, pas une mecanique. */
         if (!b.t3ss && sh <= 0.02) continue;
 
-        /* Plus la goutte s'est diffusee, moins elle concentre. */
-        const spent = 1 - 0.5 * (b.diffuse || 0);
+        /* Plus la goutte s'est diffusee, moins elle concentre. Une toxine
+           qui ne se dilue pas ne perd rien : c'est ce qui fait la portee
+           utile de la cereulide malgre sa cadence lente. */
+        const perte = b.tir ? b.tir.perteDiffus : 0.5;
+        const spent = 1 - perte * (b.diffuse || 0);
         /* Le kyste encaisse : trois quarts des degats passent a la trappe
            tant qu'il tient. */
         const blindage = (e.spec.resist ? 1 - e.spec.resist : 1) * (e.cyst > 0 ? 0.25 : 1);
@@ -320,6 +354,16 @@ export class Game {
         if (b.hits) b.hits.add(e.uid);
 
         if (b.protease) { e.dot = Math.max(e.dot, 4); e.dotTtl = 4; }
+        /* Effets propres a la toxine. L'alpha-hemolysine perce un pore qui
+           continue de fuir ; l'ethanol fluidifie la membrane et ralentit. */
+        if (b.tir && b.tir.pore) {
+          e.dot = Math.max(e.dot, b.tir.pore.dps);
+          e.dotTtl = Math.max(e.dotTtl, b.tir.pore.duree);
+        }
+        if (b.tir && b.tir.ralentit && e.spec.mot !== 'none') {
+          e.slow = Math.max(e.slow, b.tir.ralentit.part);
+          e.slowTtl = Math.max(e.slowTtl, b.tir.ralentit.duree);
+        }
         if (b.coagulase && this.rng() < 0.22) {
           this.zones.push(makeZone(e.x, e.y, 16, 'gel', 3, { slow: 0.45, friendly: true }));
         }
@@ -644,6 +688,15 @@ export class Game {
     }
   }
 
+  /**
+   * Fin de partie — ou pas.
+   *
+   * Trois filets peuvent se declencher, dans cet ordre : la dormance VBNC
+   * (une evolution, donc accessible a tous), puis la CARACTERISTIQUE UNIQUE
+   * de la souche. L'ordre compte : le VBNC est a usage unique et gratuit, la
+   * spore coute un credit et le bourgeonnement coute la moitie du genome. On
+   * depense donc toujours le moins cher d'abord.
+   */
   onPlayerDeath() {
     const p = this.player;
     /* Dormance VBNC : une bacterie lactique ne sporule pas, mais elle sait
@@ -655,7 +708,57 @@ export class Game {
       this.announce('REPRISE VBNC');
       return;
     }
+    /* B. cereus : le sporange se lyse en liberant la spore. La cellule
+       disparait vraiment — ce qui reste a l'ecran est la spore. */
+    if (p.trait === 'sporulation' && p.sporuler()) {
+      this.lyseJoueur();
+      this.announce(p.spores > 0 ? `SPORULATION — ${p.spores} EN RESERVE` : 'DERNIERE SPORE');
+      return;
+    }
+    /* S. cerevisiae : la fille prend la place de la mere, qui se lyse. */
+    if (p.trait === 'bourgeonnement') {
+      const perdues = p.diviser();
+      if (perdues !== false) {
+        this.lyseJoueur();
+        this.announce(perdues > 0 ? `DIVISION — ${perdues} RANGS PERDUS` : 'DIVISION');
+        return;
+      }
+    }
     this.state = STATE.DEAD;
+  }
+
+  /**
+   * Lyse de la cellule du joueur.
+   *
+   * Meme grammaire que la lyse d'un mob — anneau, fragments de paroi,
+   * gouttelettes — mais marquee `joueur` pour que le rendu y mette la
+   * couleur de la souche. Sans ces particules, sporuler ou bourgeonner se
+   * voyait seulement dans le HUD, et l'evenement le plus important de la
+   * partie passait inapercu.
+   */
+  lyseJoueur() {
+    const p = this.player;
+    const r = p.radius;
+    const P = this.particles;
+    P.push({
+      kind: 'ring', x: p.x, y: p.y, vx: 0, vy: 0,
+      r: r * 0.6, r1: r * 4.2, spec: null, joueur: true,
+      ttl: 0.34, maxTtl: 0.34, alive: true,
+    });
+    const shards = Math.round(5 + r * 1.2);
+    for (let i = 0; i < shards; i++) {
+      const a = this.rng() * TAU;
+      const sp = 40 + this.rng() * 120;
+      P.push({
+        kind: 'shard', x: p.x, y: p.y,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        r: 0.9 + this.rng() * (0.8 + r * 0.12), ang: a,
+        spin: (this.rng() - 0.5) * 16, drag: 0.90, spec: null, joueur: true,
+        ttl: 0.35 + this.rng() * 0.5, maxTtl: 0.85, alive: true,
+      });
+    }
+    this.shake = Math.min(1, this.shake + 0.7);
+    this.flash = Math.min(1, this.flash + 0.5);
   }
 
   /* ---------------------------------------------------------- ramassage - */
