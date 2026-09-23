@@ -111,6 +111,12 @@ node tools/jeu-publier.mjs   # idem pour le jeu
 - **Publication d'une page hébergée : préfixe versionné** (`v6/src/…`,
   `j2/src/…`) changé à chaque fois, **et on ne supprime jamais l'ancien**. Les
   deux moitiés de la règle ont chacune coûté une panne.
+- **Le jeu est en ligne : <https://microbiologames.github.io/Cell-dungeon/>.**
+  Pages sert la branche `claude/epic-carson-ryenav` à la racine ; le dépôt
+  *est* le site, donc un `git push` suffit à publier. **Le `C` majuscule
+  compte** — l'URL en minuscules renvoie 404. Pour vérifier la page qu'on
+  livre : `BASE=https://microbiologames.github.io/Cell-dungeon npm run smoke`,
+  ou la comparaison octet à octet des 38 fichiers servis avec `HEAD`.
 
 ---
 
@@ -137,10 +143,6 @@ Le code lui-même est commenté en profondeur : `src/audio/son.js`,
 
 ## Chantiers ouverts
 
-- **GitHub Pages renvoie 404.** Le dépôt n'a qu'une branche
-  (`claude/epic-carson-ryenav`, pas de `main`) et Pages ne sert rien. À régler
-  dans Settings → Pages, ou en créant une `main`. En attendant, le jeu est
-  publié comme page hébergée privée.
 - **Musique, passe B** : scénario du NEP (montée de tension, impact, timbre par
   biocide), ostinato de biofilm tant qu'un producteur d'alginate vit, palette de
   boss dédiée, couleur harmonique pilotée par le pH, automate cellulaire. La

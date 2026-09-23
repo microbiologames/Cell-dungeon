@@ -265,6 +265,24 @@ il l'applique partout.
 Écrire les prompts en **objet**, pas en scène. Les deux échecs (`coagulase`,
 `predation`) n'ont pas été livrés.
 
+**Confirmé sur le lot des six évolutions réservées (23/09/2026), et la
+reformulation rattrape la moitié des échecs.** Quatre sur six du premier coup ;
+les deux ratés décrivaient une relation :
+
+| Demande | 1ᵉʳ jet | Reformulée en objet | Livrée |
+|---|---|---|---|
+| `segregation` — « un fuseau mitotique avec les chromosomes alignés » | rayures verticales, du bruit | « un seul chromosome condensé en X, deux chromatides jointes à la taille » | ✅ un X rose net à 48 px |
+| `germination` — « une spore qui s'ouvre ET une cellule qui en sort » | un escargot orange à tentacules | « une endospore, manteau épais, une fissure profonde » | ❌ la boule hérissée, avec une fissure |
+
+Ce que ça isole : la reformulation corrige une **formulation** relationnelle,
+pas un **sujet** qui l'est par nature. Un chromosome en métaphase est un objet
+qu'on décrivait mal ; une spore qui germe est un **état entre deux**, et aucune
+tournure ne l'en sort. Bilan livré : 5 vignettes sur 6, 0,24 $.
+
+Et le juge reste la **taille d'affichage** : `germination` est lisible en grand
+et n'est qu'une pastille orange à 48 px, qui est la taille réelle des vignettes
+de carte (`.card .art`, `clamp(34px, 13vmin, 62px)`).
+
 ### Le balayage de `strength` : le résultat contre-intuitif
 
 Testé sur *S. aureus* (grappe, 28 px en jeu) à 0.45 et 0.75.

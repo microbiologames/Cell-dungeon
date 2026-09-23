@@ -1,5 +1,12 @@
 # Cell Dungeon
 
+### ▶ [Jouer maintenant](https://microbiologames.github.io/Cell-dungeon/)
+
+`https://microbiologames.github.io/Cell-dungeon/` — servi par GitHub Pages
+depuis la branche `claude/epic-carson-ryenav`, à la racine. Rien à installer :
+le dépôt *est* le site. **Le C majuscule compte** : l'URL en minuscules
+renvoie 404.
+
 Roguelite d'arène microbiologique. Vous êtes une **cellule** observée au
 microscope, vous tirez votre propre toxine, vous absorbez les acides aminés de
 vos victimes et vous volez leurs gènes.

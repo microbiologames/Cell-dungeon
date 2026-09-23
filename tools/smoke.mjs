@@ -18,6 +18,13 @@ const server = createServer(async (req, res) => {
 });
 await new Promise((r) => server.listen(8099, r));
 
+/* BASE permet de passer le banc sur la page qu'on LIVRE, pas seulement sur
+   la copie de travail. Regle payee une fois : le depot etait vert pendant
+   que la page hebergee ne construisait plus rien.
+     BASE=https://microbiologames.github.io/Cell-dungeon npm run smoke */
+const BASE = (process.env.BASE || 'http://localhost:8099').replace(/\/$/, '');
+console.log('cible: ' + BASE);
+
 /* Chromium pre-installe : on laisse Playwright le trouver, sinon on tente
    les emplacements connus de l'environnement. */
 import { existsSync } from 'node:fs';
@@ -34,7 +41,7 @@ const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 
-await page.goto('http://localhost:8099/', { waitUntil: 'networkidle' });
+await page.goto(BASE + '/', { waitUntil: 'networkidle' });
 await page.waitForTimeout(500);
 
 if (errors.length) { console.log('ERREURS AU CHARGEMENT:'); errors.forEach(e => console.log('  ' + e)); }
@@ -88,7 +95,7 @@ const mobile = await browser.newContext({
 const mp = await mobile.newPage();
 const mErrs = [];
 mp.on('pageerror', (e) => mErrs.push(e.message));
-await mp.goto('http://localhost:8099/');
+await mp.goto(BASE + '/');
 const touchDetected = await mp.evaluate(() => window.__input.hasTouch);
 await mp.tap('#btnStart');
 await mp.evaluate(() => window.__startMatrice('milk'));

@@ -68,6 +68,33 @@ const PROMPTS = {
   peritriche: 'a bacterium covered with flagella on every side, peritrichous',
   polaire: 'a bacterium with a dense tuft of flagella at one pole only',
   glycolyse: 'a cascade of linked sugar molecules flowing down into lactate',
+
+  /* --- reservees aux souches jouables ---------------------------------- */
+  /* Meme regle : un OBJET. Et une contrainte de plus, propre a ce lot :
+     aucune des six ne doit ressembler a une carte deja livree, sinon le
+     joueur croit tirer deux fois la meme. C'est ce qui ecarte l'image
+     evidente pour `agr` — un amas entoure de molecules de signal serait
+     `quorum` redessine. On prend donc la MOLECULE que le locus detecte,
+     le peptide auto-inducteur, qui n'existe nulle part ailleurs. */
+  sporeplus: 'a rod shaped bacterium containing several bright refractile endospores lined up inside it',
+  /* Reformules apres un premier echec, et pour la meme raison a chaque fois :
+     la premiere version decrivait une RELATION. « une spore qui s'ouvre ET une
+     cellule qui en sort » a donne un escargot orange a tentacules ; « un fuseau
+     mitotique avec les chromosomes alignes » a donne des rayures verticales.
+     Reecrites en UN objet, avec son detail identifiant comme adjectif.
+
+     Bilan : `segregation` est passe du bruit a un X rose net, lisible a 48 px.
+     `germination` NON — la reformulation a donne la boule herissee, l'a priori
+     documente du modele, avec une fissure dessus. Lisible en grand, une
+     pastille orange a 48 px. Pas livree : 5 vignettes sur 6.
+     Ce qui manque au modele ici n'est pas la formulation mais le sujet — une
+     spore qui germe n'a aucun a priori, et l'etat « entre deux » est par
+     nature une relation. A dessiner a la main si on y tient. */
+  germination: 'a bacterial endospore, thick layered coat, one deep crack splitting its shell',
+  multiplan: 'a compact grape like cluster of round golden cocci, dividing in perpendicular planes',
+  agr: 'a small cyclic peptide ring molecule closed by a sulphur bond, glowing, autoinducing peptide',
+  segregation: 'a single condensed X shaped chromosome, two chromatids joined at a central waist, symmetrical',
+  precoce: 'a budding yeast cell with one large swelling daughter bud at its pole',
 };
 
 const limit = Number(process.argv[2] || 999);
