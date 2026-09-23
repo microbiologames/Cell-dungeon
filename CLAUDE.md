@@ -152,9 +152,12 @@ Le code lui-même est commenté en profondeur : `src/audio/son.js`,
   de choix faits à l'oreille, laissées telles quelles faute d'une décision
   contraire.
 - **Souches jouables, suite** : les quatre premières sont là
-  (`docs/08-especes-jouables.md`). Restent des vignettes de cartes pour les six
-  évolutions réservées, et la question ouverte d'une souche par matrice — un
-  *Gluconacetobacter* pour le kombucha aurait sa place.
+  (`docs/08-especes-jouables.md`), et leurs évolutions réservées ont leur
+  vignette — **sauf `germination`**, que le générateur rend deux fois en boule
+  hérissée, son a priori documenté. À dessiner à la main si on y tient ; en
+  attendant la carte s'affiche nue, ce qui ne casse rien. Reste la question
+  ouverte d'une souche par matrice — un *Gluconacetobacter* pour le kombucha
+  aurait sa place.
 - **Le sang** reste à faire, et délibérément en dernier : ce n'est pas une
   goutte mais un **réseau vasculaire** — couloirs, courant pulsatile, système
   immunitaire, hématies qui bousculent. Il réutilisera la conduite.
