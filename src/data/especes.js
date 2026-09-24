@@ -88,6 +88,7 @@ export const TIRS = {
  * @property {number} confortAcide  part de cadence gagnee (ou perdue) a pH bas
  * @property {object|null} trait  caracteristique unique
  * @property {object} biais       ponderation du tirage d'evolutions
+ * @property {boolean} [aflagelle] la souche ne PEUT PAS gagner de flagelle
  */
 
 /* Ponderation par defaut : une voie absente vaut 1. */
@@ -177,6 +178,10 @@ export const ESPECES = [
       desc: "Chaque cellule de l'amas ajoute de la toxine. L'amas se deconstruit a mesure que les PV tombent : blesse, on tape moins fort.",
       note: "S. aureus se divise dans des plans successifs sans separer ses cellules filles : c'est ce qui donne la grappe de raisin du frottis.",
     },
+    /* Immobile, et ca ne s'achete pas. Un staphylocoque n'a pas de flagelle,
+       n'en a jamais eu, et les trois cartes de flagellation lui sont donc
+       FERMEES — pas rendues rares, fermees. */
+    aflagelle: true,
     biais: {
       voies: { cuirasse: 1.30, predateur: 1.20, flagelle: 0.55, acidophile: 0.80 },
       /* La coagulase et l'ilot de pathogenicite sont a lui : il les porte
@@ -219,6 +224,10 @@ export const ESPECES = [
       desc: "Un bourgeon murit en continu. A la lyse, la cellule fille prend la place de la mere : PV pleins, mais la moitie des evolutions acquises est perdue au hasard.",
       note: "Le bourgeonnement de S. cerevisiae est asymetrique : la cellule fille repart neuve, la mere porte les cicatrices. La perte d'evolutions est la part de genome que la division ne transmet pas.",
     },
+    /* Une levure ne nage pas : elle bourgeonne, elle flotte et elle sedimente.
+       Un flagelle sur un eucaryote de 8 um serait un cil, ce qui est un autre
+       organite avec un autre moteur. Cartes de flagellation fermees. */
+    aflagelle: true,
     biais: {
       voies: { flagelle: 0.45, acidophile: 0.65, diffuseur: 1.30, cuirasse: 1.15 },
       /* La lipase attaque les levures : se la donner a soi-meme n'a aucun

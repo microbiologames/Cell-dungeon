@@ -633,8 +633,10 @@ export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null, o
     /* Un coque n'a pas d'axe : le gabarit est rond, la grappe s'etale
        ensuite toute seule autour. */
     amas: { hw: 1.0, hh: 1.0, flag: 2.6 },
-    /* Une levure est ovoide et pese : les flagelles, si le joueur s'en
-       offre, sont courts par rapport a elle. */
+    /* Une levure est ovoide et pese. `flag` ne sert plus : la levure est
+       marquee `aflagelle`, elle recoit toujours un compte de zero. On le
+       garde plutot que de le retirer — le gabarit resterait juste si la
+       regle changeait, et un champ mort coute moins qu'un champ manquant. */
     levure: { hw: 1.05, hh: 0.90, flag: 2.0 },
   }[morpho] || { hw: 1.90, hh: 0.66, flag: 3.2 };
 
@@ -647,12 +649,18 @@ export function drawPlayer(scr, x, y, r, ang, phase, pal, flagellation = null, o
     return;
   }
 
-  /* Les flagelles d'abord : ils passent DERRIERE le corps. Aucune de ces
-     quatre especes n'est mobile dans la nature ; celle-ci l'est parce
-     qu'elle vole des genes a tout le monde, flagelline comprise — c'est le
-     sujet du jeu. On les dessine donc pour toutes les souches, sinon les
-     evolutions de flagellation appliqueraient leurs stats sans rien
-     montrer. */
+  /* Les flagelles d'abord : ils passent DERRIERE le corps.
+     Le joueur peut en gagner alors que son espece n'en porte pas — il vole
+     des genes a tout le monde, flagelline comprise, c'est le sujet du jeu.
+     On les dessine donc sans regarder la souche, sinon une evolution de
+     flagellation appliquerait ses stats sans rien montrer.
+
+     DEUX souches y echappent, et pas ici : l'amas et la levure sont
+     marquees `aflagelle` dans `especes.js`, leurs trois cartes de
+     flagellation sont retirees du TIRAGE, et leur compte vaut donc toujours
+     zero. Ne pas ajouter de garde ici : la regle a un seul endroit ou vivre,
+     et une seconde copie indexee sur la morphologie serait celle qui se
+     perimerait. */
   drawFlagella(scr, {
     x, y, ang, hw, hh,
     count: f.count, mode: f.mode, phase, drive,

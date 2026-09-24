@@ -10,7 +10,7 @@
 --------------------------------------------------------------------------- */
 
 import { computeStats } from './stats.js';
-import { EVOLUTIONS, EVO_BY_ID, rarityWeight } from '../data/evolutions.js';
+import { EVOLUTIONS, EVO_BY_ID, EVO_FLAGELLE, rarityWeight } from '../data/evolutions.js';
 import { XP_FOR_LEVEL } from '../data/matrices.js';
 import { especeOf, tirOf, ESPECE_DEFAUT } from '../data/especes.js';
 import { clamp, weightedPick, girer, TAU } from '../core/util.js';
@@ -326,10 +326,16 @@ export class Player {
    * Ponderation de tirage propre a la souche.
    *
    * Toutes les souches piochent dans le meme catalogue : ce qui change est la
-   * PROBABILITE. Fermer des cartes aurait produit quatre listes a maintenir
-   * et aurait tue le seul argument du jeu — qu'une cellule finit par ne plus
-   * ressembler a son espece. Un coque immobile tire donc moins de flagelles,
-   * pas zero.
+   * PROBABILITE. Fermer des cartes produirait quatre listes a maintenir et
+   * tuerait le seul argument du jeu — qu'une cellule finit par ne plus
+   * ressembler a son espece.
+   *
+   * UNE exception, posee par l'auteur : la FLAGELLATION des souches marquees
+   * `aflagelle` (voir le filtre dans `draw`). Elle ne se corrige pas par un
+   * poids, meme tres bas — un poids rend rare, il n'interdit pas, et mesure
+   * faite, le biais a 0,45 laissait encore sortir 250 cartes a flagelle sur
+   * 1500 mains. La regle tient sur une phrase : ce qui est SEULEMENT
+   * invraisemblable se regle par un biais, ce qui est LAID se ferme.
    */
   biaisDe(evo) {
     const b = this.espece.biais || {};
@@ -348,7 +354,13 @@ export class Player {
       /* Une carte reservee a une autre souche n'est pas rare : elle n'existe
          pas. Sans ce filtre, un lactobacille pouvait tirer 'Division
          multiplan' et gagner 16 PV pour des cellules qu'il n'a pas. */
-      && (!e.espece || e.espece === this.espece.id));
+      && (!e.espece || e.espece === this.espece.id)
+      /* Et les trois cartes qui font pousser un flagelle sont fermees aux
+         souches qui n'en ont pas. C'est le SEUL endroit ou la regle vit : le
+         rendu ne fait que suivre. Fermer au tirage et non au dessin evite le
+         defaut symetrique, une carte qui applique ses stats sans rien
+         montrer. */
+      && !(this.espece.aflagelle && EVO_FLAGELLE.has(e.id)));
     const hand = [];
     const used = new Set();
     const n = minRarity ? 1 : this.handSize();

@@ -23,7 +23,7 @@
 import { Game, STATE } from '../src/game/game.js';
 import { Player } from '../src/game/player.js';
 import { ESPECES, TIRS } from '../src/data/especes.js';
-import { EVOLUTIONS } from '../src/data/evolutions.js';
+import { EVOLUTIONS, EVO_FLAGELLE } from '../src/data/evolutions.js';
 import { computeStats, theoreticalDps } from '../src/game/stats.js';
 import { makeBullet } from '../src/game/entities.js';
 import { collectDecor } from '../src/game/decor.js';
@@ -102,7 +102,7 @@ const stats = {};
 for (const e of ESPECES) {
   const p = joueurNu(e.id);
   const compte = {};
-  let voieFlagelle = 0, total = 0;
+  let voieFlagelle = 0, total = 0, flagPousse = 0;
   for (let i = 0; i < N_MAINS; i++) {
     /* On remet le joueur a zero a chaque main : sinon les rangs pris
        faussent les tirages suivants. */
@@ -111,15 +111,21 @@ for (const e of ESPECES) {
     for (const c of p.draw()) {
       compte[c.id] = (compte[c.id] || 0) + 1;
       if (c.way === 'flagelle') voieFlagelle++;
+      /* On compte a part les TROIS cartes qui font pousser un flagelle. La
+         voie `flagelle` contient aussi la pompe a protons, les pili et l'EPS,
+         qui ne dessinent rien : mesurer la voie entiere ne dirait pas si un
+         staphylocoque risque de se retrouver avec une queue. */
+      if (EVO_FLAGELLE.has(c.id)) flagPousse++;
       total++;
     }
   }
-  stats[e.id] = { compte, partFlagelle: voieFlagelle / total };
+  stats[e.id] = { compte, partFlagelle: voieFlagelle / total, flagPousse };
   const intrus = reserve.filter((r) => r.espece !== e.id && compte[r.id]);
   const sienne = reserve.filter((r) => r.espece === e.id);
   const tirees = sienne.filter((r) => compte[r.id]);
-  console.log(`  ${e.id.padEnd(14)} flagelle ${(voieFlagelle / total * 100).toFixed(1)} %`
-    + `   cartes reservees tirees ${tirees.length}/${sienne.length}`
+  console.log(`  ${e.id.padEnd(14)} voie flagelle ${(voieFlagelle / total * 100).toFixed(1)} %`
+    + `   cartes a flagelle ${String(flagPousse).padStart(4)}`
+    + `   reservees ${tirees.length}/${sienne.length}`
     + `   intrus ${intrus.length}`);
   verdict(intrus.length === 0, `[${e.id}] aucune carte reservee a une autre souche`,
     intrus.map((r) => r.id).join(' ') || 'aucune');
@@ -135,6 +141,20 @@ verdict(stats.aureus.partFlagelle < stats.lactobacillus.partFlagelle * 0.8,
 verdict(stats.cerevisiae.partFlagelle < stats.lactobacillus.partFlagelle * 0.8,
   'S. cerevisiae tire nettement moins de flagelles que la reference',
   `${(stats.cerevisiae.partFlagelle * 100).toFixed(1)} % contre ${(stats.lactobacillus.partFlagelle * 100).toFixed(1)} %`);
+
+/* Et le verdict qui compte vraiment : ZERO, pas « rare ». Un biais a 0,45
+   laissait encore passer une flagellation toutes les quelques parties, ce qui
+   suffit a voir un staphylocoque battre du flagelle — c'est ce que l'auteur a
+   refuse. Le seuil est donc exact, pas statistique : sur N_MAINS tirages, il
+   ne doit en sortir aucune. */
+verdict(stats.aureus.flagPousse === 0 && stats.cerevisiae.flagPousse === 0,
+  'aucune carte a flagelle pour S. aureus ni S. cerevisiae',
+  `aureus ${stats.aureus.flagPousse}, cerevisiae ${stats.cerevisiae.flagPousse} sur ${N_MAINS} mains`);
+/* Temoin : le filtre doit fermer DEUX souches, pas le catalogue. Sans lui,
+   retirer les trois cartes a tout le monde passerait le verdict precedent. */
+verdict(stats.lactobacillus.flagPousse > 0 && stats.cereus.flagPousse > 0,
+  'les deux souches nageuses les tirent toujours',
+  `lactobacillus ${stats.lactobacillus.flagPousse}, cereus ${stats.cereus.flagPousse}`);
 
 /* ===========================================================================
    3. Les caracteristiques uniques, declenchees pour de vrai

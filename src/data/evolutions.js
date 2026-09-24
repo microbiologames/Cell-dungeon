@@ -270,6 +270,20 @@ export const EVOLUTIONS = [
     note: "Le passage de START, en fin de G1, engage la cellule dans le cycle. Les cyclines G1 en sont l'accelerateur." },
 ];
 
+/**
+ * Les trois evolutions qui font POUSSER un flagelle.
+ *
+ * Ce sont exactement celles que lit `player.flagellation` — les seules dont
+ * l'effet se voit a l'ecran. La voie `flagelle` en contient d'autres
+ * (pompe a protons, pili, EPS) qui ne dessinent rien et restent ouvertes a
+ * tout le monde : la liste est donc nommee par ce qu'elle DESSINE, pas par
+ * la voie a laquelle elle appartient.
+ *
+ * Elle existe parce que deux souches n'ont pas de flagelle et ne doivent pas
+ * pouvoir en gagner un — voir `aflagelle` dans `especes.js`.
+ */
+export const EVO_FLAGELLE = new Set(['flagelle', 'peritriche', 'polaire']);
+
 export const EVO_BY_ID = Object.fromEntries(EVOLUTIONS.map((e) => [e.id, e]));
 
 /** Poids effectif d'une carte, module par l'hypermutateur. */
