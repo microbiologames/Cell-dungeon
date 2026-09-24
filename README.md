@@ -15,7 +15,8 @@ vos victimes et vous volez leurs gènes.
 *B. cereus* (céréulide, **sporule au lieu de mourir**), *S. aureus*
 (alpha-hémolysine, **amas doré qui se déconstruit avec les PV**) et
 *S. cerevisiae* (éthanol, **bourgeonne et renaît en perdant la moitié de son
-génome**). Elles se choisissent en nageant dans leur colonie, au lobby —
+génome**). Elles se choisissent dans **la niche**, une petite maison de
+biofilm posée au bas du lobby où chacune dort dans son alvéole —
 `docs/08-especes-jouables.md`.
 
 **État : maquette jouable.** Tout est dessiné procéduralement, avec quelques

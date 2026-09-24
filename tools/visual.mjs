@@ -129,21 +129,43 @@ for (const e of ESPECES) {
   }, e.id);
 }
 
-/* Le lobby : les quatre colonies de souches doivent se voir et se lire. */
+/* Le lobby et la niche. Deux captures : la maison posee sur la gelose, et
+   l'interieur avec ses quatre alveoles. C'est le seul juge — a cette taille
+   une maison de biofilm et un puits de plus se ressemblent dans le code et
+   pas a l'ecran. */
 {
   const ctx = await browser.newContext({ viewport: { width: 420, height: 840 } });
   const page = await ctx.newPage();
   page.on('pageerror', (ev) => errs.push(`16-lobby: ${ev.message}`));
   await page.goto('http://localhost:8098/');
   await page.click('#btnStart');
-  /* On nage jusqu'a la colonie de S. aureus pour montrer la selection. */
+  /* Devant la porte du dome, pour voir l'anneau de maintien se remplir. */
+  /* En APPROCHE, pas au contact : le nageur couvrirait la porte, qui est
+     justement ce qu'on veut juger. Et SUR L'AXE : un premier essai en
+     diagonale a (-26, 50) tombait dans le puits du levain, la capture
+     partait en stage, et le banc a rendu une image de pate sans rien
+     signaler. D'ou le garde-fou ci-dessous. */
+  await page.evaluate(() => { const l = window.__lobby; l.swim.x = 0; l.swim.y = 44; });
+  await page.waitForTimeout(700);
+  const encoreLobby = await page.evaluate(() => !!window.__lobby && !window.__game);
+  if (!encoreLobby) errs.push('16-lobby: la capture a quitte le lobby (puits touche ?)');
+  await page.screenshot({ path: `${OUT}/16-lobby-niche.png` });
+  console.log('16-lobby-niche'.padEnd(18), 'la niche, vue de la gelose'
+    + (encoreLobby ? '' : '   <- HORS LOBBY'));
+
+  await page.evaluate(() => { const l = window.__lobby; l.entrer(); });
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: `${OUT}/17-niche-dedans`.replace(/$/, '.png') });
+  console.log('17-niche-dedans'.padEnd(18), 'interieur, quatre alveoles');
+
+  /* Au contact de l'alveole de S. cerevisiae : le HUD doit parler d'elle. */
   await page.evaluate(() => {
     const l = window.__lobby;
-    l.swim.x = 80; l.swim.y = 22;
+    l.swim.x = 47; l.swim.y = -15;
   });
-  await page.waitForTimeout(700);
-  await page.screenshot({ path: `${OUT}/16-lobby-souches.png` });
-  console.log('16-lobby-souches'.padEnd(18), 'lobby avec les colonies');
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: `${OUT}/18-niche-alveole.png` });
+  console.log('18-niche-alveole'.padEnd(18), 'au contact d une alveole');
   await ctx.close();
 }
 

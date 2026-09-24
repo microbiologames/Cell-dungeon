@@ -196,23 +196,54 @@ prix à payer.
 
 ---
 
-## Le choix de la souche
+## Le choix de la souche : la niche
 
-Il se fait comme le choix de la matrice : **en nageant**. Quatre petites
-colonies sont posées sur la gélose du lobby, entre les puits et la paroi. On
-entre dans l'une, on **devient** la cellule qu'elle contient — morphologie et
-couleur changent sur-le-champ, et le HUD annonce la caractéristique.
+Il se fait **en nageant**, comme le choix de la matrice — mais dans une
+**pièce à part**. Une petite maison de biofilm est posée au bas de la boîte de
+Petri ; on y entre, on trouve les quatre souches endormies chacune dans son
+alvéole, on va au contact de celle qu'on veut, on la **devient**, et on
+ressort par la porte.
 
-Le maintien est deux fois plus court que pour entrer dans une matrice (0,3 s
-contre 0,65 s) : changer de souche est réversible et gratuit, y entrer ne
-l'est pas. La souche choisie **survit** au retour au lobby et aux parties
-suivantes.
+Le maintien est de 0,3 s partout dans la niche — entrer, changer de souche,
+sortir. C'est la moitié des 0,65 s d'un départ en matrice : tout ce qui se
+passe ici est réversible et gratuit. La souche choisie **survit** au retour au
+lobby et aux parties suivantes.
 
-Géométrie : les colonies sont à 84 px du centre, dans les intervalles de la
-couronne des puits. Mesure : la plus serrée garde 13 px de marge avec le puits
-voisin, et reste à 83 px du centre pour 92 px de nage. Les poser sur la
-couronne elle-même les collait aux puits — et un choix de souche déclenchait
-alors un départ de partie.
+### Pourquoi une pièce, et pas quatre colonies sur la gélose
+
+La version précédente semait les quatre colonies entre les puits. Elle
+marchait, mais elle mélangeait deux gestes de nature différente : on nageait
+dans une colonie pour changer de corps et dans un puits pour partir en
+mission, **avec la même commande et à dix pixels d'écart**. Les rassembler
+dans une pièce sépare les deux — dedans on s'habille, dehors on part.
+
+### Les deux chiffres qui ont tranché
+
+Ce ne sont pas les distances entre centres, mais les **vides entre les traits
+dessinés**, et les deux ont été corrigés sur capture, pas sur calcul :
+
+- **Le dôme.** À (0, 67) pour 16 px de rayon, il restait 2,3 px entre son
+  anneau et celui du puits du kombucha : la maison s'y collait. À (0, 72) pour
+  15 px, il en reste 6,2, et 5 px jusqu'à la paroi de nage.
+- **Les alvéoles.** À 50 px de rayon sur 140°, leurs bourrelets d'EPS se
+  recouvraient et les quatre fondaient en une guirlande. À 56 px sur 150°, il
+  reste 7,3 px de mur entre deux voisines et chacune se lit seule.
+
+### La maison est vue DE CÔTÉ
+
+Au milieu de puits vus de dessus, et c'est le choix qui a fait basculer la
+lecture. Trois essais en vue de dessus : un amas de bosses vertes de 30 px se
+lit comme **un puits de plus**, quelle que soit la quantité de détail qu'on y
+met — porte, cheminée, hublots, tout se noyait. Une façade à toit bombé et
+base plate se lit comme un bâtiment au premier coup d'œil, parce qu'elle est
+la seule chose de la boîte à avoir un **haut** et un **bas**.
+
+L'esthétique reprend le vocabulaire de la plaque de biofilm de la conduite —
+des bosses d'EPS qui se chevauchent, jamais un cercle — mais réchauffée : le
+`#4e7a6a` de la conduite est fait pour un fond noir, posé sur la gélose claire
+il se lit comme une tache. La porte est une arche sombre qui mange le quart de
+la façade, avec une lumière chaude qui bat dedans : à 30 px, une porte « à
+l'échelle » ferait deux pixels et ne se verrait pas.
 
 ---
 
