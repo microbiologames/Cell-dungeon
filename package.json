@@ -8,6 +8,8 @@
     "balance": "node tools/balance-sim.mjs",
     "especes": "node tools/especes.mjs",
     "smoke": "node tools/smoke.mjs",
+    "perf": "node tools/perf.mjs",
+    "jauge": "node tools/jauge.mjs",
     "visual": "node tools/visual.mjs",
     "serve": "python3 -m http.server 8080",
     "playtest": "node tools/playtest.mjs",

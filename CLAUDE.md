@@ -80,6 +80,8 @@ C'est ce qui distingue ce dépôt. Quatre règles payées cher :
 
 ```
 npm run smoke      # le jeu se charge, tourne, reagit — rien n'est casse
+npm run perf       # cout PROCESSEUR par image, sous charge : ce qui decide la machine de la borne
+npm run jauge      # un nombre comparable entre deux machines (node seul, se copie sur un Pi)
 npm run especes    # les 4 souches jouables : stats, tirages, toxines, traits declenches
 npm run visual     # captures en jeu, portrait et paysage
 npm run balance    # simulation d'equilibrage : plateau, decrochage, TTK
@@ -108,6 +110,12 @@ node tools/jeu-publier.mjs   # idem pour le jeu
   **quel que soit son Q**. Dans une réverbe à renvoi 0,8 le gain de boucle
   monte à 0,96 et la queue ne décroît plus. Utiliser un **un-pôle**
   (`IIRFilterNode`), dont le gain est majoré par un.
+- **Le coût d'une image est un PLANCHER, pas une fonction de la population.**
+  Mesuré : ×5 de mobs ne coûte que ×1,3 de temps, et 97 à 99 % du temps part
+  dans le rendu — huit calques floutés puis composités — contre 0,10 ms pour
+  toute la logique. Le rendu est **logiciel et mono-cœur** : le GPU ne fait que
+  l'agrandissement. Optimiser la logique ne rapporte rien ; dimensionner une
+  machine « pour beaucoup de mobs » se trompe de grandeur.
 - **Publication d'une page hébergée : préfixe versionné** (`v6/src/…`,
   `j2/src/…`) changé à chaque fois, **et on ne supprime jamais l'ancien**. Les
   deux moitiés de la règle ont chacune coûté une panne.
@@ -133,6 +141,7 @@ node tools/jeu-publier.mjs   # idem pour le jeu
 | `docs/06-heritage-wet-mount.md` | le rendu : profondeur, flou, mise au point |
 | `docs/07-son.md` | la bande son, le studio, les presets adoptés |
 | `docs/08-especes-jouables.md` | les quatre souches jouables, leurs toxines et leurs traits |
+| `docs/09-borne-microscope.md` | la borne d'arcade microscope : machine, commandes, écran, LEDs, phasage |
 | `.claude/skills/sprites/SKILL.md` | la chaîne sprites et **ce que la génération sait et ne sait pas faire** |
 
 Le code lui-même est commenté en profondeur : `src/audio/son.js`,
@@ -159,6 +168,11 @@ Le code lui-même est commenté en profondeur : `src/audio/son.js`,
   **Une souche par matrice est ecartee** (decision de l'auteur, 24/09/2026) :
   le joueur choisit sa souche au lobby, et une souche imposee par la matrice
   lui reprendrait ce choix. Ne pas y revenir sans nouvelle instruction.
+- **La borne microscope** (`docs/09-borne-microscope.md`) : le plan est posé et
+  la mesure a tranché ce qu'elle pouvait. Prochain pas concret : relever
+  `node tools/jauge.mjs` sur la machine candidate — tout le choix matériel en
+  dépend — et maquetter au navigateur le mappage « rotation → vitesse » avant
+  de commander la moindre pièce.
 - **Le sang** reste à faire, et délibérément en dernier : ce n'est pas une
   goutte mais un **réseau vasculaire** — couloirs, courant pulsatile, système
   immunitaire, hématies qui bousculent. Il réutilisera la conduite, **et c'est
