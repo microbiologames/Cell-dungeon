@@ -155,9 +155,12 @@ Le code lui-même est commenté en profondeur : `src/audio/son.js`,
   (`docs/08-especes-jouables.md`), et leurs évolutions réservées ont leur
   vignette — **sauf `germination`**, que le générateur rend deux fois en boule
   hérissée, son a priori documenté. À dessiner à la main si on y tient ; en
-  attendant la carte s'affiche nue, ce qui ne casse rien. Reste la question
-  ouverte d'une souche par matrice — un *Gluconacetobacter* pour le kombucha
-  aurait sa place.
+  attendant la carte s'affiche nue, ce qui ne casse rien.
+  **Une souche par matrice est ecartee** (decision de l'auteur, 24/09/2026) :
+  le joueur choisit sa souche au lobby, et une souche imposee par la matrice
+  lui reprendrait ce choix. Ne pas y revenir sans nouvelle instruction.
 - **Le sang** reste à faire, et délibérément en dernier : ce n'est pas une
   goutte mais un **réseau vasculaire** — couloirs, courant pulsatile, système
-  immunitaire, hématies qui bousculent. Il réutilisera la conduite.
+  immunitaire, hématies qui bousculent. Il réutilisera la conduite, **et c'est
+  précisément pourquoi il attend** : l'auteur veut d'abord jouer la conduite en
+  vrai. Ne pas le commencer avant ce retour.
