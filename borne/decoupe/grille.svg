@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- grille
+     Cell Dungeon — borne microscope. Genere par tools/laser.mjs.
+     Saignee compensee : 0.18 mm. Unites : millimetres.
+     Rouge = coupe, bleu = gravure (a desactiver si la machine graverait). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="120.18mm"
+     height="80.18mm"
+     viewBox="-0.090 -0.090 120.180 80.180">
+  <rect x="-0.090" y="-0.090" width="120.180" height="80.180" rx="3" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <rect x="12.000" y="15.000" width="3.820" height="49.820" rx="2" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <rect x="22.000" y="15.000" width="3.820" height="49.820" rx="2" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <rect x="32.000" y="15.000" width="3.820" height="49.820" rx="2" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <rect x="42.000" y="15.000" width="3.820" height="49.820" rx="2" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <rect x="52.000" y="15.000" width="3.820" height="49.820" rx="2" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <rect x="62.000" y="15.000" width="3.820" height="49.820" rx="2" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <rect x="72.000" y="15.000" width="3.820" height="49.820" rx="2" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <rect x="82.000" y="15.000" width="3.820" height="49.820" rx="2" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <rect x="92.000" y="15.000" width="3.820" height="49.820" rx="2" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <rect x="102.000" y="15.000" width="3.820" height="49.820" rx="2" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <text x="6.000" y="75.000" font-family="monospace" font-size="3.4" fill="#0055ff">ventilation  21 % ouvert</text>
+</svg>

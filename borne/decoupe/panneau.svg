@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- panneau
+     Cell Dungeon — borne microscope. Genere par tools/laser.mjs.
+     Saignee compensee : 0.18 mm. Unites : millimetres.
+     Rouge = coupe, bleu = gravure (a desactiver si la machine graverait). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="300.18mm"
+     height="160.18mm"
+     viewBox="-0.090 -0.090 300.180 160.180">
+  <rect x="-0.090" y="-0.090" width="300.180" height="160.180" rx="4" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="70.000" cy="80.000" r="11.910" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="32.000" cy="42.000" r="2.010" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="108.000" cy="42.000" r="2.010" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="32.000" cy="118.000" r="2.010" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="108.000" cy="118.000" r="2.010" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="170.000" cy="62.000" r="13.910" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="208.000" cy="70.000" r="13.910" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="246.000" cy="78.000" r="13.910" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="170.000" cy="118.000" r="3.510" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <text x="158.000" y="130.000" font-family="monospace" font-size="3.4" fill="#0055ff">MISE AU POINT</text>
+  <text x="6.000" y="155.000" font-family="monospace" font-size="3.4" fill="#0055ff">panneau de commande  ep.5</text>
+</svg>

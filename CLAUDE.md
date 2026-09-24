@@ -82,6 +82,8 @@ C'est ce qui distingue ce dépôt. Quatre règles payées cher :
 npm run smoke      # le jeu se charge, tourne, reagit — rien n'est casse
 npm run perf       # cout PROCESSEUR par image, sous charge : ce qui decide la machine de la borne
 npm run jauge      # un nombre comparable entre deux machines (node seul, se copie sur un Pi)
+npm run leds       # la boite de Petri de la borne : couleurs, separation, monotonie du virage
+npm run laser      # genere ET verifie les plans de decoupe (borne/decoupe/)
 npm run especes    # les 4 souches jouables : stats, tirages, toxines, traits declenches
 npm run visual     # captures en jeu, portrait et paysage
 npm run balance    # simulation d'equilibrage : plateau, decrochage, TTK
@@ -168,11 +170,14 @@ Le code lui-même est commenté en profondeur : `src/audio/son.js`,
   **Une souche par matrice est ecartee** (decision de l'auteur, 24/09/2026) :
   le joueur choisit sa souche au lobby, et une souche imposee par la matrice
   lui reprendrait ce choix. Ne pas y revenir sans nouvelle instruction.
-- **La borne microscope** (`docs/09-borne-microscope.md`) : le plan est posé et
-  la mesure a tranché ce qu'elle pouvait. Prochain pas concret : relever
-  `node tools/jauge.mjs` sur la machine candidate — tout le choix matériel en
-  dépend — et maquetter au navigateur le mappage « rotation → vitesse » avant
-  de commander la moindre pièce.
+- **La borne microscope** (`docs/09-borne-microscope.md`) : la boîte de Petri
+  lumineuse et les plans de découpe sont faits (`src/borne/leds.js`,
+  `borne/pico/`, `npm run laser`). Prochains pas concrets, tous deux à faire
+  sur du matériel réel : relever `node tools/jauge.mjs` sur la machine
+  candidate — tout le choix matériel en dépend — et découper
+  `borne/decoupe/gabarit-kerf.svg` pour mesurer la saignée avant tout le
+  reste. Restent à écrire : le mode borne (kiosque, attract, son au
+  démarrage) et le cache d'oculaire, qui attend le choix de la dalle.
 - **Le sang** reste à faire, et délibérément en dernier : ce n'est pas une
   goutte mais un **réseau vasculaire** — couloirs, courant pulsatile, système
   immunitaire, hématies qui bousculent. Il réutilisera la conduite, **et c'est

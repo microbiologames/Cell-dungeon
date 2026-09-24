@@ -153,12 +153,42 @@ const DARK = {
   },
 };
 
+/* --- couleur de la BOITE DE PETRI de la borne --------------------------
+   La borne pose une vraie boite de Petri retroeclairee sous l'objectif, et sa
+   couleur suit le stage (docs/09-borne-microscope.md).
+
+   Pourquoi un champ a part et non `bg` : `bg` est le fond du CHAMP OBSERVE,
+   et trois matrices sur cinq l'ont quasi noir (#02070a, #080502, #0a0206).
+   Asservir les LED a `bg` eteindrait la boite sur la conduite, le kombucha et
+   le sang — soit la majorite du jeu. `led` est la couleur du MILIEU vu a
+   l'oeil nu, dans la boite, et non au microscope : un lait cru est blanc, une
+   kombucha est ambree, du sang est rouge. Ce sont deux echelles d'observation
+   differentes, et c'est pour cela qu'elles ont deux couleurs.
+
+   Les cinq teintes sont ecartees en saturation et en clarte autant qu'en
+   teinte, parce que trois des cinq milieux sont reellement dans les
+   jaunes-beiges et qu'on doit malgre tout reconnaitre le stage d'un coup
+   d'oeil. tools/leds.mjs garde cet ecart. */
+
+/** Vers quoi vire la boite quand le joueur acidifie son milieu.
+ *
+ *  Ce n'est pas une licence : c'est le virage des indicateurs colores usuels
+ *  en microbiologie. Pourpre de bromocresol et rouge de phenol, ceux-la memes
+ *  qu'on met dans les milieux lactoses pour lire une fermentation, virent tous
+ *  au JAUNE en milieu acide. Une boite qui jaunit pendant que le pH descend
+ *  dit donc quelque chose de vrai, et de lisible a trois metres. */
+export const LED_ACIDE = hexToRgba('#e8c83c');
+
 export const MATRICES_PALETTE = {
   milk: {
     name: 'LAIT CRU',
     ...BRIGHT,
     /* Le lait : blanc casse, legerement chaud. */
     bg: hexToRgba('#e9e5d7'),
+    /* Du lait cru dans une boite : blanc, a peine creme. La plus claire et la
+       plus desaturee des cinq — c'est ce qui la separe du levain, qui est
+       beige et mat. */
+    led: hexToRgba('#f7efe0'),
     haze: hexToRgba('#cfc9b4', 90),        // nuees de caseine
     /* Les globules gras SONT le lait : a peine plus clairs que le fond,
        avec une paroi nette. C'est ainsi qu'on les voit vraiment. */
@@ -170,6 +200,9 @@ export const MATRICES_PALETTE = {
     name: 'CONDUITE',
     ...DARK,
     bg: hexToRgba('#02070a'),
+    /* La conduite est de l'eau dans de l'acier 316L : la boite prend le bleu
+       froid du metal, seule teinte franchement froide des cinq. */
+    led: hexToRgba('#5fa3c4'),
     haze: hexToRgba('#0a1d26', 70),
     debris: hexToRgba('#26363d'), debrisRim: hexToRgba('#4d6a75'),
     edge: hexToRgba('#1b4250'),
@@ -191,6 +224,8 @@ export const MATRICES_PALETTE = {
     name: 'KOMBUCHA',
     ...DARK,
     bg: hexToRgba('#080502'),
+    /* Un the fermente : ambre franc, sature et sombre. */
+    led: hexToRgba('#b26a15'),
     haze: hexToRgba('#241705', 70),
     debris: hexToRgba('#3b2a12'), debrisRim: hexToRgba('#6b5124'),
     edge: hexToRgba('#59400f'),
@@ -203,6 +238,10 @@ export const MATRICES_PALETTE = {
        separe aussi les deux matrices ouvertes au premier coup d'oeil. */
     ...BRIGHT,
     bg: hexToRgba('#ddd2b6'),
+    /* Une pate a levain crue est beige-gris, plus mate et plus sombre que le
+       lait. C'est la saturation et la clarte qui la distinguent, pas la
+       teinte : les deux milieux sont reellement voisins a l'oeil. */
+    led: hexToRgba('#c4b48a'),
     haze: hexToRgba('#c3b593', 95),        // farine en suspension
     /* Les grains d'amidon SONT le levain : clairs, tres refringents, avec un
        hile marque. Ce sont eux qu'on voit d'abord dans une pate. */
@@ -214,6 +253,8 @@ export const MATRICES_PALETTE = {
     name: 'SANG',
     ...DARK,
     bg: hexToRgba('#0a0206'),
+    /* Du sang total est rouge sombre et tres sature. */
+    led: hexToRgba('#b01527'),
     haze: hexToRgba('#2a0713', 70),
     debris: hexToRgba('#4a1020'), debrisRim: hexToRgba('#7d2338'),
     edge: hexToRgba('#6b1228'),

@@ -22,6 +22,7 @@ import { Bestiary } from './scenes/bestiary.js';
    espece absente garde sa forme procedurale et son animation. */
 import './render/sprite-data.js';
 import { son } from './audio/son.js';
+import { leds } from './borne/leds.js';
 import { drawText } from './core/font.js';
 import { UI } from './data/palette.js';
 import { clamp } from './core/util.js';
@@ -169,6 +170,11 @@ function frame(now) {
   if (input.takeMuet()) son.setMuted(!son.muet);
   if (input.takePanneauSon()) panneauSon = !panneauSon;
   son.observe(scene === SCENE.JEU ? 'jeu' : 'lobby', scene === SCENE.JEU ? game : null, dt);
+  /* La boite de Petri de la borne observe le meme etat que le son, et par le
+     meme chemin. Sans liaison serie elle calcule sa couleur et n'envoie rien :
+     sur telephone et sur la page hebergee, ce n'est qu'un peu d'arithmetique.
+     Mesure a `npm run perf` : sous le bruit, la mediane n'a pas bouge. */
+  leds.observe(scene === SCENE.JEU ? 'jeu' : 'lobby', scene === SCENE.JEU ? game : null, dt);
 
   if (scene === SCENE.LOBBY) {
     input.takePause();
@@ -231,6 +237,10 @@ Object.defineProperty(window, '__scene', { get: () => scene, configurable: true 
 Object.defineProperty(window, '__lobby', { get: () => lobby, configurable: true });
 Object.defineProperty(window, '__bestiaire', { get: () => bestiaire, configurable: true });
 window.__startMatrice = startMatrice;
+/* La borne : la liaison vers la boite de Petri se prend depuis la console au
+   premier montage (`__leds.connecter()`, qui exige un geste), puis le
+   navigateur la redonne seule a chaque allumage. Voir src/borne/leds.js. */
+window.__leds = leds;
 
 /* Pause automatique quand l'onglet part : on ne meurt pas hors de l'ecran. */
 addEventListener('visibilitychange', () => {

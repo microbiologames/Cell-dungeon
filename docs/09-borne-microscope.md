@@ -250,7 +250,10 @@ pendant que l'écran fait le travail.
 
 ## 5. La boîte de Petri rétroéclairée
 
-### La couleur existe déjà dans le code
+> **Fait.** `src/borne/leds.js` pilote la boîte, `borne/pico/` contient le
+> firmware, `npm run leds` garde l'ensemble. Ce qui suit décrit le résultat.
+
+### Pourquoi une couleur dédiée, et pas `bg`
 
 `src/data/palette.js` porte un `bg` par matrice :
 
@@ -262,12 +265,36 @@ pendant que l'écran fait le travail.
 | Kombucha | `#080502` | quasi noir |
 | Sang | `#0a0206` | quasi noir |
 
-**Ne pas asservir les LED à `bg` directement** : trois matrices sur cinq
-éteindraient la boîte. Ajouter un champ dédié `led` à chaque palette — une
-couleur *d'ambiance*, plus saturée, qui dit le milieu plutôt que son fond :
-blanc crème pour le lait, acier bleuté pour la conduite, ambre thé pour le
-kombucha, ocre pour le levain, rouge sombre pour le sang. Cinq lignes de
-données, et le raisonnement reste dans le fichier où il se lit.
+Asservir les LED à `bg` éteindrait donc la boîte sur trois matrices. Chaque
+palette porte un champ **`led`** à part : la couleur du milieu vu **à l'œil
+nu**, dans la boîte, et non au microscope. Un lait cru est blanc, une
+kombucha est ambrée, du sang est rouge — ce sont deux échelles d'observation
+différentes, et c'est pour ça qu'elles ont deux couleurs.
+
+| Matrice | `led` | Allumage | Ce que c'est |
+|---|---|---|---|
+| Lait cru | `#f7efe0` | 0,85 | blanc, à peine crème |
+| Levain | `#c4b48a` | 0,67 | beige-gris, mat |
+| Conduite | `#5fa3c4` | 0,67 | le bleu froid de l'acier 316L |
+| Kombucha | `#b26a15` | 0,62 | ambre de thé fermenté |
+| Sang | `#b01527` | 0,61 | rouge sombre saturé |
+
+Trois des cinq milieux sont réellement dans les jaunes-beiges : ils sont
+écartés en **saturation et en clarté** autant qu'en teinte, et `npm run leds`
+garde cet écart — y compris au pH plancher, où le virage acide les tire tous
+vers le même jaune.
+
+### Le virage acide n'est pas une licence
+
+Quand le joueur acidifie son milieu, la boîte vire vers le jaune
+(`LED_ACIDE`). C'est le comportement des **indicateurs colorés usuels** :
+pourpre de bromocrésol et rouge de phénol, ceux-là mêmes qu'on met dans les
+milieux lactosés pour lire une fermentation, virent tous au jaune en milieu
+acide. Une boîte qui jaunit pendant que le pH descend dit donc quelque chose
+de vrai, et de lisible à trois mètres.
+
+Le **pouls** du danger, lui, est un choix assumé qui ne représente rien de
+réel : c'est une boîte d'arcade, pas une préparation à observer.
 
 ### LED plutôt qu'écran
 
@@ -284,15 +311,23 @@ opale 3 mm, découpé au laser, à au moins 15 mm des LED.
 
 ### Le chemin de la couleur jusqu'aux LED
 
-Le jeu tourne dans un navigateur et ne peut pas toucher les GPIO. Le plus
-simple, et sans second câble : **le Pico qui fait déjà le HID expose aussi un
-port série** (USB CDC), le jeu lui envoie la couleur en **WebSerial** — supporté
-par Chromium sous Linux — et le Pico pilote les WS2812B. Un seul périphérique,
-un seul câble, aucun service à faire démarrer au boot.
+Le jeu tourne dans un navigateur et ne peut pas toucher les GPIO. Le **Pico
+qui fait déjà le HID expose aussi un port série** (USB CDC) : le jeu lui envoie
+`#RRGGBB\n` en **WebSerial**, et le Pico pilote les WS2812B. Un seul
+périphérique, un seul câble, aucun service à démarrer au boot.
+
+Au plus 30 trames par seconde, et seulement quand la couleur bouge — 240 o/s
+sur une liaison à 115 200 bauds, soit 0,2 % de sa capacité. Le jeu **n'attend
+jamais** la fin d'une écriture : une trame perdue coûte une couleur, jamais
+une image.
+
+WebSerial exige un geste de l'utilisateur pour `requestPort()`. La borne le
+demande donc **une seule fois**, à la première mise en service ; ensuite
+`getPorts()` rend le port déjà autorisé sans geste, et elle se rebranche seule
+à chaque allumage. Câblage et mise en service : `borne/pico/README.md`.
 
 Repli si WebSerial pose problème en mode kiosque : un petit service local qui
-écoute en HTTP sur la machine et relaie vers le Pico ; le jeu fait un `fetch`.
-Plus de pièces mobiles, mais entièrement dans des outils déjà connus du dépôt.
+relaie en HTTP vers le Pico ; le jeu fait un `fetch`.
 
 La gélose en résine et les fausses colonies sont hors de ce document : l'auteur
 sait déjà faire.
@@ -321,16 +356,68 @@ Deux points de vigilance propres à ce jeu :
 
 ## 7. La menuiserie, découpée au laser
 
+> **Fait.** `npm run laser` génère les pièces dans `borne/decoupe/` **et
+> vérifie ce qu'il produit**. Les cotes sont toutes paramétrables par variable
+> d'environnement.
+
+### Le kerf se mesure, il ne se devine pas
+
+Le laser **enlève** de la matière, une saignée de l'ordre de 0,2 mm : un trou
+sort plus **grand** que dessiné, une pièce extérieure plus **petite**. Qui ne
+compense pas obtient une boîte qui ballotte et des entretoises qui n'empilent
+pas droit. La saignée dépend de la machine, de la puissance, de la vitesse
+**et** du matériau.
+
+D'où `gabarit-kerf.svg`, **la première pièce à découper** : sept fentes
+corrigées de −0,30 à +0,30 mm. On essaie une chute dans chacune ; celle qui
+entre ferme sans forcer donne la saignée réelle. Puis :
+
+```
+KERF=<ta mesure> npm run laser
+```
+
+### Ce que le banc garde
+
+Un plan faux ne se voit pas à l'écran — il se voit après la découpe, quand la
+matière est consommée. Les verdicts : tout tient sur le plateau, l'empilement
+de la boîte est cohérent (guide > boîte > siège), le diffuseur est pincé des
+deux côtés, l'écart LED-diffuseur est atteint, aucun perçage n'est trop près
+d'un bord ou n'en recouvre un autre, la saignée est compensée dans le bon
+sens, et le XML produit est bien formé.
+
+Le banc a déjà attrapé deux erreurs dans ces plans : un entraxe de vis qui
+plaçait les perçages à 7,9 mm du bord — le MDF se fend là au serrage — et un
+libellé gravé qui cassait le XML et faisait refuser le plan entier.
+
+### Les pièces
+
+La colonne de la boîte, du haut vers le bas :
+
+```
+        [ boîte de Petri posée ]
+  platine-guide     trou ⌀90,4   la boîte s'y encastre (0,4 mm de jeu)
+  platine-siege     trou ⌀84     l'épaulement de 3 mm qui la porte
+        [ diffuseur opale ⌀88, pincé ]
+  entretoise x3     trou ⌀84     les 15 mm qui écartent les LED
+  support-anneau    plein        l'anneau se colle sur le cercle gravé
+```
+
+Plus `panneau.svg` (joystick, trois boutons, molette), `grille.svg`
+(ventilation, à découper **deux fois** : une entrée basse, une sortie haute —
+une seule grille ne ventile rien) et `diffuseur.svg`.
+
+**Les cotes du panneau sont à vérifier sur tes pièces** : ni les joysticks ni
+les boutons d'arcade ne sont normalisés, et un entraxe faux ne se rattrape pas
+après découpe. Découper d'abord le panneau **dans du carton** et y présenter
+les vraies pièces.
+
+### Le reste
+
 Pièces que le laser fait bien ici :
 
 - corps, socle et caisse, en encoches auto-alignantes ;
-- **platine porte-boîte** : logement exact d'une boîte de Petri (⌀ 55 ou
-  90 mm), avec le siège du diffuseur opale dessous ;
 - **cache d'oculaire** autour de l'écran, qui donne la silhouette de microscope
-  sans masquer le HUD ;
-- panneau de commande : perçages du joystick, des boutons ⌀ 24/28 mm, de l'axe
-  de la molette ;
-- grilles de ventilation (§2) ;
+  sans masquer le HUD — reste à générer, il dépend de la dalle choisie ;
 - gabarits de perçage pour le bâti.
 
 Matériaux : MDF 5 mm pour la structure (peu cher, se peint bien, se ponce),
@@ -357,11 +444,11 @@ Peu de choses, et aucune n'est difficile.
 3. **Mode attract** : après N secondes sans entrée, revenir au lobby. Les
    crochets existent déjà (`input.takeAnyPress()`, `window.__startMatrice`).
 4. **Geste sonore initial** : voir §6.
-5. **Sortie couleur vers les LED** : champ `led` dans les palettes, plus
-   l'émission WebSerial (§5).
+5. ~~**Sortie couleur vers les LED**~~ — fait (§5).
 6. **Mappage des molettes de platine**, si et seulement si la maquette du §3
    conclut qu'elles valent le coup.
 7. **Verrouillage de la fréquence d'image** si on descend à 30 Hz (§2).
+8. **Cache d'oculaire** à générer, une fois la dalle choisie (§7).
 
 ---
 
@@ -372,8 +459,8 @@ Peu de choses, et aucune n'est difficile.
 | **0. Trancher** | Jauge sur la machine candidate ; maquette du mappage molette au navigateur | La machine est choisie sur un chiffre, et le sort de la double molette est réglé |
 | **1. Le cœur jouable** | Machine + écran + joystick + molette, posés sur une planche, sans menuiserie | On joue un run complet avec les vraies commandes |
 | **2. Le mode borne** | Kiosque, service local, attract, son au démarrage | La borne s'allume seule et joue sans clavier |
-| **3. La boîte de Petri** | Champ `led`, Pico, WS2812B, diffuseur | La couleur suit le stage, et pulse |
-| **4. La menuiserie** | Carton, puis MDF et acrylique | La borne tient debout |
+| **3. La boîte de Petri** | ~~Champ `led`, protocole~~ fait ; reste le câblage réel | La couleur suit le stage, et pulse |
+| **4. La menuiserie** | ~~Plans~~ faits ; reste le gabarit de saignée, le carton, puis le MDF | La borne tient debout |
 | **5. Finitions** | Peinture, marquages, étiquettes d'objectif, gélose en résine | — |
 
 La phase 1 est **jouable de bout en bout**. C'est voulu : on veut jouer avec le
@@ -392,6 +479,10 @@ sang attend qu'on ait joué la conduite pour de vrai.
 - **Microscope recyclé ou bâti sur mesure** — un vrai corps de microscope donne
   la molette de mise au point gratuitement et une crédibilité qu'aucune découpe
   n'atteindra ; un bâti sur mesure loge la machine et l'écran sans compromis.
-- **Chemin des LED** — WebSerial (recommandé) ou service local.
-- **Les palettes `led`** — cinq couleurs d'ambiance à choisir, avec la même
-  exigence que le reste : ce sont des couleurs de *milieu*, elles se justifient.
+- **Diamètre de la boîte de Petri** — les plans partent de 90 mm ; `D_BOITE=55
+  npm run laser` régénère tout pour une petite boîte. Mesurer la boîte qu'on a :
+  les moules varient de quelques dixièmes, et c'est justement l'ordre de
+  grandeur du jeu recherché.
+- **Alimentation de l'anneau de LED** — sur le port USB (luminosité plafonnée
+  à 0,35, soit 340 mA pour 16 LED) ou alimentation 5 V séparée, qui lève le
+  plafond. Voir `borne/pico/README.md`.

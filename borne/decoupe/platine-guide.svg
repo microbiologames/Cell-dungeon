@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- platine-guide
+     Cell Dungeon — borne microscope. Genere par tools/laser.mjs.
+     Saignee compensee : 0.18 mm. Unites : millimetres.
+     Rouge = coupe, bleu = gravure (a desactiver si la machine graverait). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="140.18mm"
+     height="140.18mm"
+     viewBox="-0.090 -0.090 140.180 140.180">
+  <rect x="-0.090" y="-0.090" width="140.180" height="140.180" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="70.000" cy="70.000" r="45.110" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="13.000" cy="13.000" r="2.010" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="127.000" cy="13.000" r="2.010" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="13.000" cy="127.000" r="2.010" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <circle cx="127.000" cy="127.000" r="2.010" stroke="#ff0000" stroke-width="0.1" fill="none"/>
+  <text x="6.000" y="135.000" font-family="monospace" font-size="4" fill="#0055ff">platine-guide  ep.5  kerf 0.18</text>
+</svg>
