@@ -41,7 +41,7 @@ import {
   tamponBruit, courbeGrain, banqueOndes, Canal, Percu, Kick, reverbe, delaiPingPong,
 } from './voix.js';
 import {
-  GAMMES, PRESETS, RACKS, VOIX, GRAINE_ADOPTEE, decoderCode, encoderCode,
+  GAMMES, PRESETS, RACKS, VOIX, GRAINE_ADOPTEE, decoderCode, encoderCode, rackBoss,
 } from '../data/son-presets.js';
 
 /* Reexporte pour les bancs : ils doivent mesurer la graine qui SERA jouee. */
@@ -74,6 +74,41 @@ const CLAP_FANTOME = [7, 15, 23, 30];
 
 /* ------------------------------------------------------------- moteur ---- */
 
+/**
+ * Le timbre de chaque biocide du NEP.
+ *
+ * La table est LOCALE a l'audio et nommee par identifiant : le moteur de son
+ * n'importe rien de `pipe.js`, c'est tout le principe d'`observe()`. Le prix
+ * est qu'un biocide ajoute la-bas doit etre ajoute ici ; `defaut` evite que
+ * l'oubli fasse un silence, et le banc le signale.
+ *
+ * Ce qui varie est ce qui DISTINGUE les quatre chimies pour le joueur, parce
+ * que chacune a un contre different et qu'il doit le reconnaitre avant de
+ * voir la banniere :
+ *
+ *   soude          l'attaque de surface : grave, sourde, on s'en abrite.
+ *                  Degre 0 a l'octave basse, bruit a 120 Hz ;
+ *   nitrique       le choc de pH : un demi-ton AU-DESSUS de la tonique, le
+ *                  frottement le plus dur de la gamme. L'abri ne sert a
+ *                  rien, et ca s'entend ;
+ *   hypochlorite   l'oxydant metallique : quinte, bruit a 2,6 kHz ;
+ *   peracetique    celui que l'abri ne sauve pas : le plus haut, le plus
+ *                  long, le plus brillant. Le seul a monter d'une octave.
+ */
+const BIOCIDE_TIMBRE = {
+  soude: { degre: 0, octave: -1, bruit: 120, duree: 0.9, niveau: 0.22 },
+  nitrique: { degre: 0, octave: 0, demiTons: 1, bruit: 900, duree: 0.7, niveau: 0.2 },
+  hypochlorite: { degre: 4, octave: 0, bruit: 2600, duree: 0.6, niveau: 0.18 },
+  peracetique: { degre: 4, octave: 1, bruit: 4200, duree: 1.1, niveau: 0.18 },
+  defaut: { degre: 0, octave: 0, bruit: 600, duree: 0.7, niveau: 0.2 },
+};
+
+/* Seuils de la couleur acide, avec HYSTERESIS : sans elle, un joueur qui
+   stationne pile sur un seuil fait clignoter l'accord a chaque image. Ecart
+   de 0,08, soit un aller-retour de 8 % du champ de pH pour rebasculer. */
+const ACIDE_SEUILS = [0.35, 0.70];
+const ACIDE_HYST = 0.08;
+
 const LOOKAHEAD = 0.12;     // s planifiees a l'avance
 const TIC = 25;             // ms entre deux reveils du planificateur
 
@@ -101,8 +136,18 @@ export class Son {
     this.miseAuPoint = 0;
     this.danger = 0;
     this.acidite = 0;
+    /* Nombre d'alterations d'un demi-ton posees sur l'accord de nappe : 0, 1
+       ou 2. Voir `jouerPas`. Reste a 0 sans le senseur de pH. */
+    this.couleurAcide = 0;
     this.ambiance = 'ambiant';
     this.aBoss = false;
+    this.rackBossPose = false;
+
+    /* Scenario du NEP : la phase observee, le temps qu'il reste avant que le
+       front parte, et le biocide en cours. */
+    this.nepPhase = 'attente';
+    this.nepReste = 0;
+    this.nepBiocide = 'defaut';
 
     /* Detection de fronts : c'est ainsi qu'on deduit les evenements sans
        toucher au code de jeu. */
@@ -445,12 +490,21 @@ export class Son {
     this.tension.appliquerTimbre(r.tension);
   }
 
-  /** Frequence d'un degre de la gamme courante, a l'octave donnee. */
-  freq(degre, octave = 0) {
+  /**
+   * Frequence d'un degre de la gamme courante, a l'octave donnee.
+   *
+   * `demiTons` est une alteration CHROMATIQUE, hors gamme. Elle existe parce
+   * que la couleur acide doit marcher sur les quatre modes adoptes, et qu'une
+   * alteration par degre de gamme n'y arrive pas : le kombucha est deja en
+   * phrygien (rien a baisser) et le levain en pentamineure (ni seconde ni
+   * sixte a toucher). Mesure sur les presets adoptes : une regle par degre
+   * n'aurait rien change sur deux stages sur quatre.
+   */
+  freq(degre, octave = 0, demiTons = 0) {
     const g = this.gamme;
     const n = ((degre % g.length) + g.length) % g.length;
     const oct = Math.floor(degre / g.length) + octave;
-    const midi = this.amb.tonique + g[n] + oct * 12;
+    const midi = this.amb.tonique + g[n] + oct * 12 + demiTons;
     return 440 * Math.pow(2, (midi - 69) / 12);
   }
 
@@ -493,7 +547,19 @@ export class Son {
     /* --- nappe : toujours la, elle tient l'harmonie -------------------- */
     if (pas % 16 === 0) {
       const accord = [0, 2, 4].map((d) => degreAccord + d);
-      this.nappe.forEach((c, i) => c.jouer(t, this.freq(accord[i], ambiant ? -1 : 0)));
+      /* COULEUR ACIDE. L'accord s'affaisse par le HAUT quand le milieu
+         s'acidifie : la quinte tombe d'un demi-ton (le triton, le frottement
+         le plus reconnaissable), puis la tierce la suit. La fondamentale ne
+         bouge jamais — c'est elle qui tient la tonalite, la baisser ferait
+         entendre une modulation et non une couleur.
+
+         Alteration CHROMATIQUE et non diatonique, et par PALIERS et non en
+         continu : un glissando de la nappe contre une basse fixe s'entend
+         comme un desaccordage, c'est-a-dire comme une panne. */
+      const alt = [0, 0, 0];
+      if (this.couleurAcide >= 1) alt[2] = -1;
+      if (this.couleurAcide >= 2) alt[1] = -1;
+      this.nappe.forEach((c, i) => c.jouer(t, this.freq(accord[i], ambiant ? -1 : 0, alt[i])));
     }
     if (ambiant) {
       /* Dans le lobby, une note isolee de temps en temps, et c'est tout.
@@ -546,8 +612,27 @@ export class Son {
       this.vLead.jouer(t, this.freq(degreAccord + saut, 1));
     }
 
-    /* --- tension : un battement sourd quand la vie descend -------------- */
-    if (this.danger > 0.3 && pas % 8 === 0) {
+    /* --- NEP : la montee de tension pendant le telegraphe ---------------- */
+    /* Le cycle previent 8 s a l'avance (`TELEGRAPHE` dans pipe.js) et c'est
+       tout ce qu'il faut : une montee de bruit qui se resserre et monte en
+       frequence. Elle prend la voix `tension` et lui passe DEVANT le
+       battement de vie basse — les deux au meme instant ne feraient pas deux
+       sons mais un seul hache, une percussion n'ayant qu'une voix. Le NEP
+       gagne : c'est lui qui va tuer dans huit secondes. */
+    if (this.nepPhase === 'telegraphe') {
+      const m = this.montee;
+      /* De une frappe toutes les 4 doubles croches a une par double croche :
+         c'est le RESSERREMENT qui fait la montee, pas le niveau seul. */
+      const ecart = Math.max(1, Math.round(4 - 3 * m));
+      if (pas % ecart === 0) {
+        /* m au carre : une rampe lineaire s'entend comme un mouvement
+           regulier, donc comme un decor. Le carre garde la montee discrete
+           les cinq premieres secondes et la precipite sur les trois
+           dernieres, ce qui est la forme d'une alarme. */
+        this.tension.frappe(t, 0.25 + 0.75 * m, { freq: 1 + 5 * m * m, duree: 0.3 + 0.5 * m });
+      }
+    } else if (this.danger > 0.3 && pas % 8 === 0) {
+      /* --- tension : un battement sourd quand la vie descend ------------ */
       this.tension.frappe(t, this.danger, { freq: 1 + 0.73 * this.danger });
     }
   }
@@ -576,9 +661,20 @@ export class Son {
     } else if (type === 'niveau') {
       this.stinger.note(t, this.freq(d + 7, 2), 0.3, 0.12,
         { a: 0.004, d: 0.2, s: 0.5, r: 0.3 });
-    } else if (type === 'boss' || type === 'nep') {
+    } else if (type === 'boss') {
       this.stinger.note(t, this.freq(d, -1), 0.6, 0.2,
         { a: 0.01, d: 0.4, s: 0.6, r: 0.7 });
+    } else if (type === 'nep') {
+      /* L'impact porte le TIMBRE DU BIOCIDE. Les quatre chimies ont quatre
+         contres differents ; le joueur a huit secondes pour choisir le bon,
+         et reconnaitre lequel arrive a l'oreille lui rend ces huit secondes
+         entieres au lieu de les passer a lire la banniere. */
+      const b = BIOCIDE_TIMBRE[this.nepBiocide] || BIOCIDE_TIMBRE.defaut;
+      this.stinger.note(t, this.freq(d + b.degre, b.octave, b.demiTons || 0),
+        b.duree, b.niveau, { a: 0.006, d: 0.35, s: 0.5, r: b.duree });
+      /* Et un coup de bruit accorde sur la meme chimie : c'est lui qui fait
+         la difference entre la soude sourde et le peracetique brillant. */
+      this.tension.frappe(t, 1, { freq: b.bruit / 220, duree: b.duree });
     }
   }
 
@@ -597,6 +693,14 @@ export class Son {
 
       if (scene !== 'jeu' || !game) {
         if (this.ambiance !== 'ambiant') this.appliquerAmbiance('ambiant');
+        /* Sortir d'un stage sur un boss vivant laissait le lobby avec la
+           palette du boss : `appliquerAmbiance` repose le rack de l'ambiance,
+           mais l'etat, lui, restait vrai et le boss suivant ne le reposait
+           donc jamais. */
+        this.aBoss = false;
+        this.rackBossPose = false;
+        this.nepPhase = 'attente';
+        this.couleurAcide = 0;
         this.intensite += (0 - this.intensite) * k;
         this.miseAuPoint += (0 - this.miseAuPoint) * k;
         this.danger += (0 - this.danger) * k;
@@ -634,14 +738,55 @@ export class Son {
       const etendue = Math.max(0.2, c.phStart - c.phFloor);
       this.acidite = clamp((c.phStart - game.ph) / etendue, 0, 1) * 2 - 1;
 
+      /* COULEUR ACIDE : conditionnee au SENSEUR DE pH, et c'est une decision
+         de conception, pas une precaution technique. `game.ph` est le pH
+         LOCAL, releve sous le joueur (`game.js`, phField.at) : sans la carte
+         en fausses couleurs que l'evolution `phsense` affiche, l'accord
+         changerait en se deplacant sans que rien a l'ecran ne dise pourquoi.
+         Un effet dont on ne peut pas voir la cause ne s'entend pas comme une
+         information, il s'entend comme une panne. Avec la carte, les deux
+         disent la meme chose et se confirment.
+
+         Consequence assumee : la carte est une rare, donc la plupart des
+         parties n'entendront jamais cette couleur. C'est le prix. */
+      const voitPh = !!(game.player.flags && game.player.flags.has('phsense'));
+      const acide = (this.acidite + 1) / 2;
+      let n = 0;
+      for (const seuil of ACIDE_SEUILS) {
+        /* L'hysteresis se lit dans le sens du franchissement : on monte au
+           seuil, on ne redescend qu'un cran plus bas. */
+        const monte = n === this.couleurAcide ? seuil : seuil - ACIDE_HYST;
+        if (acide >= monte) n++;
+      }
+      this.couleurAcide = voitPh ? n : 0;
+
       /* --- fronts : les evenements se DEDUISENT ------------------------- */
       if (game.flash > 0.25 && this.vuFlash <= 0.25) this.evenement('coup');
       this.vuFlash = game.flash;
       if (p.kills > this.vuKills) { this.evenement('kill'); this.vuKills = p.kills; }
       if (p.level > this.vuNiveau) { this.evenement('niveau'); this.vuNiveau = p.level; }
       const boss = !!(game.boss && game.boss.alive);
-      if (boss !== this.aBoss) { if (boss) this.evenement('boss'); this.aBoss = boss; }
-      const nep = game.conduite ? game.conduite.cip.etat : 'attente';
+      if (boss !== this.aBoss) {
+        if (boss) this.evenement('boss');
+        this.aBoss = boss;
+        /* La palette de boss transforme le rack de la MATRICE, elle ne le
+           remplace pas : voir `rackBoss`. On repasse par le meme chemin que
+           le studio, donc rien de nouveau a maintenir. */
+        this.poserRackBoss(boss);
+      }
+      /* Le NEP : on retient la phase, le temps restant et le biocide. Le
+         temps restant sert a la montee, le biocide au timbre de l'impact —
+         et il faut le lire AVANT le front, puisque `cip.index` avance des
+         que la vague est passee. */
+      if (game.conduite) {
+        const cip = game.conduite.cip;
+        this.nepPhase = cip.etat;
+        this.nepReste = cip.t;
+        this.nepBiocide = game.conduite.biocide.id;
+      } else {
+        this.nepPhase = 'attente';
+      }
+      const nep = this.nepPhase;
       if (nep !== this.vuNep) { if (nep === 'vague') this.evenement('nep'); this.vuNep = nep; }
 
       this.majCouches();
@@ -649,6 +794,33 @@ export class Son {
       /* L'observation ne doit jamais casser la boucle de jeu. */
       this.mort = true;
     }
+  }
+
+  /**
+   * Avancement de la montee du NEP, de 0 a 1. Hors telegraphe, zero.
+   *
+   * Un seul endroit la calcule parce que DEUX en ont besoin — `jouerPas`
+   * pour la densite des frappes, `majCouches` pour ouvrir leur bus — et que
+   * deux copies d'une meme rampe divergent le jour ou l'une est corrigee.
+   */
+  get montee() {
+    if (this.nepPhase !== 'telegraphe') return 0;
+    return clamp(1 - this.nepReste / 8, 0, 1);
+  }
+
+  /**
+   * Pose ou retire la palette de boss, en passant par `appliquerRack`.
+   *
+   * On ne touche ni a l'ambiance ni aux presets : la palette est calculee a
+   * partir du rack de la matrice courante, donc un boss du lait cru garde le
+   * lead acide du lait cru. Retirer la palette, c'est reappliquer le rack tel
+   * qu'il est emballe — aucune valeur a memoriser, donc aucune a perdre.
+   */
+  poserRackBoss(actif) {
+    if (!this.pret || actif === this.rackBossPose) return;
+    this.rackBossPose = actif;
+    const base = RACKS[this.ambiance] || RACKS.milk;
+    this.appliquerRack(this.ambiance, false, actif ? rackBoss(base) : null);
   }
 
   /** Rampes de gain des couches. Jamais de coupure, uniquement des pentes. */
@@ -666,7 +838,13 @@ export class Son {
     this.rampe(g.break.gain, ambiant ? 0.0001 : 0.5 * seuil(0.12, 0.45), tau);
     this.rampe(g.ostinato.gain, ambiant ? 0.0001 : 0.32 * seuil(0.25, 0.6), tau);
     this.rampe(g.lead.gain, ambiant ? 0.22 : 0.3 * seuil(0.4, 0.8), tau);
-    this.rampe(g.tension.gain, this.danger * 0.5, 0.8);
+    /* La couche de tension porte DEUX choses : le battement de vie basse et
+       la montee du NEP. Son gain doit donc suivre la plus forte des deux.
+       Defaut mesure en ecrivant le banc : avec le seul `danger`, un joueur a
+       pleine vie voyait la montee du NEP planifiee dans un bus a gain nul —
+       rms x1,00 entre le debut et la fin de la montee, c'est-a-dire rien.
+       Le riser existait, personne ne pouvait l'entendre. */
+    this.rampe(g.tension.gain, Math.max(this.danger * 0.5, this.montee * 0.6), 0.8);
 
     /* Le passe-bas master suit la mise au point. Une octave et demie de
        course : assez pour s'entendre, pas assez pour etouffer. */
@@ -713,6 +891,11 @@ export class Son {
       ambiance: this.ambiance,
       intensite: this.intensite, miseAuPoint: this.miseAuPoint,
       danger: this.danger, acidite: this.acidite,
+      /* Les trois nouveaux sont lisibles a la touche L : sans eux, un accord
+         qui ne s'affaisse pas laisse le choix entre « le mappage est faux »
+         et « le timbre ne s'entend pas », et on regle a l'aveugle. */
+      couleurAcide: this.couleurAcide, boss: this.rackBossPose,
+      nep: this.nepPhase,
     };
   }
 }

@@ -84,7 +84,7 @@ npm run especes    # les 4 souches jouables : stats, tirages, toxines, traits de
 npm run visual     # captures en jeu, portrait et paysage
 npm run balance    # simulation d'equilibrage : plateau, decrochage, TTK
 npm run sheet      # planche de contact : chaque espece a sa taille reelle
-npm run son:check      # 12 verdicts sur la bande son, rendue HORS LIGNE et mesuree
+npm run son:check      # 17 verdicts sur la bande son, rendue HORS LIGNE et mesuree
 npm run son:studio     # 23 verdicts sur le studio sonore, conduit dans un navigateur
 npm run son:publier    # fabrique ET verifie la copie hebergeable du studio
 node tools/jeu-publier.mjs   # idem pour le jeu
@@ -143,10 +143,14 @@ Le code lui-même est commenté en profondeur : `src/audio/son.js`,
 
 ## Chantiers ouverts
 
-- **Musique, passe B** : scénario du NEP (montée de tension, impact, timbre par
-  biocide), ostinato de biofilm tant qu'un producteur d'alginate vit, palette de
-  boss dédiée, couleur harmonique pilotée par le pH, automate cellulaire. La
-  direction artistique est calée (`docs/07-son.md`), on peut y aller.
+- **Musique, passe B : faite** (24/09/2026, `docs/07-son.md`). Trois mécanismes
+  livrés — couleur harmonique pilotée par le pH, palette de boss, scénario du
+  NEP avec un timbre par biocide — et deux écartés par l'auteur : l'ostinato de
+  biofilm et l'automate cellulaire. Ne pas les reproposer.
+  **La couleur acide est conditionnée à l'évolution `phsense`**, et c'est une
+  décision de conception, pas une précaution : `game.ph` est le pH *local*, et
+  un effet dont le joueur ne peut pas voir la cause s'entend comme une panne,
+  pas comme une information.
 - **Deux écarts de niveau connus et assumés** : le lobby est 16 dB sous les
   stages, le lait cru 2,4 dB au-dessus des trois autres. Conséquences chiffrées
   de choix faits à l'oreille, laissées telles quelles faute d'une décision

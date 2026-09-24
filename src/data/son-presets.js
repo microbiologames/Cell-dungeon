@@ -32,7 +32,7 @@
 
 import { VOIX, CHAMPS_PAR_GENRE, RACKS } from './son-instruments.js';
 
-export { VOIX, CHAMPS_PAR_GENRE, RACKS, MACHINES, SENS } from './son-instruments.js';
+export { VOIX, CHAMPS_PAR_GENRE, RACKS, MACHINES, SENS, rackBoss } from './son-instruments.js';
 
 /** Demi-tons d'une gamme mineure naturelle et de ses variantes. */
 export const GAMMES = {

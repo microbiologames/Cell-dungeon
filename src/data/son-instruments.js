@@ -246,6 +246,44 @@ export const RACKS = {
   levain: rack(),
 };
 
+/**
+ * La palette de BOSS. Elle ne remplace pas le rack de la matrice, elle le
+ * TRANSFORME : un boss du lait cru doit garder le lead acide qui fait
+ * l'identite du lait cru, assombri. Poser un rack fixe aurait efface la
+ * matrice au moment precis ou le joueur en reconnait le mieux le decor.
+ *
+ * Quatre gestes, et pas un de plus — une palette de boss qui change tout
+ * s'entend comme un changement de morceau, pas comme une menace :
+ *
+ *   nappe      coupure divisee par deux et desaccord porte de 8 a 26 cents.
+ *              C'est le geste principal : l'unisson large et sombre est ce
+ *              qui dit « quelque chose de gros est entre » ;
+ *   sub        tenue et relache allongees (0,7 -> 0,9 / 0,26 -> 0,5) : le bas
+ *              cesse de respirer entre deux frappes, il pese ;
+ *   ostinato   passe en FM metallique. Le motif ne change pas, son grain si ;
+ *   tension    descendue de 220 a 150 Hz et allongee : le battement sourd
+ *              devient un coeur.
+ *
+ * Aucun `niveau` de patch n'est touche — et pourtant la palette sort +1,9 dB
+ * plus fort (rms x1,26, mesure). L'ecart vient de la matiere, pas du gain :
+ * la FM remplit la bande de l'ostinato et le sub tenu ne se vide plus entre
+ * deux frappes. C'est ce qu'on veut d'un boss, et ca tient : crete mesuree a
+ * 0,21, tres loin du 1,0 ou ca ecrete. La regle a retenir est donc l'inverse
+ * de l'intuition — ici, monter un `niveau` serait ce qui casserait tout,
+ * parce qu'il s'ajouterait a un +1,9 dB deja acquis.
+ */
+export function rackBoss(base) {
+  const r = JSON.parse(JSON.stringify(base));
+  r.nappe.coupure = Math.max(200, r.nappe.coupure * 0.5);
+  r.desaccord = 26;
+  r.sub.tenue = 0.9;
+  r.sub.relache = 0.5;
+  Object.assign(r.ostinato, { modele: 'fm', timbre1: 0.55, timbre2: 0.4 });
+  r.tension.frequence = 150;
+  r.tension.duree = 0.8;
+  return r;
+}
+
 /* ----------------------------------------------------------- machines --- */
 
 /**

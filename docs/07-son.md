@@ -524,13 +524,127 @@ Touche **M** : couper. On ne règle pas les mappages à l'oreille seule — il f
 voir les grandeurs observées pour savoir si c'est le mappage ou le timbre qui
 ne va pas.
 
-## Ce qui vient après
+## La passe B (24/09/2026)
 
-**La passe B attend que la DA soit calée**, et c'est délibéré : son matériau
-(riser de NEP, ostinato de biofilm, palette de boss) se règle sur des timbres.
-Le coder avant de figer les presets, c'est payer le réglage deux fois.
+La passe A a construit le moteur ; la passe B lui fait **raconter** ce qui se
+passe. Elle attendait que la DA soit calée, et c'était délibéré : son matériau
+se règle sur des timbres, le coder avant de figer les presets aurait payé le
+réglage deux fois. Les cinq codes adoptés étant écrits, le verrou est levé.
 
-Au programme : scénario du NEP (montée de tension, impact, timbre par
-biocide), ostinato de biofilm tant qu'un producteur d'alginate vit, palette de
-boss dédiée, couleur harmonique pilotée par le pH, et l'automate cellulaire
-qui fera émerger les motifs d'une simulation microbienne.
+Cinq chantiers étaient au programme. **Trois ont été faits, deux abandonnés**
+sur décision de l'auteur :
+
+| Chantier | Décision |
+|---|---|
+| Couleur harmonique pilotée par le pH | fait, **sous condition** |
+| Palette de boss dédiée | fait |
+| Scénario du NEP | fait |
+| Ostinato de biofilm tant qu'un producteur d'alginate vit | **abandonné** |
+| Automate cellulaire faisant émerger les motifs | **abandonné** |
+
+### La couleur acide, et pourquoi elle se mérite
+
+L'accord de nappe **s'affaisse par le haut** quand le milieu s'acidifie : la
+quinte tombe d'un demi-ton — le triton, le frottement le plus reconnaissable —
+puis la tierce la suit. La fondamentale ne bouge jamais : c'est elle qui tient
+la tonalité, la baisser ferait entendre une modulation et non une couleur.
+
+Trois choix, chacun contre une alternative qui paraissait plus simple :
+
+- **Altération chromatique, pas diatonique.** Baisser un degré de gamme ne
+  marche pas sur les modes adoptés : le kombucha est déjà en phrygien (rien à
+  baisser) et le levain en pentamineure (ni seconde ni sixte à toucher). Une
+  règle par degré n'aurait rien changé sur **deux stages sur quatre**.
+- **Par paliers, pas en continu.** Un glissando de la nappe contre une basse
+  fixe s'entend comme un désaccordage, c'est-à-dire comme une panne. Deux
+  seuils (0,35 et 0,70) avec une hystérésis de 0,08 — sans elle, un joueur
+  posté pile sur un seuil fait clignoter l'accord à chaque image.
+- **Conditionnée au senseur de pH.** C'est la condition posée par l'auteur, et
+  elle est juste : `game.ph` est le pH **local**, relevé sous le joueur. Sans
+  la carte en fausses couleurs qu'affiche l'évolution `phsense`, l'accord
+  changerait en se déplaçant sans que rien à l'écran ne dise pourquoi — et un
+  effet dont on ne peut pas voir la cause ne s'entend pas comme une
+  information, il s'entend comme une panne. Conséquence assumée : `phsense`
+  est une rare, donc la plupart des parties n'entendront jamais cette couleur.
+
+Mesuré : **0,75 d'écart dans la bande de la nappe**, contre un témoin à 0,10
+(le même état rendu deux fois — le plancher vient du tampon de bruit, tiré à
+chaque instance). En large bande l'écart tombe à 0,11, ce qui est le vrai
+enseignement de la mesure : **une voix sur six qui change d'un demi-ton ne se
+mesure pas sur le mix entier**. Il faut regarder là où le mécanisme agit.
+
+### La palette de boss TRANSFORME le rack, elle ne le remplace pas
+
+Poser un rack fixe aurait effacé l'identité de la matrice au moment précis où
+le joueur en reconnaît le mieux le décor — un boss du lait cru doit garder le
+lead acide qui fait le lait cru, assombri. `rackBoss(base)` applique donc
+quatre gestes au rack courant : coupure de nappe divisée par deux, désaccord
+porté de 8 à 26 cents, sub tenu, ostinato en FM métallique, tension descendue
+de 220 à 150 Hz. Elle passe par `appliquerRack`, le même chemin que le studio.
+
+**Aucun niveau de patch n'est touché, et pourtant elle sort +1,9 dB plus fort**
+(rms ×1,26). L'écart vient de la matière : la FM remplit la bande de
+l'ostinato et le sub tenu ne se vide plus entre deux frappes. Crête mesurée à
+0,21, très loin de l'écrêtage. La règle à retenir est l'inverse de l'intuition :
+ici, **monter un `niveau` serait ce qui casserait tout**, puisqu'il s'ajouterait
+à un +1,9 dB déjà acquis.
+
+### Le NEP : huit secondes rendues au joueur
+
+Le cycle prévient 8 s à l'avance (`TELEGRAPHE`, `pipe.js`). La montée est un
+bruit qui **se resserre** — d'une frappe toutes les quatre doubles croches à
+une par double croche — et qui monte en fréquence. La rampe est en *m²* et non
+linéaire : une rampe régulière s'entend comme un décor, le carré garde la
+montée discrète les cinq premières secondes et la précipite sur les trois
+dernières, ce qui est la forme d'une alarme.
+
+L'impact porte le **timbre du biocide**. Les quatre chimies ont quatre contres
+différents ; reconnaître laquelle arrive à l'oreille rend au joueur les huit
+secondes qu'il passait à lire la bannière.
+
+| Biocide | Contre | Timbre |
+|---|---|---|
+| Soude | s'abriter | grave, sourd, octave basse, bruit à 120 Hz |
+| Acide nitrique | tolérance à l'acide | **un demi-ton au-dessus de la tonique** — le frottement le plus dur ; l'abri ne sert à rien, et ça s'entend |
+| Hypochlorite | catalase | quinte, bruit métallique à 2,6 kHz |
+| Acide peracétique | catalase + efflux | le plus haut, le plus long, le plus brillant : le seul que l'abri ne sauve pas |
+
+La table est **locale à l'audio** et nommée par identifiant : le moteur de son
+n'importe rien de `pipe.js`, c'est tout le principe d'`observe()`. Le prix est
+qu'un biocide ajouté là-bas doit l'être ici ; un `defaut` évite que l'oubli
+fasse un silence, et le banc le signale.
+
+### Le défaut que le banc a trouvé, et qu'aucune oreille n'aurait trouvé
+
+La couche de tension porte deux choses : le battement de vie basse et la
+montée du NEP. Son gain suivait le seul `danger`. **Un joueur à pleine vie
+voyait donc la montée planifiée dans un bus à gain nul** — rms ×1,00 entre le
+début et la fin de la montée. Le riser existait, personne ne pouvait
+l'entendre, et rien n'aurait levé d'exception. Le gain suit désormais la plus
+forte des deux causes : ×1,53 mesuré.
+
+C'est la règle 1 du dépôt dans sa forme la plus nue : un moteur audio qui ne
+lève pas d'exception peut très bien ne produire que du silence.
+
+### Les cinq verdicts, chacun vérifié en remettant son défaut
+
+`npm run son:check` en compte désormais **17**. Les cinq nouveaux ont tous été
+vus échouer, un par un, le défaut remis — un verdict qu'on n'a pas vu échouer
+ne garde rien :
+
+| Verdict | Valeur | Défaut remis | Échoue à |
+|---|---|---|---|
+| la couleur acide affaisse l'accord | 0,75 | altération neutralisée | 0,09 |
+| la couleur acide est conditionnée au senseur | 0 → 2 | verrou retiré | 2 → 2 |
+| la palette de boss change le son sans saturer | 0,43 / crête 0,21 | palette neutralisée | 0,11 |
+| la montée du NEP monte | ×1,53 | bus sourd au NEP | ×1,00 |
+| les quatre biocides diffèrent | 0,32 | un seul timbre | 0,00 |
+
+### Les deux abandons
+
+- **L'ostinato de biofilm** : écarté par l'auteur, l'idée ne lui plaît pas.
+- **L'automate cellulaire** : écarté faute d'avoir convaincu. C'était le plus
+  spéculatif — faire émerger les motifs d'une simulation microbienne au lieu
+  de les tirer d'un générateur pseudo-aléatoire. La graine compose déjà une
+  matière distincte et mesurée (3/3, écart ×1,13) ; l'automate n'aurait pas
+  ajouté une capacité, seulement une autre façon de produire la même.

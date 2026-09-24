@@ -336,7 +336,142 @@ const res = await pg.evaluate(async () => {
     return { distinctes, ecart };
   }
 
+  /**
+   * La passe B : couleur acide, palette de boss, scenario du NEP.
+   *
+   * Les trois se mesurent sur le MEME principe que la graine — un etat contre
+   * un autre, ecart quadratique rapporte au niveau — et tous les rendus sont
+   * faits SANS BATTERIE. Ce n'est pas une commodite : les trois mecanismes
+   * touchent la nappe, la voix de tension et le stinger, et le squelette
+   * rythmique porte assez d'energie pour tous les noyer. La mesure de la
+   * graine avait deja paye cette lecon (x0,20 avec batterie, x1,17 sans).
+   */
+  async function passeB() {
+    const SR = 44100, duree = 6;
+    const rendu = async (reglage) => {
+      const ctx = new OfflineAudioContext(1, SR * duree, SR);
+      const s = new mod.Son();
+      s.graine(mod.GRAINE_ADOPTEE ?? 0x5eed);
+      s.init(ctx);
+      reglage(s);
+      s.majCouches();
+      s.couches.break.gain.cancelScheduledValues(0);
+      s.couches.break.gain.setValueAtTime(0.00001, 0);
+      for (let t = 0; t < duree; t += 0.05) s.avancerJusqua(t);
+      return (await ctx.startRendering()).getChannelData(0);
+    };
+    const ecart = (a, b) => {
+      let dif = 0, ref = 0;
+      for (let k = 0; k < a.length; k++) { const d = a[k] - b[k]; dif += d * d; ref += a[k] * a[k]; }
+      return Math.sqrt(dif / Math.max(1e-20, ref));
+    };
+    const rms = (a) => { let n = 0; for (let i = 0; i < a.length; i++) n += a[i] * a[i]; return Math.sqrt(n / a.length); };
+    /* Energie d'une bande, par un passe-bande a deux poles assez large pour
+       ne pas dependre du reglage exact de ses bornes. */
+    const bande = (a, f1, f2) => {
+      const a1 = Math.exp(-2 * Math.PI * f1 / SR), a2 = Math.exp(-2 * Math.PI * f2 / SR);
+      let hp = 0, prec = 0, lp = 0, n = 0;
+      for (let i = 0; i < a.length; i++) {
+        hp = a1 * (hp + a[i] - prec); prec = a[i];
+        lp = a2 * lp + (1 - a2) * hp;
+        n += lp * lp;
+      }
+      return Math.sqrt(n / a.length);
+    };
+
+    const calme = (s) => { s.appliquerAmbiance('pipe', true); s.intensite = 0.5; s.danger = 0; s.miseAuPoint = 0; };
+    const crete = (a) => { let c = 0; for (let i = 0; i < a.length; i++) if (Math.abs(a[i]) > c) c = Math.abs(a[i]); return c; };
+    /* Filtre la bande demandee et renvoie le signal, pour comparer deux
+       rendus LA OU le mecanisme agit. Mesurer large dilue : la nappe est une
+       voix parmi six, et son alteration d'un demi-ton se noie dans le reste
+       du mix bien avant de se noyer dans l'oreille. */
+    const filtrer = (a, f1, f2) => {
+      const a1 = Math.exp(-2 * Math.PI * f1 / SR), a2 = Math.exp(-2 * Math.PI * f2 / SR);
+      const o = new Float64Array(a.length);
+      let hp = 0, prec = 0, lp = 0;
+      for (let i = 0; i < a.length; i++) {
+        hp = a1 * (hp + a[i] - prec); prec = a[i];
+        lp = a2 * lp + (1 - a2) * hp;
+        o[i] = lp;
+      }
+      return o;
+    };
+    const ecartBande = (a, b, f1, f2) => ecart(filtrer(a, f1, f2), filtrer(b, f1, f2));
+
+    /* --- couleur acide : l'accord doit VRAIMENT s'affaisser ------------- */
+    const sansAcide = await rendu((s) => { calme(s); s.couleurAcide = 0; });
+    const avecAcide = await rendu((s) => { calme(s); s.couleurAcide = 2; });
+    /* Temoin : le MEME etat rendu deux fois. Sans lui, un ecart de 0,1 ne
+       veut rien dire — il pourrait etre le bruit de fond du rendu. Il donne
+       0, donc tout ecart non nul est le mecanisme et rien d'autre. Et a
+       l'autre bout de l'echelle, deux graines differentes donnent 1,13 :
+       la couleur acide doit se situer entre les deux, franchement au-dessus
+       de zero et franchement sous un changement de morceau. */
+    const temoin = await rendu((s) => { calme(s); s.couleurAcide = 0; });
+
+    /* --- le verrou du senseur de pH, teste sur la LOGIQUE --------------- */
+    /* Pas sur le signal : ce qu'on verifie ici est qu'un joueur SANS la carte
+       n'entend rien, et l'absence d'effet ne se mesure pas par un rendu — un
+       rendu identique prouverait aussi bien que le mecanisme est mort. On
+       fait donc tourner `observe()` sur un faux jeu, acidifie a fond, et on
+       lit le compteur. */
+    const faireJeu = (flags) => ({
+      matrix: { id: 'pipe', chem: { phStart: 6.6, phFloor: 4.2 } },
+      ph: 4.2, focus: 0, flash: 0, progress: 0.5, boss: null, conduite: null,
+      director: { targetCredits: () => 10, liveCredits: () => 5 },
+      player: { hp: 100, kills: 0, level: 1, stats: { maxHp: 100 }, flags: new Set(flags) },
+    });
+    const lireCouleur = (flags) => {
+      const ctx = new OfflineAudioContext(1, SR, SR);
+      const s = new mod.Son();
+      s.init(ctx);
+      s.appliquerAmbiance('pipe', true);
+      /* Plusieurs images : l'acidite est lissee, une seule ne l'amene pas au
+         plancher et le verdict mesurerait le lissage, pas le verrou. */
+      for (let i = 0; i < 200; i++) s.observe('jeu', faireJeu(flags), 1 / 60);
+      return s.couleurAcide;
+    };
+    const sansSenseur = lireCouleur([]);
+    const avecSenseur = lireCouleur(['phsense']);
+
+    /* --- palette de boss : elle assombrit, elle n'assourdit pas --------- */
+    const sansBoss = await rendu(calme);
+    const avecBoss = await rendu((s) => { calme(s); s.poserRackBoss(true); });
+
+    /* --- NEP : la montee se resserre et monte --------------------------- */
+    const nepDebut = await rendu((s) => { calme(s); s.nepPhase = 'telegraphe'; s.nepReste = 7.5; });
+    const nepFin = await rendu((s) => { calme(s); s.nepPhase = 'telegraphe'; s.nepReste = 0.5; });
+
+    /* --- NEP : quatre biocides, quatre impacts -------------------------- */
+    const impacts = {};
+    for (const bio of ['soude', 'nitrique', 'hypochlorite', 'peracetique']) {
+      const g = await rendu((s) => { calme(s); s.nepBiocide = bio; s.evenement('nep'); });
+      impacts[bio] = g;
+    }
+    const paires = [];
+    const ids = Object.keys(impacts);
+    for (let i = 0; i < ids.length; i++) {
+      for (let j = i + 1; j < ids.length; j++) paires.push(ecart(impacts[ids[i]], impacts[ids[j]]));
+    }
+
+    return {
+      acide: +ecart(sansAcide, avecAcide).toFixed(3),
+      temoin: +ecart(sansAcide, temoin).toFixed(3),
+      /* Dans la bande de la nappe (passe-bande a 1800 Hz dans le rack). */
+      acideBande: +ecartBande(sansAcide, avecAcide, 900, 3200).toFixed(3),
+      temoinBande: +ecartBande(sansAcide, temoin, 900, 3200).toFixed(3),
+      bossCrete: +crete(avecBoss).toFixed(3),
+      sansSenseur, avecSenseur,
+      boss: +ecart(sansBoss, avecBoss).toFixed(3),
+      bossMedium: +(bande(avecBoss, 1000, 3000) / Math.max(1e-9, bande(sansBoss, 1000, 3000))).toFixed(3),
+      bossRms: +(rms(avecBoss) / Math.max(1e-9, rms(sansBoss))).toFixed(3),
+      nepMontee: +(rms(nepFin) / Math.max(1e-9, rms(nepDebut))).toFixed(2),
+      nepImpactMin: +Math.min(...paires).toFixed(3),
+    };
+  }
+
   const out = [];
+  out.push({ nom: 'passeB', ...await passeB() });
   out.push({ nom: 'graines', ...await graines() });
   out.push({ nom: 'reverbe', ...await reverbATester() });
   out.push(await rendre('lobby', (s) => {
@@ -369,10 +504,16 @@ const res = await pg.evaluate(async () => {
   return out;
 });
 
+const pb = res.shift();
 const gr = res.shift();
 const rev = res.shift();
 console.log('graines : ' + gr.distinctes + '/3 matieres melodiques distinctes'
   + ' | ecart entre deux rendus x' + gr.ecart.toFixed(2));
+console.log('passe B : couleur acide ' + pb.acideBande + ' en bande nappe (temoin '
+  + pb.temoinBande + '), ' + pb.acide + ' large'
+  + ' | senseur ' + pb.sansSenseur + ' -> ' + pb.avecSenseur
+  + ' | boss ecart ' + pb.boss + ' rms x' + pb.bossRms + ' crete ' + pb.bossCrete
+  + ' | NEP montee x' + pb.nepMontee + ' impacts >=' + pb.nepImpactMin);
 console.log('reverbe seule : RT60', rev.rt60 === null || !isFinite(rev.rt60) ? 'INFINI' : rev.rt60.toFixed(2) + ' s',
   '| bosse de bande +' + rev.bosse.toFixed(1) + ' dB',
   '|', rev.monte ? 'LA QUEUE MONTE' : 'la queue decroit');
@@ -431,5 +572,27 @@ const stages = res.filter((r) => r.nom !== 'lobby');
 const pireSiffle = stages.reduce((a, r) => (r.siffle > a.siffle ? r : a), stages[0]);
 dit(stages.every((r) => r.siffle < 9),
   `aucune raie ne siffle en stage (pire : ${pireSiffle.nom}, x${pireSiffle.siffle} a ${pireSiffle.fsiffle} Hz)`);
+/* --- passe B ----------------------------------------------------------- */
+/* Chacun de ces cinq verdicts a ete verifie EN REMETTANT SON DEFAUT : un
+   verdict qu'on n'a pas vu echouer ne garde rien, et ce depot l'a deja paye
+   une fois. Les chiffres de reference sont dans docs/07-son.md. */
+dit(pb.acideBande > 0.4 && pb.acideBande > pb.temoinBande * 3,
+  `la couleur acide affaisse vraiment l accord (${pb.acideBande} en bande nappe,`
+  + ` temoin ${pb.temoinBande})`);
+/* Le verrou de conception, et non un detail d'implementation : sans le
+   senseur de pH la couleur ne doit PAS s'entendre, parce que rien a l'ecran
+   n'en montrerait la cause. */
+dit(pb.sansSenseur === 0 && pb.avecSenseur === 2,
+  `la couleur acide est conditionnee au senseur de pH (${pb.sansSenseur} sans,`
+  + ` ${pb.avecSenseur} avec)`);
+dit(pb.boss > 0.2 && pb.bossCrete < 1.0,
+  `la palette de boss change le son sans saturer (ecart ${pb.boss}, crete ${pb.bossCrete})`);
+/* Le defaut trouve en ecrivant ce banc : la montee du NEP etait planifiee
+   dans une couche dont le gain suivait la seule vie basse. A pleine vie, la
+   montee existait et ne sortait pas — x1,00. */
+dit(pb.nepMontee > 1.25, `la montee du NEP monte vraiment (x${pb.nepMontee})`);
+dit(pb.nepImpactMin > 0.15,
+  `les quatre biocides ne sonnent pas pareil (la paire la plus proche : ${pb.nepImpactMin})`);
+
 console.log(errs.length ? 'ERREURS: ' + errs.join(' | ') : 'aucune erreur de page');
 await b.close(); srv.close();

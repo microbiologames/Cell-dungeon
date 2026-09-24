@@ -146,6 +146,11 @@ function dessinerPanneauSon(scr) {
     `MISE AU PT ${barre(e.miseAuPoint)}`,
     `DANGER     ${barre(e.danger)}`,
     `ACIDITE    ${barre((e.acidite + 1) / 2)}`,
+    /* La couleur acide est conditionnee au senseur de pH : sans lui elle
+       reste a 0 alors que l'acidite monte, et la ligne le dit plutot que de
+       laisser croire a un mappage casse. */
+    `COULEUR    ${e.couleurAcide}${e.couleurAcide === 0 ? ' (SANS SENSEUR ?)' : ''}`,
+    `BOSS ${e.boss ? 'PALETTE' : '-'}   NEP ${e.nep.toUpperCase()}`,
     'M : COUPER   L : FERMER',
   ];
   lignes.forEach((l, i) => drawText(scr, l, 3, 3 + i * 8, UI.text, 1, 1));
