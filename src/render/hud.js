@@ -88,6 +88,13 @@ function renderBottom(scr, game, pal) {
     game.ph < 5.6 ? UI.acid : UI.textDim, 1, 2);
 
   drawText(scr, dominantWay(p), 3, sy, UI.textDim, 1, 1);
+  /* Le SCORE en clair et les tues en gris : les deux ne disent pas la meme
+     chose. Le score pese la menace abattue, le compte de tetes dit si on a
+     farme du coccus. Le score passe en premier parce que c'est lui qui se
+     compare d'une partie a l'autre. */
+  /* -13 et non -9 : le score est en corps 2, haut d'une dizaine de pixels,
+     et a -9 il mordait sur la ligne des tues en dessous. Vu sur capture. */
+  drawTextRight(scr, `${game.score}`, W - 3, sy - 13, UI.textHot, 1, 2);
   drawTextRight(scr, `${p.kills} TUES`, W - 3, sy, UI.textDim, 1, 1);
   if (game.conduite) renderNep(scr, game, 3, sy - 22);
 
@@ -128,8 +135,9 @@ function renderSides(scr, game, pal) {
 
   drawText(scr, `PH ${game.ph.toFixed(1).replace('.', ',')}`, lx, 94,
     game.ph < 5.6 ? UI.acid : UI.textDim, 1, 1);
-  drawText(scr, `${p.kills} TUES`, lx, 104, UI.textDim, 1, 1);
-  drawText(scr, dominantWay(p), lx, 114, UI.textDim, 1, 1);
+  drawText(scr, `${game.score}`, lx, 102, UI.textHot, 1, 2);
+  drawText(scr, `${p.kills} TUES`, lx, 112, UI.textDim, 1, 1);
+  drawText(scr, dominantWay(p), lx, 121, UI.textDim, 1, 1);
   let cy = 126;
   if (traitHud(scr, p, lx, cy)) cy += 12;
   if (game.conduite) { renderNep(scr, game, lx, cy); cy += 24; }

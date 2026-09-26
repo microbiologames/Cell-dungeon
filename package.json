@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Roguelite d'arene microbiologique jouable au navigateur",
   "scripts": {
+    "fuite": "node tools/fuite.mjs",
     "balance": "node tools/balance-sim.mjs",
     "especes": "node tools/especes.mjs",
     "smoke": "node tools/smoke.mjs",

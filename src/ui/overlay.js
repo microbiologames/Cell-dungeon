@@ -140,6 +140,7 @@ export class Overlay {
     const trait = p.espece.trait ? traitBilan(p) : '';
     return `
       <p class="stat">SOUCHE <b>${escapeHtml(p.espece.label)}</b>${trait}</p>
+      <p class="stat">SCORE <b>${g.score}</b></p>
       <p class="stat">TEMPS <b>${mmss(g.time)}</b> — NIVEAU <b>${p.level}</b> — TUES <b>${p.kills}</b></p>
       <p class="stat">DEGATS <b>${p.stats.dmg.toFixed(1)}</b> — CADENCE <b>${p.fireRate.toFixed(2)}/s</b>
          — PV <b>${Math.round(p.stats.maxHp)}</b> — VITESSE <b>${Math.round(p.stats.speed)}</b></p>

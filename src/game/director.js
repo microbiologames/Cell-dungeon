@@ -11,6 +11,22 @@ import {
 import { weightedPick, TAU, clamp } from '../core/util.js';
 import { makeEnemy } from './entities.js';
 
+/* --- porteurs de plasmide ------------------------------------------------
+   Un mob sur lequel on a envie de RESTER. Le probleme qu'il corrige est
+   precis : sans lui, la seule bonne reponse a une vague est de partir en
+   ligne droite, parce que rien de ce qu'on laisse derriere ne vaut le
+   detour. Un porteur donne une raison chiffree de tenir sa position.
+
+   Le pretexte n'est pas un pretexte : une cellule portant un plasmide
+   conjugatif est une chose reelle, identifiable a son phenotype, et c'est
+   litteralement la recompense — le plasmide est deja ce que le joueur
+   ramasse pour gagner une competence immediate. */
+const PORTEUR_PREMIER = 22;    // s : jamais avant, on apprend d'abord a tirer
+const PORTEUR_ECART = 34;      // s entre deux, borne basse
+const PORTEUR_ALEA = 26;       // s de jitter, pour qu'on ne les attende pas
+const PORTEUR_PV = 2.4;        // il doit se MERITER, sinon il n'est qu'un drop
+const PORTEUR_AA = 2.0;
+
 export class Director {
   constructor(game) {
     this.game = game;
@@ -21,13 +37,22 @@ export class Director {
     this.fired = new Set();
     this.bossActive = false;
     this.announcedTier = -1;
+    /* Prochaine apparition possible d'un porteur de plasmide. Un delai et
+       non une probabilite pure : une probabilite par apparition en fait
+       sortir deux coup sur coup, et deux anneaux qui battent en meme temps
+       ne donnent pas deux fois envie de rester, ils font un decor. */
+    this.prochainPorteur = PORTEUR_PREMIER;
   }
 
   get p() { return clamp(this.game.time / this.matrix.duration, 0, 1); }
 
   scale() {
     const p = this.p;
-    return { hp: hpScale(p), dmg: dmgScale(p), speed: speedScale(p) };
+    /* `p` voyage avec les echelles parce que `makeEnemy` en a besoin : la
+       differenciation en cellules nageuses se decide a la naissance et
+       depend de l'avancement du run. Le passer par le meme objet evite un
+       second argument a cinq appelants. */
+    return { p, hp: hpScale(p), dmg: dmgScale(p), speed: speedScale(p) };
   }
 
   /** Credits de menace actuellement vivants. */
@@ -161,7 +186,28 @@ export class Director {
     const z = spec.zHold !== undefined
       ? spec.zHold * sign
       : sign * (0.55 + g.rng() * 0.45);
-    g.enemies.push(makeEnemy(spec, x, y, z, this.scale()));
+    const e = makeEnemy(spec, x, y, z, this.scale());
+    this.peutPorter(e);
+    g.enemies.push(e);
+  }
+
+  /**
+   * Promeut le mob en porteur de plasmide, si l'heure est venue.
+   *
+   * Reserve aux especes MOBILES qui coutent au moins un credit : un porteur
+   * immobile ne cree aucune tension — on le tue quand on veut — et une spore
+   * a 0,6 credit en ferait un distributeur.
+   */
+  peutPorter(e) {
+    const g = this.game;
+    if (g.time < this.prochainPorteur) return;
+    if (e.spec.boss || e.spec.neutral || e.spec.cost < 1 || !e.speed) return;
+    this.prochainPorteur = g.time + PORTEUR_ECART + g.rng() * PORTEUR_ALEA;
+    e.elite = true;
+    e.hp *= PORTEUR_PV;
+    e.maxHp *= PORTEUR_PV;
+    e.aaBonus = PORTEUR_AA;
+    g.announce('PORTEUR DE PLASMIDE');
   }
 
   runEvent(ev) {

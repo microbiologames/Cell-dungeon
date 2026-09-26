@@ -19,22 +19,56 @@ import {
 export const OPENING = 0.12;   // fraction du run consacree a la mise en jambes
 
 export const threatBudget = (p) => {
-  /* OUVERTURE : on demarre avec trois ou quatre bacteries simples, et la
-     population monte jusqu'a son socle sur les 85 premieres secondes. Sans
-     cette rampe, le joueur est jete dans une foule des la premiere seconde.
-     Elle est une PHASE a part entiere, pas le debut du plateau : le
-     simulateur la mesure separement, sinon elle ferait passer le plateau
-     pour rompu. */
-  const socle = 4.5 + 8.5 * Math.min(1, p / OPENING);
+  /* OUVERTURE : DENSE ET FAIBLE, et c'est un renversement assume.
+     La version precedente demarrait a 4,5 credits — trois ou quatre
+     bacteries — pour ne pas jeter le joueur dans une foule. Resultat :
+     l'arene etait vide, on s'echappait en ligne droite sans rien croiser,
+     et on n'apprenait rien. On demarre maintenant a 11 credits, soit une
+     dizaine de cocci, et c'est la MOLLESSE qui fait la mise en jambes, pas
+     la solitude — voir `ouverture()` plus bas, qui divise leurs PV par deux
+     et leurs degats par presque autant.
+     L'ouverture reste une PHASE a part entiere, mesuree separement par le
+     simulateur : sinon elle ferait passer le plateau pour rompu. */
+  const socle = 11 + 2.5 * Math.min(1, p / OPENING);
   /* Puis la courbe validee : plateau long, puis decrochage. */
   return socle * (1 + 3.4 * Math.pow(p, 2.8));
 };
-/** Multiplicateur de PV des mobs : suit la courbe de degats du joueur. */
-export const hpScale = (p) => 1 + 1.9 * Math.pow(p, 1.20);
-/** Multiplicateur de degats des mobs. */
-export const dmgScale = (p) => 1 + 0.9 * p;
-/** Multiplicateur de vitesse des mobs. */
-export const speedScale = (p) => 1 + 0.35 * p;
+
+/** Avancement DANS l'ouverture, de 0 a 1. Un seul endroit le calcule : les
+ *  trois courbes ci-dessous s'en servent, et trois copies d'une meme rampe
+ *  divergent le jour ou l'une est corrigee. */
+const ouverture = (p) => Math.min(1, p / OPENING);
+
+/** Multiplicateur de PV des mobs : suit la courbe de degats du joueur.
+ *
+ *  Le facteur d'ouverture est ce qui rend la foule du depart praticable : a
+ *  p = 0 un mob a la MOITIE de ses PV, et les recupere en 85 s. Sans lui,
+ *  passer le socle de 4,5 a 11 credits triplait la duree de nettoyage d'une
+ *  vague d'ouverture. */
+export const hpScale = (p) => (0.5 + 0.5 * ouverture(p)) * (1 + 1.9 * Math.pow(p, 1.20));
+/** Butin d'un mob, en fraction de son `aa` de bestiaire.
+ *
+ *  Une cellule d'ouverture a la MOITIE de ses PV : c'est une cellule jeune,
+ *  et elle rend donc moitie moins d'acides amines. Sans ce terme, la foule
+ *  du depart — deux fois plus nombreuse et deux fois plus vite tuee —
+ *  quadruplait la recolte des premieres minutes ; le joueur arrivait au
+ *  quart du run deja surequipe, et le simulateur le voyait comme un plateau
+ *  rompu (pression x1,90 pour 1,9 admis, uniquement parce que la pression
+ *  du debut etait devenue anormalement basse).
+ *  Le butin suit les PV : c'est la meme cellule qu'on mesure. */
+export const aaScale = (p) => 0.5 + 0.5 * ouverture(p);
+
+/** Multiplicateur de degats des mobs. Meme raison, un peu moins marquee :
+ *  une foule qui ne fait pas mal du tout n'apprend rien non plus. */
+export const dmgScale = (p) => (0.55 + 0.45 * ouverture(p)) * (1 + 0.9 * p);
+/** Multiplicateur de vitesse des mobs.
+ *
+ *  Il DESCEND sous 1 a l'ouverture (0,75), et c'est le pendant de la baisse
+ *  de la vitesse du joueur : le debut de partie se joue lentement, au corps
+ *  a corps, et la vitesse est ce qu'on gagne ensuite — cote joueur par les
+ *  evolutions de flagellation, cote mob par la differenciation en cellules
+ *  nageuses (`swarm` dans le bestiaire). */
+export const speedScale = (p) => (0.75 + 0.25 * ouverture(p)) * (1 + 0.35 * p);
 
 /** Poids d'achat par role, selon le palier (0 a 4). */
 export const TIER_WEIGHTS = [
@@ -55,7 +89,20 @@ export const ROLE_CAPS = { ranged: 2, denier: 3, predator: 2, tank: 6 };
  *  abstrait : le simulateur supposait que le joueur tue tout ce qu'il peut,
  *  alors qu'en pratique il passe une bonne part du temps a se replacer et a
  *  ramasser. L'ancienne courbe promettait le niveau 26 et en donnait 13. */
-export const XP_FOR_LEVEL = (n) => 5 + 4 * n + 0.20 * n * n;
+/* 0,20 -> 0,70 sur le terme carre. Le recyclage fait passer les kills reels
+   de ~355 a ~840 par run : sans rencherir les niveaux, le joueur finissait au
+   niveau 36 au lieu de 23, avec un DPS cinq fois superieur — l'invariant de
+   TTK n'existait plus.
+
+   J'ai d'abord multiplie la courbe ENTIERE par 2,4, en me disant qu'une
+   echelle valait mieux qu'une deformation. Mesure faite, c'est le contraire :
+   les runs BIFURQUAIENT (niveau 16 a 27, 20 a 43 morts) parce que les tout
+   premiers niveaux devenaient 2,4 fois plus chers et que la foule d'ouverture
+   ne payait plus la mise en jambes qu'elle est censee payer. En durcissant
+   seulement le terme carre, le niveau 1 coute 9,9 au lieu de 9,2 — la mise en
+   jambes est intacte — et c'est la SUITE qui se merite : niveau final 23 a 26
+   sur quatre runs, 15/21/25 morts par tiers. */
+export const XP_FOR_LEVEL = (n) => 5 + 4 * n + 0.70 * n * n;
 
 export const MILK = {
   id: 'milk',

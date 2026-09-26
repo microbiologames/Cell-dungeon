@@ -13,7 +13,7 @@
 import { EVOLUTIONS, EVO_BY_ID, rarityWeight } from '../src/data/evolutions.js';
 import { computeStats, theoreticalDps, BASE } from '../src/game/stats.js';
 import {
-  threatBudget, hpScale, dmgScale, XP_FOR_LEVEL, TIER_WEIGHTS, tierAt, MILK,
+  threatBudget, hpScale, dmgScale, aaScale, XP_FOR_LEVEL, TIER_WEIGHTS, tierAt, MILK,
 } from '../src/data/matrices.js';
 import { MILK_MOBS } from '../src/data/bestiary.js';
 import { mulberry32, weightedPick } from '../src/core/util.js';
@@ -32,9 +32,30 @@ const REF_HP = mean(CHAFF.map((m) => m.hp));
 const AVG_COST = mean(BUYABLE.map((m) => m.cost));
 const AVG_AA = mean(BUYABLE.map((m) => m.aa));
 const AVG_CONTACT = mean(BUYABLE.map((m) => m.contact));
-/* Part du temps ou le joueur tue effectivement : mesuree dans le jeu reel
-   (tools/playtest.mjs), ou il passe le reste a se replacer et a ramasser. */
-const ENGAGE_KILL = 0.38;
+/* Part de sa capacite theorique que le joueur convertit en morts.
+   0,38 -> 1,00 le 26/09/2026, et la cause est le RECYCLAGE des mobs
+   distances. Avant, le joueur passait une grande part du run a fuir et a
+   revenir : les mobs qu'il semait n'etaient jamais tues, et le simulateur
+   avait raison de le penser peu efficace. Maintenant la meute reste devant
+   lui — les kills reels sont passes de ~355 a ~840 par run.
+
+   COMMENT LE CALIBRER, parce que la premiere methode etait fausse.
+   `tools/playtest.mjs` imprime le rapport direct `tues / integrale(dps/PV)`.
+   Ce rapport est BIAISE VERS LE BAS : son denominateur est
+   `theoreticalDps`, qui ne compte ni les auras, ni les zones, ni la
+   perforation. Un run qui part en auras tue plus que sa capacite
+   « theorique » — mesure, les runs individuels vont de 0,50 a 1,06 et la
+   moyenne d'un lot de trois oscille entre 0,63 et 0,83 selon les graines.
+   Se caler dessus donnait un simulateur qui predisait le niveau 18 pour un
+   jeu qui en rend 23, donc un joueur sous-equipe, donc un plateau qui
+   paraissait rompu alors que rien ne l'etait.
+
+   Le critere qui vaut est celui pour lequel ce simulateur existe : il doit
+   REPRODUIRE LE NIVEAU FINAL du jeu reel, politique au hasard contre
+   pilote au hasard. Mesure : jeu reel 22,7 (moyenne de trois runs), et
+   ENGAGE_KILL = 1,00 donne 22,5 ici. C'est ce chiffre-la qu'on ajuste, et
+   c'est cette ligne-la qu'on relit avant d'y toucher. */
+const ENGAGE_KILL = 1.00;
 /* Fraction du temps ou un mob vivant touche effectivement le joueur.
    Un joueur competent se fait toucher rarement : 7 % du temps de presence. */
 const ENGAGEMENT = 0.085;
@@ -136,7 +157,9 @@ function simulate(policy, seed) {
     samples.push({ t, p, ttk, pressure, level, dps, alive });
 
     /* Progression */
-    xp += kills * AVG_AA * stats.aaGain * DT;
+    /* `aaScale` : une cellule d'ouverture rend moitie moins. Sans lui, le
+       simulateur voyait un joueur surequipe des le quart du run. */
+    xp += kills * AVG_AA * aaScale(p) * stats.aaGain * DT;
     let guard = 0;
     while (xp >= XP_FOR_LEVEL(level) && guard++ < 10) {
       xp -= XP_FOR_LEVEL(level);

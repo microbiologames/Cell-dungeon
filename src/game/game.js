@@ -3,7 +3,7 @@
 --------------------------------------------------------------------------- */
 
 import { clamp, mulberry32, TAU } from '../core/util.js';
-import { MATRICES } from '../data/matrices.js';
+import { MATRICES, aaScale } from '../data/matrices.js';
 import { BESTIARY } from '../data/bestiary.js';
 import { Player } from './player.js';
 import { ESPECE_BY_ID, ESPECE_DEFAUT } from '../data/especes.js';
@@ -25,6 +25,16 @@ export const BULLET_DRAG = 0.6;
 /* Filet de securite : aucune capacite d'engendrement ne peut faire depasser
    ce nombre d'ennemis. Le directeur, lui, se regule par son budget. */
 export const MAX_ENEMIES = 150;
+
+/* RECYCLAGE. Le champ visible fait 124 px de rayon ; a 240 px le mob est hors
+   de l'ecran depuis longtemps, meme en paysage, et le recycler ne se voit
+   donc jamais se produire. C'est la condition pour que ce soit honnete. */
+const OUBLI = 240;
+/* Il revient a portee d'engagement mais pas dans les jambes : 118 px est
+   au-dela du rayon de captation (34) et de la portee de tir de depart (96),
+   donc on le voit venir et on a le temps d'en decider. */
+const RECYCLE_MIN = 118;
+const RECYCLE_MAX = 172;
 
 export const STATE = {
   MENU: 'menu', PLAYING: 'playing', LEVELUP: 'levelup',
@@ -57,6 +67,14 @@ export class Game {
     this.removedDecor = new Set();
     this.player = new Player(this, this.especeId);
     this.director = new Director(this);
+    /* Le SCORE pese la menace abattue, la ou `kills` ne compte que des
+       tetes. Voir `killEnemy` pour la formule et ce qu'elle corrige. */
+    this.score = 0;
+    /* Couture de banc : `tools/fuite.mjs` remet ce drapeau a faux pour
+       verifier que son verdict attrape bien le defaut qu'il garde. Rien
+       d'autre n'y touche, et le jeu ne l'expose nulle part. */
+    this.recyclage = true;
+    this.recycles = 0;
     /* Mecaniques propres a la matrice. Seule la conduite en a pour l'instant :
        courant, plaques de biofilm et Nettoyage En Place. */
     this.conduite = this.matrix.id === 'pipe' ? new Conduite(this) : null;
@@ -168,6 +186,8 @@ export class Game {
       if (e.alive && e.ally <= 0 && this.sharpnessOf(e.z) > 0.5) sharpCount++;
     }
     this.sharpEnemyCount = sharpCount;
+
+    this.recyclerLoin();
 
     for (const e of this.enemies) {
       if (e.alive && e.hp <= 0) this.killEnemy(e);
@@ -610,6 +630,69 @@ export class Game {
     return true;
   }
 
+  /**
+   * RECYCLAGE : un mob distance ne disparait pas, il revient DEVANT.
+   *
+   * Le defaut corrige : dans une goutte sans obstacle, la bonne reponse a
+   * n'importe quelle vague etait de partir en ligne droite. On gagnait a
+   * tous les coups, la poursuite ne se terminait jamais, et le budget de
+   * menace devenait un chiffre sans effet puisque la menace restait derriere.
+   *
+   * Ce n'est pas une apparition : le budget ne bouge pas, c'est le MEME
+   * individu qu'on repose ailleurs. Et ce n'est pas non plus une invention —
+   * le champ contient des millions de cellules dont on n'en dessine que
+   * quelques dizaines ; celles qu'on distance sont remplacees, dans la
+   * fiction, par d'autres du meme clone deja en avant. C'est un
+   * echantillonnage, pas une teleportation.
+   *
+   * Trois exclusions, et chacune protege quelque chose :
+   *   le BOSS        on doit pouvoir le semer, c'est une option tactique ;
+   *   les NEUTRES    ils sont le decor vivant, pas la menace ;
+   *   les SESSILES   une plaque de biofilm ou une spore posee EST du terrain,
+   *                  et la voir reapparaitre devant soi detruirait la seule
+   *                  chose que le decor apporte.
+   */
+  recyclerLoin() {
+    if (!this.recyclage) return;
+    const p = this.player;
+    /* Le cap de fuite : la vitesse du joueur, ou son orientation s'il est a
+       l'arret — sinon un joueur immobile verrait les mobs revenir dans une
+       direction arbitraire, ce qui se lit comme un bug. */
+    let dx = p.vx, dy = p.vy;
+    const v = Math.hypot(dx, dy);
+    if (v < 8) { dx = Math.cos(p.ang); dy = Math.sin(p.ang); }
+    else { dx /= v; dy /= v; }
+    const cap = Math.atan2(dy, dx);
+
+    for (const e of this.enemies) {
+      if (!e.alive || e.ally > 0) continue;
+      if (e.spec.boss || e.spec.neutral || !e.speed) continue;
+      if (Math.hypot(e.x - p.x, e.y - p.y) < OUBLI) continue;
+
+      /* Devant, mais pas pile devant : un cone de +/-55 degres. Pile sur le
+         cap, les mobs recycles arrivaient en file indienne et se lisaient
+         comme un tir de barrage. */
+      let pose = null;
+      for (let i = 0; i < 8 && !pose; i++) {
+        const a = cap + (this.rng() * 2 - 1) * 0.96;
+        const d = RECYCLE_MIN + this.rng() * (RECYCLE_MAX - RECYCLE_MIN);
+        const x = p.x + Math.cos(a) * d, y = p.y + Math.sin(a) * d;
+        if (this.arena.contains(x, y, 6)) pose = { x, y };
+      }
+      /* Dans un couloir, le cone peut tomber entierement dans la paroi :
+         on retombe alors sur l'apparition ordinaire plutot que de renoncer,
+         sinon le recyclage ne marcherait pas la ou il sert le plus. */
+      if (!pose) pose = this.arena.spawnNear(this.rng, p.x, p.y, RECYCLE_MIN, RECYCLE_MAX);
+      e.x = pose.x; e.y = pose.y;
+      e.vx = 0; e.vy = 0;
+      /* Il revient HORS DU PLAN, comme une apparition : la mise au point
+         reste le telegraphe, et un mob qui se materialise net a portee de
+         contact n'est pas une menace, c'est une gifle. */
+      e.z = (this.rng() < 0.5 ? -1 : 1) * (0.55 + this.rng() * 0.45);
+      this.recycles = (this.recycles || 0) + 1;
+    }
+  }
+
   killEnemy(e, silent = false) {
     if (!e.alive) return;
     e.alive = false;
@@ -629,7 +712,17 @@ export class Game {
 
        Ils PARTENT AVEC L'EXPLOSION : leur vitesse initiale est celle de la
        gerbe. Un butin qui tombe sur place trahit l'idee meme de lyse. */
-    const n = Math.max(1, Math.round(e.spec.aa));
+    /* SCORE. Il pese la MENACE abattue et non le nombre de tetes : un tank a
+       3,2 credits vaut trois fois un coccus a 1,0, ce qui est exactement le
+       rapport que le directeur paie pour les poser. Le facteur (1 + p) dit
+       le reste — le meme mob a la douzieme minute porte trois fois les PV
+       qu'il avait a la premiere, le tuer vaut davantage.
+       `kills` reste affiche a cote : les deux ne disent pas la meme chose,
+       et un joueur qui farme du coccus doit pouvoir le voir. */
+    this.score += Math.round(e.spec.cost * 10 * (1 + this.progress)
+      * (e.spec.boss ? 5 : 1) * (e.elite ? 2 : 1));
+
+    const n = Math.max(1, Math.round(e.spec.aa * (e.aaBonus || 1) * aaScale(this.progress)));
     const parts = Math.min(n, 6);
     for (let i = 0; i < parts; i++) {
       const a = this.rng() * TAU;
@@ -640,7 +733,10 @@ export class Game {
         Math.cos(a) * sp, Math.sin(a) * sp,
       ));
     }
-    if (e.spec.dropsPlasmid) {
+    /* Le porteur lache son plasmide exactement comme un boss : c'est le meme
+       butin, et c'est voulu — ce qu'on gagne a rester vaut ce qu'on gagne a
+       survivre a un boss, sinon rester ne se decide pas. */
+    if (e.spec.dropsPlasmid || e.elite) {
       this.pickups.push(makePickup(e.x, e.y, 0, 0, 'plasmid'));
     }
 

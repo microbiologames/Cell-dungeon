@@ -79,14 +79,33 @@ mobs frappent plus fort. C'est la mort honnête.
 
 Avec `p = t / T` et `T = 720 s` :
 
+Avec `o(p) = min(1, p / 0.12)`, l'**avancement dans l'ouverture** :
+
 ```
-Population de menace  B(p) = 13 × (1 + 3.4 p^2.8)    crédits présents  →  13 … 57
-PV des mobs           H(p) = 1 + 1.9 p^1.20                            →  1 … 2.9
-Dégâts des mobs       D(p) = 1 + 0.9 p
-Vitesse des mobs      V(p) = 1 + 0.35 p
-Expérience            X(n) = 6 + 5n + 0.32 n²        → niveau 26 en fin de run
+Population de menace  B(p) = (11 + 2.5 o) × (1 + 3.4 p^2.8)  crédits  →  11 … 57
+PV des mobs           H(p) = (0.5 + 0.5 o) × (1 + 1.9 p^1.20)          →  0.5 … 2.9
+Dégâts des mobs       D(p) = (0.55 + 0.45 o) × (1 + 0.9 p)
+Vitesse des mobs      V(p) = (0.75 + 0.25 o) × (1 + 0.35 p)
+Butin d'un mob        A(p) = 0.5 + 0.5 o
+Expérience            X(n) = 5 + 4n + 0.70 n²        → niveau 23 en fin de run
 Palier de rôles       tier(p) = floor(p × 5)
 ```
+
+### L'ouverture est DENSE et FAIBLE (26/09/2026)
+
+C'est un renversement. La version précédente démarrait à **4,5 crédits** —
+trois ou quatre bactéries — pour ne pas jeter le joueur dans une foule.
+Résultat : l'arène était vide, on s'échappait en ligne droite sans rien
+croiser, et on n'apprenait rien.
+
+On démarre maintenant à **11 crédits**, soit une dizaine de cocci, et c'est la
+**mollesse** qui fait la mise en jambes, pas la solitude : à `p = 0` un mob a
+la moitié de ses PV, 55 % de ses dégâts et 75 % de sa vitesse, et il rend
+moitié moins d'acides aminés. Les quatre rampes se referment en 85 s.
+
+`A(p)` existe parce que sans lui la foule d'ouverture — deux fois plus
+nombreuse **et** deux fois plus vite tuée — quadruplait la récolte des
+premières minutes. Le butin suit les PV : c'est la même cellule qu'on mesure.
 
 > **`B` est une population, pas un débit.** Le directeur maintient ce nombre
 > de crédits *présents simultanément* et remplace les morts. Une première
@@ -164,13 +183,136 @@ pas d'indicateur de HUD, juste de l'optique.
 
 | Phase | Fraction | Pression | Intention |
 |---|---|---|---|
-| **Ouverture** | 0 → 0.12 (85 s) | 0.24 | Trois ou quatre bactéries simples. On prend ses marques |
-| **Plateau** | 0.15 → 0.55 | × 1.86 | La foule triple, la difficulté ne bouge presque pas |
-| **Décrochage** | 0.55 → 1.0 | × 3.20 | Le sol se dérobe |
+| **Ouverture** | 0 → 0.12 (85 s) | 0.26 | Une dizaine de cellules molles. On prend ses marques dans la foule |
+| **Plateau** | 0.15 → 0.55 | × 1.84 | La foule quadruple, la difficulté ne bouge presque pas |
+| **Décrochage** | 0.55 → 1.0 | × 3.22 | Le sol se dérobe |
 
 L'ouverture est une **phase à part entière**, mesurée séparément. La confondre
 avec le plateau faisait passer une bonne mise en jambes pour une difficulté
 croissante et cassait le test — alors que c'est précisément ce qu'on voulait.
+
+## On ne peut plus s'échapper (26/09/2026)
+
+Le défaut, signalé en jouant : *« on peut facilement s'échapper et on finit en
+course-poursuite où on gagne forcément en s'échappant »*. Dans une goutte de
+1600 px de rayon sans obstacle, la bonne réponse à n'importe quelle vague
+était de partir en ligne droite. La poursuite ne se terminait jamais, et le
+**budget de menace devenait un chiffre sans effet** puisque la menace restait
+derrière.
+
+Mesuré par `npm run fuite`, qui pilote le vrai jeu avec un fuyard en ligne
+droite et relève la distance médiane à la meute hostile :
+
+| | médiane à la meute | mobs devant |
+|---|---|---|
+| sans recyclage | **877 px** | 0,02 |
+| avec recyclage | **102 px** | 1,33 |
+
+877 px, c'est sept fois le champ visible : le fuyard était littéralement seul
+au monde. Le relevé brut des distances en fin de course le dit mieux encore —
+`[1054, 1264, …, 1393]` sans recyclage, `[37, 57, 60, …, 163]` avec.
+
+### Ce que fait le recyclage, et ce qu'il ne fait pas
+
+`Game.recyclerLoin()` repose **devant** le joueur, dans un cône de ±55°, tout
+mob hostile qui passe au-delà de 240 px. Ce n'est **pas** une apparition : le
+budget ne bouge pas, c'est le même individu qu'on repose ailleurs. Et ce n'est
+pas une invention : le champ contient des millions de cellules dont on n'en
+dessine que quelques dizaines ; celles qu'on distance sont remplacées, dans la
+fiction, par d'autres du même clone déjà en avant. C'est un échantillonnage.
+
+Trois exclusions, et chacune protège quelque chose :
+
+| Exclu | Pourquoi |
+|---|---|
+| le **boss** | on doit pouvoir le semer, c'est une option tactique |
+| les **neutres** | ils sont le décor vivant, pas la menace |
+| les **sessiles** | une plaque de biofilm ou une spore posée **est** du terrain ; la voir réapparaître devant soi détruirait la seule chose que le décor apporte |
+
+240 px est choisi pour que le recyclage ne se voie **jamais** se produire : le
+champ visible fait 124 px de rayon. Le mob revient entre 118 et 172 px, hors
+du plan focal — la mise au point reste le télégraphe, et un mob qui se
+matérialise net à portée de contact n'est pas une menace, c'est une gifle.
+
+### La conséquence sur toute l'économie
+
+Les kills réels sont passés de **~355 à ~840 par run**. Sans rien d'autre, le
+joueur finissait au **niveau 36 au lieu de 23**, avec cinq fois le DPS :
+l'invariant de TTK n'existait plus. D'où le durcissement de `X(n)`.
+
+Deux erreurs commises en le calibrant, notées parce qu'elles se referaient :
+
+1. **Multiplier la courbe entière par 2,4** paraissait plus propre que
+   déformer son terme carré — une échelle plutôt qu'une forme. Mesure faite,
+   c'est l'inverse : les runs **bifurquaient** (niveau 16 à 27, 20 à 43 morts)
+   parce que les tout premiers niveaux devenaient 2,4 fois plus chers et que
+   la foule d'ouverture ne payait plus la mise en jambes qu'elle est censée
+   payer. En durcissant seulement le terme carré, le niveau 1 coûte 9,9 au
+   lieu de 9,2 — la mise en jambes est intacte — et c'est la suite qui se
+   mérite.
+2. **Recopier `ENGAGE_KILL` du rapport brut imprimé par le playtest.** Ce
+   rapport (`tués / ∫ dps/PV`) est biaisé vers le bas : son dénominateur
+   ignore les auras, les zones et la perforation, si bien que les runs
+   individuels vont de 0,50 à 1,06. S'y caler donnait un simulateur qui
+   prédisait le niveau 18 pour un jeu qui en rend 23 — donc un joueur
+   sous-équipé, donc un plateau qui **paraissait** rompu alors que rien ne
+   l'était. Le critère qui vaut est celui pour lequel ce simulateur existe :
+   il doit **reproduire le niveau final du jeu réel**. Jeu réel 22,7, et
+   `ENGAGE_KILL = 1,00` donne 22,5.
+
+## Rester vaut le coup : les porteurs de plasmide
+
+Empêcher la fuite ne suffit pas — encore faut-il **vouloir** rester. Le
+directeur promeut un mob **porteur de plasmide** toutes les 34 à 60 s, jamais
+avant la 22ᵉ seconde. Il porte un anneau qui bat, encaisse 2,4 fois plus, rend
+le double d'acides aminés, et **lâche un plasmide** — exactement le butin d'un
+boss, et c'est voulu : ce qu'on gagne à rester doit valoir ce qu'on gagne à
+survivre à un boss, sinon rester ne se décide pas.
+
+Le prétexte n'en est pas un : une cellule portant un plasmide conjugatif est
+une chose réelle, identifiable à son phénotype, et c'est littéralement la
+récompense — le plasmide est déjà ce que le joueur ramasse pour gagner une
+compétence immédiate.
+
+Réservé aux espèces **mobiles** coûtant au moins un crédit : un porteur
+immobile ne crée aucune tension (on le tue quand on veut), et une spore à 0,6
+crédit en ferait un distributeur. Mesuré : 13 à 15 porteurs par run de 12 min.
+
+## La vitesse se gagne
+
+`BASE.speed` passe de **68 à 56** (−18 %) et les vitesses des trois autres
+souches suivent. À 68, un joueur qui n'achetait aucune carte de nage se
+sortait de tout en ligne droite, et les six rangs de `flagelle` (+54 %) ne
+changeaient qu'un confort. À 56, la même cellule pleinement flagellée monte à
+~100 et c'est **elle** qui décide si on distance un coureur.
+
+Côté mob, le pendant est la **différenciation en cellules nageuses** : le
+champ `swarm` du bestiaire donne l'avancement du run à partir duquel l'espèce
+porte ses flagelles. En deçà elle apparaît en cellule végétative — pas de
+flagelle, vitesse à 55 %. Ce n'est pas un réglage de difficulté déguisé : la
+flagellation dépendante de la phase de croissance est documentée chez les deux
+espèces qui portent le champ, *E. coli* (répression de la flagelline en phase
+exponentielle précoce) et *B. cereus* (différenciation swarmer).
+
+| Espèce | `swarm` | Ce que ça change |
+|---|---|---|
+| *E. coli* | 0.22 | 35 px/s en végétative, 64 différenciée. C'est **lui** qui décidait si on pouvait s'échapper la première minute |
+| *B. cereus* | 0.50 | le tank de mi-partie n'arrive à pleine vitesse qu'en seconde moitié |
+
+## Le score
+
+`kills` ne compte que des têtes. Le **score** pèse la menace abattue :
+
+```
+score += cost × 10 × (1 + p) × (boss ? 5 : 1) × (porteur ? 2 : 1)
+```
+
+`cost` est le crédit de menace que le directeur paie pour poser le mob — donc
+exactement sa difficulté, sans second jeu de nombres à tenir à jour. Le
+facteur `(1 + p)` dit le reste : le même mob à la douzième minute porte trois
+fois les PV qu'il avait à la première. Les deux compteurs restent affichés :
+un joueur qui farme du coccus doit pouvoir le voir. Ordre de grandeur mesuré :
+**10 000 à 26 000** sur un run complet.
 
 ## Deux outils, deux rôles
 
@@ -178,6 +320,7 @@ croissante et cassait le test — alors que c'est précisément ce qu'on voulait
 |---|---|---|
 | `npm run balance` | Modèle abstrait, 400 runs, invariants de forme | La récolte, le décor, la portée réelle des tirs |
 | `npm run playtest` | **La vraie boucle de jeu**, sans rendu, avec un pilote automatique | Le ressenti, qui demande des mains |
+| `npm run fuite` | Qu'**on ne peut plus s'échapper** : un fuyard en ligne droite, trois graines, la distance à la meute | Tout le reste — il ne juge qu'une chose |
 
 Le second existe parce que le premier s'est trompé. Le modèle abstrait
 supposait que le joueur tue tout ce qu'il peut : il annonçait le niveau 26,

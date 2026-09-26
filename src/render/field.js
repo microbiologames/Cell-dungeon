@@ -166,7 +166,18 @@ export function renderField(scr, game, pal) {
       {
         pal: { phase: fade32(pal.phase, alpha * 0.9) },
         drive: driveOf(e), sillage: e.sillage, trouble: e.trouble,
+        flagella: e.flagella,
       });
+
+    /* PORTEUR DE PLASMIDE : un anneau qui bat, de la couleur du butin qu'il
+       lache. Le joueur doit pouvoir decider de RESTER pour l'avoir — c'est
+       tout l'objet du surlignage, donc il se voit meme hors du plan net. */
+    if (e.elite && e.alive) {
+      scr.layer(Screen.layerFor(-0.02, 0));
+      const bat = 0.55 + 0.45 * Math.sin(e.phase * 3.4);
+      scr.ring(sx, sy, e.radius + 3.5 + bat * 1.2, 1.2,
+        fade32(pal.plasmid, (0.45 + 0.4 * bat) * Math.max(0.55, alpha)));
+    }
 
     /* Barre de vie des boss uniquement : le reste se lit a la forme. */
     if (e.spec.boss && e.hp < e.maxHp) {

@@ -89,6 +89,11 @@ export const TIRS = {
  * @property {object|null} trait  caracteristique unique
  * @property {object} biais       ponderation du tirage d'evolutions
  * @property {boolean} [aflagelle] la souche ne PEUT PAS gagner de flagelle
+ *
+ * Les vitesses des trois souches non-reference ont baissé de 18 % en meme
+ * temps que `BASE.speed` (68 -> 56) : elles sont des ECARTS a la reference,
+ * et les laisser telles quelles aurait fait du lactobacille le plus lent des
+ * quatre alors qu'il est cense etre le nageur du lot.
  */
 
 /* Ponderation par defaut : une voie absente vaut 1. */
@@ -121,7 +126,7 @@ export const ESPECES = [
        synthetise sur un complexe non ribosomique, pas sur un ribosome —
        mais chaque dose porte, puisqu'elle ne se dilue pas. */
     stats: {
-      maxHp: 132, speed: 62, accel: 430, dmg: 15, fireRate: 1.45,
+      maxHp: 132, speed: 51, accel: 430, dmg: 15, fireRate: 1.45,
       bulletSpeed: 150, bulletRadius: 2.6, range: 112, hitbox: 4.3,
       aaGain: 0.92,
     },
@@ -162,7 +167,7 @@ export const ESPECES = [
        supporte. La portee est courte : l'alpha-hemolysine est une PROTEINE,
        elle ne part pas loin. */
     stats: {
-      maxHp: 118, speed: 58, accel: 330, dmg: 9.5, fireRate: 2.0,
+      maxHp: 118, speed: 48, accel: 330, dmg: 9.5, fireRate: 2.0,
       bulletSpeed: 150, bulletRadius: 2.0, range: 84, hitbox: 3.0,
     },
     /* S. aureus pousse de pH 4,5 a 9,3 : ni gene ni aide. */
@@ -204,7 +209,7 @@ export const ESPECES = [
        comme un bacille. Le gain d'acides amines baisse : la meme bouchee
        deplace moins de biomasse quand la cellule est dix fois plus grosse. */
     stats: {
-      maxHp: 210, speed: 46, accel: 300, dmg: 14, fireRate: 1.25,
+      maxHp: 210, speed: 38, accel: 300, dmg: 14, fireRate: 1.25,
       bulletSpeed: 140, bulletRadius: 3.4, range: 104, hitbox: 6.0,
       pickup: 42, aaGain: 0.85,
     },

@@ -90,6 +90,7 @@ npm run smoke      # le jeu se charge, tourne, reagit — rien n'est casse
 npm run especes    # les 4 souches jouables : stats, tirages, toxines, traits declenches
 npm run visual     # captures en jeu, portrait et paysage
 npm run balance    # simulation d'equilibrage : plateau, decrochage, TTK
+npm run fuite      # on ne peut plus s'echapper : distance a la meute en fuyant
 npm run sheet      # planche de contact : chaque espece a sa taille reelle
 npm run son:check      # 17 verdicts sur la bande son, rendue HORS LIGNE et mesuree
 npm run son:studio     # 23 verdicts sur le studio sonore, conduit dans un navigateur
@@ -101,6 +102,22 @@ node tools/jeu-publier.mjs   # idem pour le jeu
 
 ## Invariants à ne pas casser
 
+- **On ne doit pas pouvoir s'echapper.** `Game.recyclerLoin()` repose devant
+  le joueur tout mob hostile passe au-dela de 240 px. Mesure (`npm run fuite`,
+  fuyard en ligne droite) : mediane a la meute **102 px avec, 877 px sans**.
+  Ce n'est pas une apparition — le budget ne bouge pas, c'est le meme individu
+  repose ailleurs. Trois exclusions a ne pas lever : le **boss** (le semer est
+  une option tactique), les **neutres** (decor vivant), les **sessiles** (une
+  plaque de biofilm EST du terrain).
+- **L'ouverture est DENSE et FAIBLE.** 11 credits des la premiere seconde, et
+  des mobs a moitie de PV, 55 % de degats, 75 % de vitesse, moitie moins de
+  butin — les quatre rampes se referment en 85 s. La version precedente
+  demarrait a 4,5 credits : l'arene etait vide et on n'apprenait rien.
+- **`ENGAGE_KILL` de `balance-sim.mjs` se cale sur le NIVEAU FINAL du jeu
+  reel**, pas sur le rapport brut qu'imprime le playtest — ce rapport est
+  biaise vers le bas parce que son denominateur ignore auras et zones. S'y
+  caler faisait predire le niveau 18 pour un jeu qui en rend 23, et un plateau
+  paraissait rompu alors que rien ne l'etait.
 - **Toute source d'ennemis interroge `director.hasBudget()`.** Une plaque de
   biofilm qui émet sans le demander double la population et le budget ne veut
   plus rien dire. Mesuré : 20 coureurs vivants pour un budget de 13 crédits.

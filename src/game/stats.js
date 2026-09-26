@@ -14,7 +14,14 @@ import { clamp } from '../core/util.js';
 export const BASE = {
   maxHp: 100,
   regen: 0,
-  speed: 68,         // vitesse de pointe, px/s
+  /* 56 et non 68. Baisse de 18 % decidee pour que la FLAGELLATION soit un
+     vrai gain et non un ajustement : a 68 de base, un joueur qui n'achetait
+     aucune carte de nage se sortait de tout en ligne droite, et les six
+     rangs de `flagelle` (+54 %) ne changeaient qu'un confort. A 56, la
+     meme cellule pleinement flagellee monte a ~100 et c'est ELLE qui decide
+     si on distance un coureur. Le debut de partie se joue au corps a corps ;
+     la vitesse est ce qu'on gagne. */
+  speed: 56,         // vitesse de pointe, px/s
   /* Acceleration : c'est elle qui porte l'inertie. Une valeur finie donne a
      la cellule une mise en train et une glisse, au lieu d'un deplacement
      collant a la touche. La flagellation la module fortement. */

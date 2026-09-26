@@ -27,19 +27,36 @@ export const IN_PLANE = 0.18;
 
 let uid = 1;
 
+/* Vitesse d'une cellule vegetative, en fraction de la cellule nageuse. Le
+   chiffre fait le travail : a 0,55 un coliforme non differencie derive a
+   35 px/s contre 56 au joueur, donc on le seme ; differencie il monte a 64 et
+   il faut le tuer. Au-dessus de 0,7 la difference ne s'entendait plus dans le
+   jeu, en dessous de 0,45 le mob devenait du decor. */
+const VEGETATIF = 0.55;
+
 export function makeEnemy(spec, x, y, z, scale) {
+  /* DIFFERENCIATION EN CELLULES NAGEUSES. Elle se decide A LA NAISSANCE et
+     ne change plus : un mob qui se mettrait a pousser des flagelles sous
+     les yeux du joueur serait une transformation, pas une population qui
+     evolue. Ce sont les NOUVEAUX arrivants qui sont differencies. */
+  const nageuse = spec.swarm === undefined || (scale.p ?? 1) >= spec.swarm;
+  const flagella = nageuse ? spec.flagella : null;
   return {
     uid: uid++, spec, x, y, z,
     vx: 0, vy: 0,
     hp: spec.hp * scale.hp, maxHp: spec.hp * scale.hp,
-    speed: spec.speed * scale.speed,
+    speed: spec.speed * scale.speed * (nageuse ? 1 : VEGETATIF),
     contact: spec.contact * scale.dmg,
     radius: spec.radius,
+    /* La flagellation est portee par l'INDIVIDU et non par l'espece, depuis
+       qu'elle depend de la phase de croissance. Le rendu lit celle-ci. */
+    flagella,
+    elite: false,
     ang: Math.random() * TAU,
     angCible: 0, omega: 0, trouble: 0,
-    /* Memoire de cap, uniquement pour les especes qui portent un flagelle :
+    /* Memoire de cap, uniquement pour les individus qui portent un flagelle :
        inutile d'entretenir un sillage pour une spore. */
-    sillage: spec.flagella ? new Sillage(22) : null,
+    sillage: flagella ? new Sillage(22) : null,
     phase: Math.random() * TAU,
     heading: Math.random() * TAU,
     timer: Math.random() * 1.2,

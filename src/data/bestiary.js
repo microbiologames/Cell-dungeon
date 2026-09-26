@@ -17,6 +17,14 @@
      flagelle, et c'est justement pour ca qu'il derive en brownien pur.
        'polaire'     monotriche ou lophotriche, a un seul pole
        'peritriche'  reparti sur tout le pourtour
+
+   swarm : avancement du run a partir duquel l'espece porte ses flagelles.
+     En deca, elle apparait en cellule VEGETATIVE : pas de flagelle, et la
+     vitesse tombee a 55 %. Ce n'est pas un reglage de difficulte deguise,
+     c'est la differenciation en cellules nageuses, qui est documentee et
+     dependante de la phase de croissance chez les deux especes qui portent
+     le champ. Le champ n'existe que pour elles ; une espece dont la
+     flagellation est constitutive ne le recoit pas.
 --------------------------------------------------------------------------- */
 
 export const ROLE_COST = {
@@ -51,7 +59,12 @@ export const MILK_MOBS = [
     kind: 'rod', mot: 'swim', gram: '-',
     hp: 20, speed: 64, contact: 6, radius: 3, aa: 3,
     phSlow: 5.6, elance: 1.05, flagella: { mode: 'peritriche', count: 6 },
-    note: "Flagelles peritriches, nage en run and tumble. Coliforme : ralentit nettement sous pH 5,6.",
+    /* Le coliforme est le mob rapide du debut : c'est donc LUI qui decidait
+       si on pouvait s'echapper en ligne droite des la premiere minute. En
+       cellule vegetative il derive a 35 px/s et on le seme ; differencie, il
+       monte a 64 et il faut le tuer. */
+    swarm: 0.22,
+    note: "Flagelles peritriches, nage en run and tumble. La synthese de flagelline est reprimee en phase exponentielle precoce : les cellules jeunes sont peu ou pas flagellees. Coliforme : ralentit nettement sous pH 5,6.",
   }),
   M({
     id: 'pseudomonas', label: 'P. FRAGI', role: 'runner',
@@ -80,7 +93,8 @@ export const MILK_MOBS = [
     kind: 'rodlong', mot: 'swim', gram: '+',
     hp: 110, speed: 42, contact: 14, radius: 4.5, aa: 10,
     ability: 'sporulation', flagella: { mode: 'peritriche', count: 7 },
-    note: "Endospore refringente, resistante a la chaleur et aux acides. Arrive au lait par le sol et la traite.",
+    swarm: 0.5,
+    note: "Endospore refringente, resistante a la chaleur et aux acides. Arrive au lait par le sol et la traite. Le swarming est une differenciation documentee chez B. cereus : les cellules swarmer s'allongent et s'hyperflagellent, les vegetatives sont peu mobiles.",
   }),
   M({
     id: 'spore', label: 'ENDOSPORE', role: 'chaff', cost: 0.6,

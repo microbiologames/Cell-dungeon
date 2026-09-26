@@ -39,6 +39,10 @@ await page.goto('http://localhost:8096/');
 
 const result = await page.evaluate(async ({ runs, matrice, nageOvr }) => {
   const { Game } = await import('./src/game/game.js');
+  const { MILK_MOBS } = await import('./src/data/bestiary.js');
+  const { hpScale: HP_SCALE } = await import('./src/data/matrices.js');
+  const CHAFF = MILK_MOBS.filter((m) => m.role === 'chaff');
+  const REF_HP = CHAFF.reduce((a, m) => a + m.hp, 0) / CHAFF.length;
   if (nageOvr) {
     const { NAGE } = await import('./src/game/player.js');
     Object.assign(NAGE, nageOvr);
@@ -60,6 +64,17 @@ const result = await page.evaluate(async ({ runs, matrice, nageOvr }) => {
     const marks = [];
     let nextMark = 0;
     let deaths = 0;
+    /* Porteurs de plasmide VUS : le directeur en promeut un toutes les 34 a
+       60 s, et un run de 12 minutes doit donc en montrer une dizaine. A zero,
+       la promotion ne se declenche pas et personne ne s'en apercevrait — le
+       jeu tournerait tres bien sans elle. */
+    const porteursVus = new Set();
+    /* Integrale de la capacite theorique de tuerie, pour RE-MESURER
+       `ENGAGE_KILL` du simulateur d'equilibrage. Ce n'est pas un chiffre
+       qu'on choisit : c'est le rapport entre ce que le joueur POURRAIT tuer
+       (dps / PV d'un chaff) et ce qu'il tue vraiment. Son commentaire
+       la-bas dit qu'il vient d'ici ; il faut donc qu'il vienne d'ici. */
+    let capacite = 0;
     const deathPhase = [0, 0, 0];   // debut / milieu / fin
 
     for (let i = 0; i < steps; i++) {
@@ -132,16 +147,26 @@ const result = await page.evaluate(async ({ runs, matrice, nageOvr }) => {
           dps: +(g.player.stats.dmg * g.player.fireRate * g.player.stats.projectiles).toFixed(0),
         });
       }
+      for (const e of g.enemies) if (e.elite) porteursVus.add(e.uid);
+      {
+        const pr = Math.min(1, g.time / g.matrix.duration);
+        const st = g.player.stats;
+        const dps = st.dmg * g.player.fireRate * st.projectiles;
+        capacite += (dps / (REF_HP * HP_SCALE(pr))) * DT;
+      }
       if (g.state === 'won') break;
     }
-    out.push({ run, deaths, deathPhase, marks, niveauFinal: g.player.level, tues: g.player.kills });
+    out.push({ run, deaths, deathPhase, marks, niveauFinal: g.player.level,
+      tues: g.player.kills, score: g.score, porteurs: porteursVus.size,
+      engage: +(g.player.kills / Math.max(1, capacite)).toFixed(3) });
   }
   return out;
 }, { runs: RUNS, matrice: MATRICE, nageOvr: NAGE_OVR });
 
 console.log(`matrice : ${MATRICE}${NAGE_OVR ? '  nage ' + JSON.stringify(NAGE_OVR) : ''}`);
 for (const r of result) {
-  console.log(`--- run ${r.run} : niveau ${r.niveauFinal}, ${r.tues} tues, `
+  console.log(`--- run ${r.run} : niveau ${r.niveauFinal}, score ${r.score}, ${r.tues} tues, `
+    + `${r.porteurs} porteurs, `
     + `${r.deaths} mort(s) [debut ${r.deathPhase[0]} / milieu ${r.deathPhase[1]} / fin ${r.deathPhase[2]}] ---`);
   for (const m of r.marks) {
     console.log(`  ${String(Math.floor(m.t / 60)).padStart(2)}:${String(m.t % 60).padStart(2, '0')}`
@@ -151,7 +176,15 @@ for (const r of result) {
   }
 }
 const niv = result.map((r) => r.niveauFinal);
-console.log(`\nniveau final : ${Math.min(...niv)} a ${Math.max(...niv)}`
+const eng = result.map((r) => r.engage);
+console.log(`\nENGAGE_KILL mesure : ${(eng.reduce((a, b) => a + b, 0) / eng.length).toFixed(3)}`
+  + `  (runs : ${eng.join(', ')})`);
+/* Ce rapport est BIAISE VERS LE BAS — son denominateur ignore auras et zones
+   — et on ne le recopie donc PAS tel quel dans le simulateur. Ce qu'on y
+   cale est le NIVEAU FINAL ci-dessous : `npm run balance`, politique au
+   hasard (le meme pilote qu'ici), doit annoncer le meme. */
+console.log('  -> caler ENGAGE_KILL de balance-sim.mjs sur le NIVEAU FINAL, pas sur ce rapport.');
+console.log(`niveau final : ${Math.min(...niv)} a ${Math.max(...niv)}`
   + `  (moyenne ${(niv.reduce((a, b) => a + b, 0) / niv.length).toFixed(1)})`);
 const ph = [0, 1, 2].map((i) => result.reduce((a, r) => a + r.deathPhase[i], 0));
 console.log(`morts par tiers de run : debut ${ph[0]}  milieu ${ph[1]}  fin ${ph[2]}`

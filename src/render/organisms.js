@@ -546,7 +546,10 @@ export function drawOrganism(scr, spec, x, y, r, ang, phase, fill, rim, opts = n
   /* Flagellation. C'est un marqueur taxonomique reel : on ne la donne qu'aux
      especes chez qui elle est documentee (voir `flagella` dans le
      bestiaire), et jamais aux autres. Un Lactococcus n'a pas de flagelle. */
-  const fl = spec.flagella;
+  /* La flagellation vient de l'INDIVIDU quand l'appelant la fournit : elle
+     depend de la phase de croissance (`swarm` dans le bestiaire), et deux
+     cellules de la meme espece n'en portent donc pas forcement. */
+  const fl = o.flagella !== undefined ? o.flagella : spec.flagella;
   if (fl && r >= 1.6) {
     const hw = r * (spec.kind === 'rodlong' ? 1.7 : 1.2 * (spec.elance || 1));
     drawFlagella(scr, {
