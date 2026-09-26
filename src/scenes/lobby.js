@@ -35,7 +35,6 @@ import { MATRICES } from '../data/matrices.js';
 import { BESTIARY } from '../data/bestiary.js';
 import { drawOrganism, drawPlayer, colorOf } from '../render/organisms.js';
 import { ESPECES, ESPECE_DEFAUT, especeOf } from '../data/especes.js';
-import { profilSouche } from '../game/stats.js';
 import { Swimmer } from './swimmer.js';
 
 const WELL_R = 21;
@@ -616,23 +615,21 @@ export class Lobby {
       if (w && w.kind === 'souche') {
         /* Devant une alveole, la FICHE de la souche. Le titre « LA NICHE »
            saute : on sait ou on est, et chaque ligne rendue sert a choisir.
-           Les atouts et les faiblesses sont CALCULES a partir des stats
-           (`profilSouche`), jamais recopies — une fiche ecrite a la main
-           aurait divergé du premier reglage d'equilibrage. */
+
+           Ce qui differencie une souche est sa MECANIQUE, pas ses chiffres.
+           Un premier jet listait trois atouts et trois faiblesses derives des
+           stats — « ENCAISSE », « GROSSE CIBLE » — et c'etait juste sans etre
+           utile : ca decrivait un profil, pas une facon de jouer. La phrase
+           de `trait.desc` dit en revanche exactement ce qu'on veut savoir
+           avant de choisir : « la cellule fille prend la place de la mere :
+           PV pleins, mais la moitie des evolutions acquises est perdue au
+           hasard ». Elle existait deja, elle n'etait affichee nulle part. */
         const e = w.espece;
-        const pr = profilSouche(e);
         t.ligne(e.label, UI.textHot, 2);
-        t.ligne(e.sous, UI.textDim, 1);
-        t.ligne(e.trait ? e.trait.label : 'PAS DE CAPACITE', UI.text, 1).saut(2);
-        for (const a of pr.atouts) t.ligne(`+ ${a}`, UI.heal, 1);
-        for (const f of pr.faiblesses) t.ligne(`- ${f}`, UI.damage, 1);
-        /* Le lactobacille est la reference : zero ecart des deux cotes. Sans
-           cette ligne sa fiche est vide et se lit comme un bug, alors que
-           c'est justement son identite. */
-        if (!pr.atouts.length && !pr.faiblesses.length) {
-          t.ligne('LA REFERENCE', UI.text, 1);
-        }
-        t.saut(2).ligne(e.id === this.especeId ? 'SOUCHE ACTIVE' : 'RESTE POUR DEVENIR',
+        t.ligne(e.sous, UI.textDim, 1).saut(2);
+        if (e.trait) t.ligne(e.trait.label, UI.heal, 1);
+        t.paragraphe(e.trait ? e.trait.desc : e.resume, UI.text, 1);
+        t.saut(3).ligne(e.id === this.especeId ? 'SOUCHE ACTIVE' : 'RESTE POUR DEVENIR',
           e.id === this.especeId ? UI.textHot : UI.textDim, 1);
       } else if (w && w.kind === 'porte') {
         t.ligne('LA NICHE', UI.text, 2).saut(3);

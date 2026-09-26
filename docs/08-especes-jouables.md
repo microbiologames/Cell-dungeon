@@ -248,57 +248,49 @@ rayon sur 140°, leurs bourrelets d'EPS se recouvraient et les quatre fondaient
 en une guirlande. À 56 px sur 150°, il reste 7,3 px de mur entre deux voisines
 et chacune se lit seule.
 
-### La fiche de souche est CALCULÉE
+### La fiche de souche dit la MÉCANIQUE, pas les chiffres
 
 Devant une alvéole, le HUD donne le nom, la sous-catégorie, la caractéristique
-unique, puis **trois atouts en vert et trois faiblesses en rouge** :
+unique et **une phrase** : celle qui dit ce qu'on gagne et ce qu'on perd.
 
 ```
 S. CEREVISIAE
 LEVURE DE BIERE
 BOURGEONNEMENT
-+ ENCAISSE          - GROSSE CIBLE
-+ AIME L ACIDE      - SANS FLAGELLE
-+ FRAPPE FORT       - CADENCE LENTE
+UN BOURGEON MURIT EN CONTINU. A LA LYSE, LA CELLULE FILLE
+PREND LA PLACE DE LA MERE : PV PLEINS, MAIS LA MOITIE DES
+EVOLUTIONS ACQUISES EST PERDUE AU HASARD.
 ```
 
-Rien n'est recopié à la main. `profilSouche()` (dans `src/game/stats.js`,
-là où vit `BASE`) compare les stats de la souche à celles de la référence et
-ne garde que les écarts supérieurs à **8 %**, triés par amplitude. Une fiche
-écrite à la main aurait divergé du premier réglage d'équilibrage — c'est
-arrivé assez souvent dans ce dépôt pour qu'on n'essaie même pas.
+Un premier jet listait trois atouts et trois faiblesses **dérivés des stats**
+— « ENCAISSE », « GROSSE CIBLE », « CADENCE LENTE ». C'était juste, calculé,
+impossible à laisser diverger de l'équilibrage… et inutile : ça décrivait un
+**profil**, pas une **façon de jouer**. On ne choisit pas *S. cerevisiae*
+parce qu'elle encaisse, on la choisit parce qu'elle renaît en perdant la
+moitié de son génome.
 
-Deux faits qui ne sont dans aucune stat s'y ajoutent : le **confort acide**,
-parce que c'est le joueur lui-même qui fabrique ce terrain et qu'il le subit
-toute la partie ; et `aflagelle`, qui ne se lit nulle part alors qu'il ferme
-six rangs d'évolution.
+La phrase vient de `trait.desc`, qui existait déjà et n'était affichée nulle
+part — elle ne servait qu'à la carte d'évolution réservée. Aucune duplication :
+c'est le même texte aux deux endroits.
 
-Le lactobacille sort une fiche vide — il *est* la référence — et affiche donc
-« LA RÉFÉRENCE » à la place. Sans cette ligne, sa fiche se lit comme un bug
-alors que c'est précisément son identité.
+Seule la référence, qui n'a **pas** de trait, a besoin qu'on écrive la sienne
+(`resume` dans `especes.js`) : *« Aucune capacité de secours : ni spore, ni
+amas, ni bourgeon. En échange elle prospère dans l'acide qu'elle fabrique, et
+c'est la souche sur laquelle tout le jeu est calé. »*
 
-**Quatorze caractères au plus par étiquette**, et ce n'est pas une
-coquetterie : en paysage le HUD n'a qu'une colonne de 64 à 110 px selon la
-fenêtre, soit 16 à 27 caractères. Vérifié sur capture en 620 × 590, la fenêtre
-qui donne la colonne la plus mince — « PAS DE FLAGELLE » y mordait sur le
-disque, « SANS FLAGELLE » non. Les sous-titres des souches ont été raccourcis
-pour la même raison (« LEVURE DE FERMENTATION » → « LEVURE DE BIERE »).
+### Le paragraphe se coupe tout seul
 
-### La maison est vue DE CÔTÉ
+`sceneText().paragraphe()` coupe aux espaces à la largeur réelle de la
+colonne. Le chiffre ne peut pas être codé en dur : en paysage la colonne va de
+**64 à 110 px** selon la fenêtre (16 à 27 caractères à 4 px le glyphe), en
+portrait c'est presque toute la largeur — 62 caractères. Coder l'un donnerait
+faux dans l'autre, ce qui est précisément le défaut que `hud-anchor.js` existe
+pour corriger.
 
-Au milieu de puits vus de dessus, et c'est le choix qui a fait basculer la
-lecture. Trois essais en vue de dessus : un amas de bosses vertes de 30 px se
-lit comme **un puits de plus**, quelle que soit la quantité de détail qu'on y
-met — porte, cheminée, hublots, tout se noyait. Une façade à toit bombé et
-base plate se lit comme un bâtiment au premier coup d'œil, parce qu'elle est
-la seule chose de la boîte à avoir un **haut** et un **bas**.
-
-L'esthétique reprend le vocabulaire de la plaque de biofilm de la conduite —
-des bosses d'EPS qui se chevauchent, jamais un cercle — mais réchauffée : le
-`#4e7a6a` de la conduite est fait pour un fond noir, posé sur la gélose claire
-il se lit comme une tache. La porte est une arche sombre qui mange le quart de
-la façade, avec une lumière chaude qui bat dedans : à 30 px, une porte « à
-l'échelle » ferait deux pixels et ne se verrait pas.
+Vérifié sur capture dans les deux orientations, avec la phrase la plus longue
+des quatre (celle de la référence, 172 caractères) et la fenêtre qui donne la
+colonne la plus mince, 620 × 590 : treize lignes, aucune ne mord sur le disque
+ni ne sort par le bas.
 
 ---
 

@@ -89,6 +89,10 @@ export const TIRS = {
  * @property {object} stats       ecarts a BASE
  * @property {number} confortAcide  part de cadence gagnee (ou perdue) a pH bas
  * @property {object|null} trait  caracteristique unique
+ * @property {string} [resume]   la phrase de la niche quand la souche n'a PAS
+ *   de caracteristique unique. Les trois autres se decrivent par
+ *   `trait.desc`, qui dit deja exactement ce qui les differencie ; seule la
+ *   reference, qui n'a pas de trait, a besoin qu'on ecrive la sienne.
  * @property {object} biais       ponderation du tirage d'evolutions
  * @property {boolean} [aflagelle] la souche ne PEUT PAS gagner de flagelle
  *
@@ -111,6 +115,7 @@ export const ESPECES = [
     /* Une lactique fonctionne mieux dans l'acide qu'elle fabrique. */
     confortAcide: 0.14,
     trait: null,
+    resume: "Aucune capacite de secours : ni spore, ni amas, ni bourgeon. En echange elle prospere dans l'acide qu'elle fabrique, et c'est la souche sur laquelle tout le jeu est cale.",
     biais: { voies: { acidophile: 1.45, diffuseur: 1.20, flagelle: 1.15 } },
     note: "Bacille de 2 a 8 um sur 0,5 a 1 um, homofermentaire facultative, auxotrophe pour la plupart des acides amines. Immobile dans la nature : sa nage lui vient des flagellines qu'elle vole. C'est la souche de reference, celle sur laquelle tout le jeu est cale.",
   },

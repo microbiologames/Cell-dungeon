@@ -130,10 +130,14 @@ node tools/jeu-publier.mjs   # idem pour le jeu
   La maison est dessinée **de côté** au milieu de puits vus de dessus — c'est
   ce qui la fait lire comme un bâtiment, trois essais en vue de dessus ont
   tous donné « un puits de plus ».
-- **La fiche de souche est CALCULÉE**, jamais recopiée : `profilSouche()`
-  compare les stats à `BASE` et ne garde que les écarts > 8 %. Étiquettes à
-  **14 caractères au plus** — en paysage étroit la colonne du HUD n'en tient
-  pas davantage, vérifié sur capture en 620 × 590.
+- **La fiche de souche dit la MÉCANIQUE, pas les chiffres** : une phrase,
+  celle de `trait.desc`, qui dit ce qu'on gagne et ce qu'on perd. Une version
+  précédente listait des atouts et faiblesses dérivés des stats — juste, mais
+  ça décrivait un profil, pas une façon de jouer. Ne pas y revenir.
+- **Un texte de scène ne code jamais sa largeur en dur.**
+  `sceneText().paragraphe()` coupe aux espaces à la largeur réelle : la
+  colonne du HUD fait 64 à 110 px en paysage, presque toute la largeur en
+  portrait. Coder l'un donne faux dans l'autre.
 - **Audio : les voix sont PERMANENTES.** Un oscillateur Web Audio ne se relance
   pas après `stop()` ; en créer un par note, c'est la fuite classique. Chaque
   canal a un oscillateur qui tourne du début à la fin, et jouer une note ne
