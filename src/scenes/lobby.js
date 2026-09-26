@@ -35,6 +35,7 @@ import { MATRICES } from '../data/matrices.js';
 import { BESTIARY } from '../data/bestiary.js';
 import { drawOrganism, drawPlayer, colorOf } from '../render/organisms.js';
 import { ESPECES, ESPECE_DEFAUT, especeOf } from '../data/especes.js';
+import { profilSouche } from '../game/stats.js';
 import { Swimmer } from './swimmer.js';
 
 const WELL_R = 21;
@@ -43,35 +44,59 @@ const BOUNDS = { r: 92 };
 /* Disposition des puits, en coordonnees monde. Tout doit TENIR dans le
    champ d'un coup : un ecran de selection ou il faut se promener pour
    decouvrir les options est un mauvais ecran de selection. La camera est
-   donc FIXE a l'origine, contrairement au jeu. */
-/* Cinq matrices en couronne autour du puits du bestiaire. La disposition
-   circulaire evite d'avoir a redessiner la boite a chaque stage ajoute. */
+   donc FIXE a l'origine, contrairement au jeu.
+
+   UN CADRAN DE MONTRE : six positions a 60 degres sur un meme anneau, la
+   niche au centre. La version precedente serrait cinq puits sur un anneau de
+   62 avec le bestiaire au milieu et la niche coincee en bas — tout se
+   touchait, et le centre, qui est l'endroit ou l'oeil tombe, servait a la
+   chose qu'on consulte le moins.
+
+   Rayon 78. Le chiffre vient de deux contraintes qui se rejoignent :
+     - l'ECART. A 60 degres l'entraxe vaut exactement le rayon, soit 78 ;
+       moins deux anneaux de puits (22,5 chacun) il reste 33 px de gelose
+       entre deux voisins. C'est franc.
+     - le BORD. Le bord exterieur d'un puits tombe a 99 px pour un champ de
+       124 : 25 px de gelose derriere, donc « bien a l'interieur ».
+   Et plus d'aplatissement en y : une boite de Petri vue de dessus est un
+   cercle, le 0,86 de la couronne precedente ne decrivait rien. */
+const CADRAN = 78;
 const SLOTS = (() => {
-  const ids = ['milk', 'pipe', 'kombucha', 'levain', 'blood'];
-  const R = 62;
-  const out = ids.map((id, i) => {
-    const a = -Math.PI / 2 + (i / ids.length) * Math.PI * 2;
-    return { id, x: Math.round(Math.cos(a) * R), y: Math.round(Math.sin(a) * R * 0.86) };
+  /* Dans le sens horaire depuis midi. Le BESTIAIRE est a six heures parce
+     que c'est la seule position qu'on lit sans compter — et parce qu'en
+     portrait le texte du HUD est juste en dessous, ce qui met la notice a
+     cote de la chose qu'elle decrit. */
+  const ordre = ['milk', 'pipe', 'kombucha', 'bestiaire', 'levain', 'blood'];
+  return ordre.map((id, i) => {
+    const a = -Math.PI / 2 + (i / ordre.length) * Math.PI * 2;
+    const s = { id, x: Math.round(Math.cos(a) * CADRAN), y: Math.round(Math.sin(a) * CADRAN) };
+    /* Le bestiaire est un peu plus petit : il n'est pas un stage. */
+    if (id === 'bestiaire') s.r = 18;
+    return s;
   });
-  out.push({ id: 'bestiaire', x: 0, y: 0, r: 16 });
-  return out;
 })();
 
-/* La niche occupe l'intervalle du BAS de la couronne, le seul des cinq qui
-   soit a la fois libre et symetrique.
+/* LA NICHE EST AU CENTRE, et c'est la troisieme position qu'elle occupe.
+   D'abord quatre colonies semees entre les puits, puis une maison coincee au
+   bas de la couronne ou elle frolait le puits du kombucha — 2,3 px entre les
+   deux anneaux au premier essai, 6,2 au second, jamais confortable.
 
-   Le chiffre qui a tranche n'est pas la distance entre les CENTRES mais le
-   vide entre les ANNEAUX DESSINES, puits a r+1,5 et dome a r+2,5. Premier
-   essai a (0, 67) et r = 16 : 2,3 px de gel entre les deux traits, et la
-   capture montrait une maison collee au puits du kombucha. A (0, 72) et
-   r = 15 il en reste 6,2, et 5 px jusqu'a la paroi de nage.
-   C'est tout l'enjeu : entrer chez soi et partir en mission ne doivent
-   jamais se declencher l'un pour l'autre.
+   Au centre le probleme disparait : le puits le plus proche est a 78, son
+   anneau s'arrete a 55,5, et la maison a 21. Il reste 34 px de gelose tout
+   autour. Entrer chez soi et partir en mission ne peuvent plus se declencher
+   l'un pour l'autre, et c'est tout l'enjeu.
 
-   Et elle est en bas, a l'oppose du point de depart du nageur (0, -76) :
-   on traverse donc la boite pour aller s'habiller, on ne trebuche pas
-   dessus. */
-const NICHE = { id: 'niche', x: 0, y: 72, r: 15, kind: 'niche' };
+   C'est aussi la bonne place au sens du jeu : le centre est l'endroit ou
+   l'oeil tombe et ou le nageur passe, et ce qu'on y met est ce qu'on fait en
+   premier — choisir qui l'on est. */
+const NICHE = { id: 'niche', x: 0, y: 0, r: 20, kind: 'niche' };
+
+/* Le nageur arrive SOUS la niche, a 40 px : assez pres pour que la maison
+   soit la premiere chose qu'il voie — son orientation de depart pointe
+   dessus — et assez loin pour que rien ne soit deja selectionne. Le rayon de
+   selection le plus large du lobby vaut 32 (18 + 14) ; a 40 du centre et 38
+   du bestiaire, aucun des deux n'accroche. */
+const DEPART = { x: 0, y: 40 };
 
 /* --- l'interieur, dans son propre repere -------------------------------- */
 
@@ -105,7 +130,10 @@ const PORTE = { id: 'porte', x: 0, y: 62, r: 11, kind: 'porte' };
 const NICHE_ARRIVEE = { x: 0, y: 24 };
 /* Et on ressort devant la maison, pas dedans : 23 px du centre du dome, donc
    hors du disque d'entree (11,5 px) avec de la marge. */
-const NICHE_SORTIE = { x: 0, y: 44 };
+/* On ressort DEVANT la maison : 34 px du centre, donc au-dela du rayon
+   d'entree (13) avec de la marge, et hors du rayon de selection (32) pour
+   que la maison ne se rouvre pas toute seule dans la foulee. */
+const NICHE_SORTIE = { x: 0, y: 34 };
 
 /* La niche est en EPS, comme la plaque de la conduite — mais pas de la meme
    couleur. Mesure faite a l'oeil sur la planche : le `#4e7a6a` de la conduite
@@ -124,7 +152,7 @@ const EPS = {
 export class Lobby {
   constructor(onPick, especeId = ESPECE_DEFAUT) {
     this.onPick = onPick;
-    this.swim = new Swimmer(0, -76);
+    this.swim = new Swimmer(DEPART.x, DEPART.y);
     this.time = 0;
     this.focus = null;
     this.enterHold = 0;
@@ -585,23 +613,35 @@ export class Lobby {
     const t = sceneText(scr);
     const w = this.focus;
     if (this.dedans) {
-      t.ligne('LA NICHE', UI.text, 2).saut(3);
       if (w && w.kind === 'souche') {
-        /* Devant une alveole, on parle de la SOUCHE : son nom, ce qu'elle
-           tire, et sa caracteristique unique. C'est la seule information qui
-           decide du choix, donc c'est la seule affichee. */
+        /* Devant une alveole, la FICHE de la souche. Le titre « LA NICHE »
+           saute : on sait ou on est, et chaque ligne rendue sert a choisir.
+           Les atouts et les faiblesses sont CALCULES a partir des stats
+           (`profilSouche`), jamais recopies — une fiche ecrite a la main
+           aurait divergé du premier reglage d'equilibrage. */
         const e = w.espece;
+        const pr = profilSouche(e);
         t.ligne(e.label, UI.textHot, 2);
         t.ligne(e.sous, UI.textDim, 1);
-        t.ligne(e.trait ? e.trait.label : 'AUCUNE CAPACITE PROPRE', UI.text, 1);
-        t.ligne(e.id === this.especeId ? 'SOUCHE ACTIVE' : 'RESTE DEDANS POUR DEVENIR',
+        t.ligne(e.trait ? e.trait.label : 'PAS DE CAPACITE', UI.text, 1).saut(2);
+        for (const a of pr.atouts) t.ligne(`+ ${a}`, UI.heal, 1);
+        for (const f of pr.faiblesses) t.ligne(`- ${f}`, UI.damage, 1);
+        /* Le lactobacille est la reference : zero ecart des deux cotes. Sans
+           cette ligne sa fiche est vide et se lit comme un bug, alors que
+           c'est justement son identite. */
+        if (!pr.atouts.length && !pr.faiblesses.length) {
+          t.ligne('LA REFERENCE', UI.text, 1);
+        }
+        t.saut(2).ligne(e.id === this.especeId ? 'SOUCHE ACTIVE' : 'RESTE POUR DEVENIR',
           e.id === this.especeId ? UI.textHot : UI.textDim, 1);
       } else if (w && w.kind === 'porte') {
+        t.ligne('LA NICHE', UI.text, 2).saut(3);
         t.ligne('SORTIR', UI.textHot, 2);
-        t.ligne('RESTE DEDANS POUR REVENIR A LA BOITE', UI.textDim, 1);
+        t.ligne('RESTE DEDANS POUR REVENIR', UI.textDim, 1);
       } else {
-        t.ligne(`SOUCHE : ${this.espece.label}`, UI.text, 1);
-        t.ligne('VA AU CONTACT DE CELLE QUE TU VEUX', UI.textDim, 1);
+        t.ligne('LA NICHE', UI.text, 2).saut(3);
+        t.ligne(this.espece.label, UI.textHot, 1);
+        t.ligne('VA AU CONTACT D UNE SOUCHE', UI.textDim, 1);
       }
       return;
     }

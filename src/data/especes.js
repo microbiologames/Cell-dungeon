@@ -81,7 +81,9 @@ export const TIRS = {
  * @typedef {object} Espece
  * @property {string} id          identifiant interne
  * @property {string} label       nom affiche
- * @property {string} sous        sous-titre du lobby
+ * @property {string} sous        sous-titre, SEIZE CARACTERES AU PLUS
+ *   (en paysage etroit la colonne du HUD n'en tient pas plus — verifie sur
+ *   capture en 620x590 : « LEVURE DE FERMENTATION » y mordait sur le disque)
  * @property {string} morpho      morphologie de rendu (voir drawPlayer)
  * @property {string} tir         cle de TIRS
  * @property {object} stats       ecarts a BASE
@@ -101,7 +103,7 @@ export const ESPECES = [
   {
     id: 'lactobacillus',
     label: 'L. PLANTARUM',
-    sous: 'BACTERIE LACTIQUE',
+    sous: 'BACILLE LACTIQUE',
     morpho: 'bacille',
     gram: '+',
     tir: 'lactate',
@@ -116,7 +118,7 @@ export const ESPECES = [
   {
     id: 'cereus',
     label: 'B. CEREUS',
-    sous: 'BACILLE SPORULANT',
+    sous: 'GROS BACILLE',
     morpho: 'bacillelong',
     gram: '+',
     tir: 'cereulide',
@@ -199,7 +201,7 @@ export const ESPECES = [
   {
     id: 'cerevisiae',
     label: 'S. CEREVISIAE',
-    sous: 'LEVURE DE FERMENTATION',
+    sous: 'LEVURE DE BIERE',
     morpho: 'levure',
     gram: 'fungi',
     tir: 'ethanol',

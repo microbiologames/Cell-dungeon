@@ -145,7 +145,8 @@ for (const e of ESPECES) {
      diagonale a (-26, 50) tombait dans le puits du levain, la capture
      partait en stage, et le banc a rendu une image de pate sans rien
      signaler. D'ou le garde-fou ci-dessous. */
-  await page.evaluate(() => { const l = window.__lobby; l.swim.x = 0; l.swim.y = 44; });
+  /* Devant la porte de la niche, au centre du cadran. */
+  await page.evaluate(() => { const l = window.__lobby; l.swim.x = 0; l.swim.y = 26; });
   await page.waitForTimeout(700);
   const encoreLobby = await page.evaluate(() => !!window.__lobby && !window.__game);
   if (!encoreLobby) errs.push('16-lobby: la capture a quitte le lobby (puits touche ?)');
@@ -159,9 +160,11 @@ for (const e of ESPECES) {
   console.log('17-niche-dedans'.padEnd(18), 'interieur, quatre alveoles');
 
   /* Au contact de l'alveole de S. cerevisiae : le HUD doit parler d'elle. */
+  /* Au contact de l'alveole de S. cerevisiae, la plus a droite (56 px de
+     rayon, -15 degres) : c'est la fiche la plus fournie des quatre. */
   await page.evaluate(() => {
     const l = window.__lobby;
-    l.swim.x = 47; l.swim.y = -15;
+    l.swim.x = 52; l.swim.y = -13;
   });
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${OUT}/18-niche-alveole.png` });

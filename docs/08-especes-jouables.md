@@ -217,17 +217,72 @@ dans une colonie pour changer de corps et dans un puits pour partir en
 mission, **avec la même commande et à dix pixels d'écart**. Les rassembler
 dans une pièce sépare les deux — dedans on s'habille, dehors on part.
 
-### Les deux chiffres qui ont tranché
+### Le lobby est un cadran de montre, la niche au centre
 
-Ce ne sont pas les distances entre centres, mais les **vides entre les traits
-dessinés**, et les deux ont été corrigés sur capture, pas sur calcul :
+Six positions à 60° sur un anneau de **78 px**, et la maison au milieu.
 
-- **Le dôme.** À (0, 67) pour 16 px de rayon, il restait 2,3 px entre son
-  anneau et celui du puits du kombucha : la maison s'y collait. À (0, 72) pour
-  15 px, il en reste 6,2, et 5 px jusqu'à la paroi de nage.
-- **Les alvéoles.** À 50 px de rayon sur 140°, leurs bourrelets d'EPS se
-  recouvraient et les quatre fondaient en une guirlande. À 56 px sur 150°, il
-  reste 7,3 px de mur entre deux voisines et chacune se lit seule.
+| Heure | Contenu |
+|---|---|
+| 12 h | lait cru |
+| 2 h | conduite |
+| 4 h | kombucha |
+| **6 h** | **bestiaire** |
+| 8 h | levain |
+| 10 h | sang (à venir) |
+
+Le rayon 78 vient de deux contraintes qui se rejoignent : à 60° l'entraxe vaut
+exactement le rayon, donc il reste **33 px de gélose** entre deux puits
+voisins une fois leurs anneaux déduits ; et le bord extérieur d'un puits tombe
+à 99 px pour un champ de 124, donc **25 px de gélose derrière**.
+
+La niche a mis trois essais à trouver sa place : quatre colonies semées entre
+les puits, puis une maison coincée au bas de la couronne où elle frôlait le
+kombucha — 2,3 px entre les deux anneaux au premier essai, 6,2 au second,
+jamais confortable. **Au centre le problème disparaît** : le puits le plus
+proche est à 78, son anneau s'arrête à 55,5, la maison à 23. Il reste 32 px
+tout autour. Et c'est la bonne place au sens du jeu — le centre est là où
+l'œil tombe, et ce qu'on y met est ce qu'on fait en premier.
+
+Les alvéoles à l'intérieur ont eu le même genre de correction : à 50 px de
+rayon sur 140°, leurs bourrelets d'EPS se recouvraient et les quatre fondaient
+en une guirlande. À 56 px sur 150°, il reste 7,3 px de mur entre deux voisines
+et chacune se lit seule.
+
+### La fiche de souche est CALCULÉE
+
+Devant une alvéole, le HUD donne le nom, la sous-catégorie, la caractéristique
+unique, puis **trois atouts en vert et trois faiblesses en rouge** :
+
+```
+S. CEREVISIAE
+LEVURE DE BIERE
+BOURGEONNEMENT
++ ENCAISSE          - GROSSE CIBLE
++ AIME L ACIDE      - SANS FLAGELLE
++ FRAPPE FORT       - CADENCE LENTE
+```
+
+Rien n'est recopié à la main. `profilSouche()` (dans `src/game/stats.js`,
+là où vit `BASE`) compare les stats de la souche à celles de la référence et
+ne garde que les écarts supérieurs à **8 %**, triés par amplitude. Une fiche
+écrite à la main aurait divergé du premier réglage d'équilibrage — c'est
+arrivé assez souvent dans ce dépôt pour qu'on n'essaie même pas.
+
+Deux faits qui ne sont dans aucune stat s'y ajoutent : le **confort acide**,
+parce que c'est le joueur lui-même qui fabrique ce terrain et qu'il le subit
+toute la partie ; et `aflagelle`, qui ne se lit nulle part alors qu'il ferme
+six rangs d'évolution.
+
+Le lactobacille sort une fiche vide — il *est* la référence — et affiche donc
+« LA RÉFÉRENCE » à la place. Sans cette ligne, sa fiche se lit comme un bug
+alors que c'est précisément son identité.
+
+**Quatorze caractères au plus par étiquette**, et ce n'est pas une
+coquetterie : en paysage le HUD n'a qu'une colonne de 64 à 110 px selon la
+fenêtre, soit 16 à 27 caractères. Vérifié sur capture en 620 × 590, la fenêtre
+qui donne la colonne la plus mince — « PAS DE FLAGELLE » y mordait sur le
+disque, « SANS FLAGELLE » non. Les sous-titres des souches ont été raccourcis
+pour la même raison (« LEVURE DE FERMENTATION » → « LEVURE DE BIERE »).
 
 ### La maison est vue DE CÔTÉ
 

@@ -123,13 +123,17 @@ node tools/jeu-publier.mjs   # idem pour le jeu
   plus rien dire. Mesuré : 20 coureurs vivants pour un budget de 13 crédits.
 - **Le décor est calculé une fois par image** (`collectDecor`) et partagé par
   le joueur, les mobs et les projectiles.
-- **Le lobby : la souche se choisit dans la NICHE**, une maison de biofilm au
-  bas de la boîte dans laquelle on entre (`src/scenes/lobby.js`). Dedans on
+- **Le lobby est un CADRAN** : six puits à 60° sur un anneau de 78, bestiaire
+  à six heures, **la niche au centre** (`src/scenes/lobby.js`). Dedans on
   s'habille, dehors on part : ne pas remettre de sélecteur de souche sur la
   gélose, le geste se confondait avec un départ de partie à dix pixels près.
   La maison est dessinée **de côté** au milieu de puits vus de dessus — c'est
   ce qui la fait lire comme un bâtiment, trois essais en vue de dessus ont
   tous donné « un puits de plus ».
+- **La fiche de souche est CALCULÉE**, jamais recopiée : `profilSouche()`
+  compare les stats à `BASE` et ne garde que les écarts > 8 %. Étiquettes à
+  **14 caractères au plus** — en paysage étroit la colonne du HUD n'en tient
+  pas davantage, vérifié sur capture en 620 × 590.
 - **Audio : les voix sont PERMANENTES.** Un oscillateur Web Audio ne se relance
   pas après `stop()` ; en créer un par note, c'est la fuite classique. Chaque
   canal a un oscillateur qui tourne du début à la fin, et jouer une note ne

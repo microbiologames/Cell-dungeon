@@ -140,3 +140,74 @@ export function computeStats(taken, espece = null) {
 export function theoreticalDps(stats) {
   return stats.dmg * stats.fireRate * stats.projectiles;
 }
+
+/* ---------------------------------------------------------------------------
+   Profil d'une souche : ce qu'elle a de mieux et de pire que la reference.
+--------------------------------------------------------------------------- */
+
+/**
+ * Les stats comparees, avec le sens dans lequel « plus » est un atout.
+ *
+ * La liste est courte volontairement. Une fiche qui enumere onze ecarts ne
+ * se lit pas : ce qu'on veut donner au joueur devant une alveole, c'est de
+ * quoi CHOISIR, donc trois atouts et trois faiblesses au plus.
+ *
+ * `hitbox` est le seul champ dont le sens s'inverse — une grosse cellule est
+ * une grosse cible — et c'est exactement pour ca qu'il est dans la table
+ * plutot que dans une exception ailleurs.
+ */
+/* QUATORZE CARACTERES AU PLUS, et ce n'est pas une coquetterie : en paysage
+   le HUD n'a qu'une colonne de 64 a 110 px selon la fenetre, soit 16 a 27
+   caracteres a 4 px le glyphe. Avec le prefixe « + » ou « - » et son espace,
+   quatorze tient tout juste dans le cas etroit. Verifie sur capture en
+   620x590, la fenetre qui donne la colonne la plus mince : « PAS DE
+   FLAGELLE » y mordait sur le disque, « SANS FLAGELLE » non. */
+const COMPAREES = [
+  { cle: 'maxHp', sens: 1, plus: 'ENCAISSE', moins: 'FRAGILE' },
+  { cle: 'dmg', sens: 1, plus: 'FRAPPE FORT', moins: 'FRAPPE FAIBLE' },
+  { cle: 'fireRate', sens: 1, plus: 'CADENCE RAPIDE', moins: 'CADENCE LENTE' },
+  { cle: 'speed', sens: 1, plus: 'NAGE VITE', moins: 'NAGE LENTEMENT' },
+  { cle: 'accel', sens: 1, plus: 'RELANCE VIVE', moins: 'RELANCE LOURDE' },
+  { cle: 'range', sens: 1, plus: 'LONGUE PORTEE', moins: 'COURTE PORTEE' },
+  { cle: 'hitbox', sens: -1, plus: 'PETITE CIBLE', moins: 'GROSSE CIBLE' },
+  { cle: 'aaGain', sens: 1, plus: 'RECOLTE BIEN', moins: 'RECOLTE MAL' },
+];
+
+/* 8 % : en deca, l'ecart ne se sent pas en jouant et l'afficher ferait du
+   bruit. Mesure a 4 %, la fiche du lactobacille — qui EST la reference —
+   sortait deux lignes a cause des arrondis du bestiaire. */
+const SEUIL = 0.08;
+
+/**
+ * Atouts et faiblesses d'une souche, DERIVES de ses stats.
+ *
+ * Rien n'est recopie a la main : les souches sont des ecarts a `BASE`, donc
+ * la fiche se calcule. Une fiche ecrite a la main aurait divergé du premier
+ * reglage d'equilibrage — et c'est arrive assez souvent dans ce depot pour
+ * qu'on n'essaie meme pas.
+ *
+ * @returns {{atouts: string[], faiblesses: string[]}}
+ */
+export function profilSouche(espece) {
+  const st = { ...BASE, ...(espece.stats || {}) };
+  const atouts = [];
+  const faiblesses = [];
+  for (const c of COMPAREES) {
+    const ref = BASE[c.cle];
+    if (!ref) continue;
+    const ecart = (st[c.cle] / ref - 1) * c.sens;
+    if (Math.abs(ecart) < SEUIL) continue;
+    (ecart > 0 ? atouts : faiblesses).push({ t: ecart > 0 ? c.plus : c.moins, a: Math.abs(ecart) });
+  }
+  /* Le confort acide n'est pas une stat mais il decide de la cadence reelle
+     dans un milieu qui s'acidifie a chaque tir : c'est le joueur lui-meme
+     qui fabrique ce terrain, donc il le subit toute la partie. */
+  if (espece.confortAcide > 0.05) atouts.push({ t: 'AIME L ACIDE', a: 0.5 });
+  else if (espece.confortAcide < -0.05) faiblesses.push({ t: 'CRAINT L ACIDE', a: 0.5 });
+  /* Et la fermeture des cartes de nage, qui ne se lit dans aucune stat alors
+     qu'elle ferme six rangs d'evolution. */
+  if (espece.aflagelle) faiblesses.push({ t: 'SANS FLAGELLE', a: 0.6 });
+
+  const trie = (xs) => xs.sort((u, v) => v.a - u.a).slice(0, 3).map((u) => u.t);
+  return { atouts: trie(atouts), faiblesses: trie(faiblesses) };
+}
