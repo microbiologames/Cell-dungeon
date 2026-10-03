@@ -307,7 +307,14 @@ second HUD**, pulsation sur le pH qui descend, battement rouge quand le boss
 arrive, balayage froid pendant un Nettoyage En Place.
 
 Le diffuseur est essentiel : sans lui on voit les points lumineux. Acrylique
-opale 3 mm, découpé au laser, à au moins 15 mm des LED.
+opale 3 mm, découpé au laser, à **25 mm** des LED. Ces 25 mm ne sont pas
+mesurés, c'est de la géométrie : l'anneau retenu fait ⌀85 mm sous un diffuseur
+de ⌀88, donc les LED sont quasiment au bord du disque à éclairer et leurs cônes
+ne se recouvrent plus au centre. D'où l'écart porté de 15 à 25 mm. Comme la
+colonne est faite de couches identiques, **découper deux entretoises de plus
+que nécessaire** et les ajouter une à une jusqu'à ce que la nappe soit
+homogène : c'est le genre de réglage qui se voit à l'œil mieux qu'il ne se
+calcule.
 
 ### Le chemin de la couleur jusqu'aux LED
 
@@ -398,7 +405,7 @@ La colonne de la boîte, du haut vers le bas :
   platine-guide     trou ⌀90,4   la boîte s'y encastre (0,4 mm de jeu)
   platine-siege     trou ⌀84     l'épaulement de 3 mm qui la porte
         [ diffuseur opale ⌀88, pincé ]
-  entretoise x3     trou ⌀84     les 15 mm qui écartent les LED
+  entretoise x5     trou ⌀84     les 25 mm qui écartent les LED (en couper 7)
   support-anneau    plein        l'anneau se colle sur le cercle gravé
 ```
 
@@ -469,7 +476,55 @@ sang attend qu'on ait joué la conduite pour de vrai.
 
 ---
 
-## 10. Décisions en attente
+## 10. Nomenclature
+
+Hors machine et écran. Les prix sont des ordres de grandeur, sauf l'encodeur
+de repli dont la référence a été vérifiée chez trois distributeurs.
+
+### Commandes
+
+| Quoi | Retenu | ~Prix |
+|---|---|---|
+| Encodeur de mise au point | module **KY-040** (lot, avec câbles Dupont) | 10 € le lot |
+| *Repli si le cranté déplaît* | *Bourns `PEC11R-4015F-N0024`, sans détente* | *2 €* |
+| Joystick d'arcade | microswitches, 4/8 directions | 10–20 € |
+| Boutons ⌀28 mm × 3 | dash, pause, muet | 2–4 € pièce |
+| Microcontrôleur | **Raspberry Pi Pico** (RP2040, SC0915, sans broches) | ~5 € |
+| Barrette de broches 2×20 | pour ne pas souder les fils en dur tout de suite | ~1 € |
+| Câble micro-USB → USB-A | **avec les données** : beaucoup sont charge seule | ~3 € |
+
+### Boîte de Petri lumineuse
+
+| Quoi | Retenu | ~Prix |
+|---|---|---|
+| Anneau | **WS2812B, 24 LED, ⌀85 mm** ext. / ⌀70 int. | 5–10 € |
+| Diode 1N4007 | adapte le niveau logique (§5) | 0,10 € |
+| Boîte de Petri | ⌀90 mm | — |
+
+### Son
+
+**À vérifier avant d'acheter quoi que ce soit :** si l'écran a des
+haut-parleurs ou une sortie jack, l'audio passe par le HDMI et **ce poste
+disparaît entièrement**. Sinon : adaptateur USB → jack 3,5 mm (~10 €) plus des
+enceintes actives (~20 €).
+
+Écarté : un HAT DAC sur le GPIO. Meilleure qualité, mais il n'a pas d'ampli non
+plus, il empêche de fermer le boîtier du Pi, et le goulot d'étranglement sera
+les haut-parleurs, pas le convertisseur.
+
+### Matière
+
+| Quoi | Pour |
+|---|---|
+| MDF 5 mm | structure, colonne, panneau, grilles |
+| Acrylique noir 3 mm | faces vues |
+| **Acrylique opale 3 mm** | le diffuseur — opale, **pas transparent** |
+| Chutes du même MDF | le gabarit de saignée, à découper en premier |
+| Vis M4 × 60–70 mm, ×4 | la colonne fait 40 mm de MDF plus le diffuseur, et grandit si on ajoute des entretoises |
+
+---
+
+## 11. Décisions en attente
 
 - **Format et taille de l'écran** — arbitrage entre confort à plusieurs
   (paysage) et 25 % de processeur (portrait). À reprendre une fois la jauge
@@ -484,5 +539,5 @@ sang attend qu'on ait joué la conduite pour de vrai.
   les moules varient de quelques dixièmes, et c'est justement l'ordre de
   grandeur du jeu recherché.
 - **Alimentation de l'anneau de LED** — sur le port USB (luminosité plafonnée
-  à 0,35, soit 340 mA pour 16 LED) ou alimentation 5 V séparée, qui lève le
-  plafond. Voir `borne/pico/README.md`.
+  à 0,28, soit 400 mA pour les 24 LED retenues) ou alimentation 5 V séparée,
+  qui lève le plafond. Voir `borne/pico/README.md`.

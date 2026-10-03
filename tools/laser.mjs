@@ -47,14 +47,22 @@ const APPUI = n('APPUI', 3);
  *  sans ballotter. 0,4 mm au diametre, soit 0,2 mm au rayon. */
 const JEU_POSE = n('JEU_POSE', 0.4);
 
-/** Anneau de LED. A verifier sur le modele reellement achete : les anneaux
- *  de 16 WS2812B vont d'environ 45 a 70 mm de diametre exterieur. */
-const D_ANNEAU = n('D_ANNEAU', 66);
+/** Anneau de LED, diametre EXTERIEUR. 85 mm est celui de l'anneau retenu
+ *  (24 WS2812B, 70 mm interieur). Le cercle grave sur support-anneau sert de
+ *  repere de collage. */
+const D_ANNEAU = n('D_ANNEAU', 85);
 
-/** Ecart entre les LED et le diffuseur. En deca, on voit les points lumineux
- *  a travers l'opale au lieu d'une nappe. 15 mm est le minimum retenu dans
- *  docs/09-borne-microscope.md. */
-const ECART_DIFFUSEUR = n('ECART_DIFFUSEUR', 15);
+/** Ecart entre les LED et le diffuseur. 15 mm etait le minimum retenu tant
+ *  que l'anneau faisait 66 mm. Avec un anneau de 85 mm sous un diffuseur de
+ *  88, les LED sont quasiment au BORD du disque a eclairer : leurs cones ne
+ *  se recouvrent plus au centre et on lit une couronne claire autour d'un
+ *  milieu sombre. Porte a 25 mm pour que les faisceaux se melangent.
+ *
+ *  Ce chiffre n'est PAS mesure, c'est de la geometrie : il se regle a l'oeil
+ *  en montant l'empilement. C'est pour cela que la colonne est faite de
+ *  couches identiques — decouper DEUX entretoises de plus que necessaire, et
+ *  les ajouter une a une jusqu'a ce que la nappe soit homogene. */
+const ECART_DIFFUSEUR = n('ECART_DIFFUSEUR', 25);
 
 const COTE = n('COTE', 140);              // cote des plaques empilees
 const D_VIS = n('D_VIS', 4.2);            // passage d'une vis M4
@@ -216,8 +224,10 @@ pieces.push(plaqueColonne('platine-guide', D_GUIDE,
 pieces.push(plaqueColonne('platine-siege', D_SIEGE,
   `L'epaulement qui porte la boite : ${APPUI} mm d'appui tout autour. x1`));
 pieces.push(plaqueColonne('entretoise', D_SIEGE,
-  `Ecarte les LED du diffuseur. x${N_ENTRETOISES} `
-  + `(${N_ENTRETOISES * EP_STRUCT} mm pour ${ECART_DIFFUSEUR} mm demandes).`));
+  `Ecarte les LED du diffuseur. En decouper ${N_ENTRETOISES + 2} et n'en poser `
+  + `que ${N_ENTRETOISES} au depart (${N_ENTRETOISES * EP_STRUCT} mm pour `
+  + `${ECART_DIFFUSEUR} mm vises) : l'ecart juste se regle a l'oeil, en ajoutant `
+  + `des couches jusqu'a ce que la nappe soit homogene.`));
 pieces.push(plaqueColonne('support-anneau', 0,
   `L'anneau de LED se pose au centre. Le cercle grave marque son diametre `
   + `(${D_ANNEAU} mm) : il guide le collage, il ne se coupe pas. x1`,

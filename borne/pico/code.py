@@ -40,20 +40,24 @@ BOUTONS = {
     board.GP7: Keycode.ESCAPE,     # pause
     board.GP8: Keycode.M,          # muet
 }
+# Encodeur : module KY-040 (CLK -> GP10, DT -> GP11).
+# SON ALIMENTATION VA SUR 3V3, JAMAIS SUR 5V. Le module porte des resistances
+# de tirage vers son +V : alimente en 5 V, il presenterait 5 V sur ces deux
+# GPIO, qui ne sont pas tolerants 5 V sur le RP2040. L'entree y passe.
 ENCODEUR_A = board.GP10
 ENCODEUR_B = board.GP11
 LED_BROCHE = board.GP16
 
 # --- anneau de LED --------------------------------------------------------
-NB_LED = 16
+NB_LED = 24
 
 # Plafond de luminosite, et c'est une contrainte d'ALIMENTATION avant d'etre
-# un gout. Une WS2812B tire jusqu'a 60 mA en blanc plein ; 16 LED a fond
-# demandent donc 0,96 A, ce qu'aucun port USB ne fournit. A 0,35 on retombe
-# sur 340 mA, dans ce qu'un port sait donner. Si l'anneau a sa PROPRE
-# alimentation 5 V — recommande, et alors masse commune avec le Pico — ce
-# plafond peut monter.
-LUMINOSITE = 0.35
+# un gout. Une WS2812B tire jusqu'a 60 mA en blanc plein ; 24 LED a fond
+# demandent donc 1,44 A, trois fois ce qu'un port USB sait donner — et le
+# Pico se sert sur le meme cable. A 0,28 on retombe sur 400 mA, ce qui laisse
+# de la marge. Si l'anneau recoit sa PROPRE alimentation 5 V — alors masse
+# commune avec le Pico — ce plafond peut monter jusqu'a 1.
+LUMINOSITE = 0.28
 
 # Couleur d'attente, avant la premiere trame du jeu. Une borne qu'on allume ne
 # doit jamais montrer une boite noire : on ne saurait pas si elle a demarre.

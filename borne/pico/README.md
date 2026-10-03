@@ -21,7 +21,7 @@ que les commandes fonctionnent — seules les LED demandent un canal à part.
 - Un **joystick d'arcade** à microswitches, des **boutons** ⌀ 24 ou 28 mm.
 - Un **encodeur rotatif incrémental** — voir la section dédiée plus bas, le
   choix n'est pas neutre.
-- Un **anneau WS2812B**, 16 LED.
+- Un **anneau WS2812B, 24 LED**, ⌀85 mm extérieur / ⌀70 intérieur.
 
 ---
 
@@ -33,31 +33,51 @@ que les commandes fonctionnent — seules les LED demandent un canal à part.
 | GP6 | bouton dash → Espace |
 | GP7 | bouton pause → Échap |
 | GP8 | bouton muet → M |
-| GP10 / GP11 | encodeur de mise au point, voies A et B |
+| GP10 / GP11 | encodeur KY-040 : `CLK` et `DT` |
 | GP16 | données de l'anneau de LED |
 
 Les microswitches vont **à la masse**, sans résistance : le tirage interne
 est activé par le firmware. C'est le câblage des joysticks d'arcade du
 commerce, qui n'ont que deux cosses.
 
-**Alimenter l'encodeur en 3,3 V**, pas en 5 V, puisque ses sorties vont
-directement sur les GPIO du RP2040.
+> ### ⚠ L'alimentation du KY-040 va sur 3V3, jamais sur 5V
+>
+> La fiche du module indique 5 V. **Ne la suis pas.** Le KY-040 porte des
+> résistances de tirage vers son `+` : alimenté en 5 V, il présenterait 5 V sur
+> GP10 et GP11, et **les GPIO du RP2040 ne sont pas tolérants 5 V**. L'entrée y
+> passe, voire la carte.
+>
+> Branchement : `CLK` → GP10, `DT` → GP11, `+` → **3V3**, `GND` → GND.
+> En 3,3 V le module fonctionne parfaitement, les tirages font leur travail et
+> les niveaux sont justes.
+
+Le KY-040 porte aussi un **bouton-poussoir** (`SW`, l'axe s'enfonce). Il est
+laissé non câblé : le jeu n'a pas d'action évidente à lui donner. Le jour où
+une commande « recentrer la mise au point » existera, c'est sa place.
 
 ### Les deux pièges de l'anneau de LED
 
-**Le courant.** Une WS2812B tire jusqu'à 60 mA en blanc plein. Seize LED à
-fond demandent donc **0,96 A**, ce qu'aucun port USB ne fournit. Le firmware
-plafonne la luminosité à 0,35, ce qui ramène à **340 mA** — tenable sur un
-port. Si tu donnes à l'anneau **sa propre alimentation 5 V** (recommandé, avec
-masse commune avec le Pico), ce plafond peut monter : c'est la ligne
-`LUMINOSITE` dans `code.py`.
+**Le courant.** Une WS2812B tire jusqu'à 60 mA en blanc plein. **Vingt-quatre
+LED à fond demandent 1,44 A** — trois fois ce qu'un port USB sait donner, et le
+Pico se sert sur le même câble. Le firmware plafonne donc la luminosité à
+**0,28**, ce qui ramène à **400 mA**. Si tu donnes à l'anneau **sa propre
+alimentation 5 V** (avec masse commune avec le Pico), ce plafond peut monter
+jusqu'à 1 : c'est la ligne `LUMINOSITE` dans `code.py`.
 
 **Le niveau logique.** Les WS2812B attendent un signal à 0,7 × VDD, soit
-3,5 V quand elles sont en 5 V — et le Pico ne sort que 3,3 V. Souvent ça
-passe quand même, parfois non, et l'échec est capricieux plutôt que franc. Les
-trois parades, par ordre de propreté : un décaleur de niveau (74AHCT125),
-alimenter l'anneau en 4,5 V au lieu de 5 V, ou sacrifier la première LED de la
-chaîne en simple répéteur.
+3,5 V quand elles sont en 5 V — et le Pico ne sort que 3,3 V. On est juste en
+dessous : souvent ça passe, parfois non, et l'échec est capricieux plutôt que
+franc (scintillements, couleurs fausses, première LED qui part en vrille).
+
+La parade la plus simple n'est pas un décaleur mais **une diode silicium en
+série sur le +5 V de l'anneau** (une 1N4007, 10 centimes). Elle fait chuter
+0,7 V, l'anneau tourne en 4,3 V, et le seuil descend à **3,0 V** : les 3,3 V du
+Pico repassent largement au-dessus. Une pièce, aucune logique, et la perte de
+luminosité à 4,3 V est invisible. Vérifier simplement que la diode encaisse le
+courant : une 1N4007 tient 1 A, largement au-dessus des 400 mA du plafond.
+
+Les autres parades, si celle-là ne suffit pas : un décaleur de niveau
+(74AHCT125), ou sacrifier la première LED de la chaîne en simple répéteur.
 
 ---
 
@@ -110,18 +130,39 @@ fin d'une écriture — une trame perdue coûte une couleur, jamais une image.
 
 ## L'encodeur de mise au point
 
-**Référence retenue : `PEC11R-4015F-N0024` (Bourns).** Environ 2 €, en stock
-chez DigiKey, RS (781-6824), Farnell/Newark et Arrow.
+**Référence retenue : module `KY-040`**, vendu par lots avec ses câbles. C'est
+un EC11 **cranté** monté sur carte, avec ses résistances de tirage et ses
+broches déjà en place.
+
+Ce n'était pas le premier choix — voir « le toucher » plus bas — mais dans ce
+montage il gagne sur trois points : **aucune soudure** sur l'encodeur alors que
+le Pico arrive nu, **plusieurs exemplaires** pour une pièce d'usure, et les
+**câbles Dupont** qui serviront partout ailleurs.
+
+**Repli si le cranté déplaît : `PEC11R-4015F-N0024` (Bourns)**, ~2 €, en stock
+chez DigiKey, RS (781-6824), Farnell/Newark et Arrow. Sans détente, 24
+impulsions, axe plat 6 mm — trois soudures.
+
+### Le toucher
+
+Une vraie molette de microscope est **lisse**. Les crans du KY-040 donnent un
+toucher de bouton de radio, et c'est son seul vrai défaut ici.
+
+Il se corrige en partie par l'habillage : **un capot lourd avec un joint
+torique frottant lisse beaucoup les détentes**, l'inertie du capot les gomme.
+À essayer avant de commander autre chose — et c'est aussi pourquoi il faut
+monter la molette avant de figer le capot définitif.
 
 | Caractéristique | Valeur | Pourquoi celle-là |
 |---|---|---|
-| Détentes | **0 — aucune** | une vraie molette de microscope est lisse ; les crans donnent un toucher de bouton de radio |
-| Impulsions / tour | 24 | donne 0,61 tour pour traverser toute la profondeur (calcul ci-dessous) |
-| Axe | plat (méplat), ⌀ 6 mm, 15 mm | le standard : toutes les molettes du commerce s'y montent, et le méplat empêche le glissement sous couple |
-| Poussoir | non | inutile ici ; la variante `S0024` en ajoute un si tu en veux un |
-| Durée de vie | 30 000 tours | voir « pièce d'usure » plus bas |
+| Détentes | 20, crantées | le compromis assumé (voir « le toucher ») |
+| Impulsions / tour | 20 | donne 0,73 tour pour traverser toute la profondeur (calcul ci-dessous) |
+| Axe | ⌀ 6 mm | le standard : toutes les molettes du commerce s'y montent |
+| Poussoir | oui (`SW`) | non câblé pour l'instant |
+| Alimentation | **3V3 impérativement** | voir l'encadré du brochage |
+| Durée de vie | ~30 000 tours | voir « pièce d'usure » plus bas |
 
-La nomenclature Bourns se lit : `PEC11R-4` **`0`** `15F-` **`N`** `0024` —
+Pour le repli Bourns, la nomenclature se lit : `PEC11R-4` **`0`** `15F-` **`N`** `0024` —
 le premier chiffre est la détente (**0** = sans, **2** = avec), les deux
 suivants la longueur d'axe en mm, `F` l'axe plat, `N`/`S` l'absence ou la
 présence du poussoir, et les quatre derniers les impulsions par tour.
@@ -186,7 +227,8 @@ Pico. À garder pour une version 2, pas pour le premier montage.
 
 `input.js` borne `deltaY` à ±60 et le multiplie par 0,0024 : **0,144 de mise au
 point par impulsion**. Sur une course de 2,10, il faut donc 14,6 impulsions
-pour la traverser — 0,61 tour avec l'encodeur retenu.
+pour la traverser — **0,73 tour** avec les 20 impulsions par tour du KY-040
+(0,61 avec un encodeur à 24).
 
 Pour une molette plus nerveuse, monter `CRANS_PAR_PAS` dans `code.py`. Pour
 plus de finesse, ne pas prendre un encodeur à plus d'impulsions sans augmenter
