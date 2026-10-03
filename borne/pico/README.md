@@ -19,7 +19,8 @@ que les commandes fonctionnent — seules les LED demandent un canal à part.
   Elles viennent du bundle CircuitPython officiel, celui qui correspond à la
   version installée.
 - Un **joystick d'arcade** à microswitches, des **boutons** ⌀ 24 ou 28 mm.
-- Un **encodeur rotatif incrémental** (type EC11), de préférence avec crans.
+- Un **encodeur rotatif incrémental** — voir la section dédiée plus bas, le
+  choix n'est pas neutre.
 - Un **anneau WS2812B**, 16 LED.
 
 ---
@@ -107,13 +108,86 @@ fin d'une écriture — une trame perdue coûte une couleur, jamais une image.
 
 ---
 
+## L'encodeur de mise au point
+
+**Référence retenue : `PEC11R-4015F-N0024` (Bourns).** Environ 2 €, en stock
+chez DigiKey, RS (781-6824), Farnell/Newark et Arrow.
+
+| Caractéristique | Valeur | Pourquoi celle-là |
+|---|---|---|
+| Détentes | **0 — aucune** | une vraie molette de microscope est lisse ; les crans donnent un toucher de bouton de radio |
+| Impulsions / tour | 24 | donne 0,61 tour pour traverser toute la profondeur (calcul ci-dessous) |
+| Axe | plat (méplat), ⌀ 6 mm, 15 mm | le standard : toutes les molettes du commerce s'y montent, et le méplat empêche le glissement sous couple |
+| Poussoir | non | inutile ici ; la variante `S0024` en ajoute un si tu en veux un |
+| Durée de vie | 30 000 tours | voir « pièce d'usure » plus bas |
+
+La nomenclature Bourns se lit : `PEC11R-4` **`0`** `15F-` **`N`** `0024` —
+le premier chiffre est la détente (**0** = sans, **2** = avec), les deux
+suivants la longueur d'axe en mm, `F` l'axe plat, `N`/`S` l'absence ou la
+présence du poussoir, et les quatre derniers les impulsions par tour.
+
+Donc, selon ce que tu préfères :
+
+| Tu veux | Référence |
+|---|---|
+| Lisse, sans poussoir (**recommandé**) | `PEC11R-4015F-N0024` |
+| Lisse, avec poussoir | `PEC11R-4015F-S0024` |
+| Cranté, sans poussoir | `PEC11R-4215F-N0024` |
+| Axe plus long (20 mm), lisse | `PEC11R-4020F-N0024` |
+
+### Pourquoi 24 impulsions, et pas 1200
+
+`src/game/game.js` borne `focusTarget` entre **−1,05 et +1,05** : la course
+utile vaut donc 2,10. `src/core/input.js` borne `deltaY` à ±60 et le multiplie
+par 0,0024, soit **0,144 par impulsion**. Avec 24 impulsions par tour :
+
+```
+2,10 / (24 × 0,144) = 0,61 tour pour traverser toute la profondeur
+```
+
+Un peu plus d'un demi-tour, ce qui est exactement le geste d'une vis
+micrométrique. C'est aussi pourquoi un **spinner d'arcade est le mauvais
+outil** ici malgré son apparence idéale : à 1200 impulsions par tour, il
+faudrait jeter 98 % de sa résolution, et ses roulements à billes sont conçus
+pour qu'il tourne en roue libre — alors qu'une mise au point doit rester où on
+la laisse.
+
+Dans `code.py`, `rotaryio.IncrementalEncoder` utilise par défaut
+`divisor=4`, c'est-à-dire un compte par cycle complet de quadrature : c'est ce
+qui donne les 24 comptes par tour. Passer à `divisor=1` quadruplerait la
+sensibilité et ramènerait la course à 0,15 tour — injouable.
+
+### Trois précautions de montage
+
+**Ne pas monter une grosse molette directement sur l'axe.** Le palier d'un
+encodeur de 12 mm est fragile, et un capot de 55 mm fait bras de levier : la
+première personne qui s'appuie dessus plie l'axe. Soit le capot tourne sur son
+propre palier dans le panneau et entraîne l'axe par un accouplement, soit on
+reste sous ~40 mm de diamètre.
+
+**Ajouter du frottement.** Sans détente, l'encodeur tourne presque librement,
+alors qu'une vis macrométrique oppose une résistance douce et continue. Un
+joint torique frottant à l'intérieur du capot donne exactement ce toucher, et
+c'est du bricolage pur — rien à acheter.
+
+**C'est une pièce d'usure.** 30 000 tours, c'est beaucoup pour un appareil de
+salon et peu pour une borne. Ordre de grandeur : à 30 tours par partie, cela
+fait un millier de parties. À 2 € la pièce, le problème n'est pas le coût mais
+l'accès — prévoir de pouvoir la remplacer sans démonter toute la colonne.
+
+Si la borne tourne vraiment beaucoup, la relève est un capteur **magnétique
+sans contact** (type AS5600, aimant diamétral collé en bout d'axe) : usure
+nulle, mais il faut alors un vrai axe sur roulements et une lecture I²C côté
+Pico. À garder pour une version 2, pas pour le premier montage.
+
+---
+
 ## Régler la molette
 
 `input.js` borne `deltaY` à ±60 et le multiplie par 0,0024 : **0,144 de mise au
-point par cran**. Sur une profondeur utile de −1 à 1, il faut donc une
-quinzaine de crans pour la traverser, soit un peu plus d'un demi-tour d'un
-encodeur à 24 crans. C'est volontairement proche du geste d'une vraie vis
-micrométrique.
+point par impulsion**. Sur une course de 2,10, il faut donc 14,6 impulsions
+pour la traverser — 0,61 tour avec l'encodeur retenu.
 
-Pour une molette plus nerveuse, monter `CRANS_PAR_PAS` dans `code.py` ; pour
-plus de finesse, prendre un encodeur à plus de crans par tour.
+Pour une molette plus nerveuse, monter `CRANS_PAR_PAS` dans `code.py`. Pour
+plus de finesse, ne pas prendre un encodeur à plus d'impulsions sans augmenter
+d'autant la course : c'est le rapport des deux qui fait le toucher.

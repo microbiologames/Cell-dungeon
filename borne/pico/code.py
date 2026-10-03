@@ -84,7 +84,11 @@ for broche, touche in BOUTONS.items():
     io.pull = digitalio.Pull.UP
     entrees[io] = touche
 
-encodeur = rotaryio.IncrementalEncoder(ENCODEUR_A, ENCODEUR_B)
+# divisor=4 (le defaut) : un compte par cycle complet de quadrature, donc 24
+# comptes par tour avec l'encodeur retenu. Mesure sur le code du jeu : cela
+# donne 0,61 tour pour traverser toute la profondeur de mise au point, qui va
+# de -1,05 a +1,05. A divisor=1 la course tomberait a 0,15 tour, injouable.
+encodeur = rotaryio.IncrementalEncoder(ENCODEUR_A, ENCODEUR_B, divisor=4)
 
 enfonces = set()
 position = encodeur.position
