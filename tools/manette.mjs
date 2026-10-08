@@ -16,10 +16,16 @@
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 
-const ROOT = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
+/* .pathname d'une URL file: rend "/C:/..." sous Windows : join() en faisait
+   "\\C:\\..." et chaque fichier repondait 404, donc le banc echouait des son
+   premier verdict sans que rien ne soit casse dans le jeu. fileURLToPath rend
+   le chemin natif des deux cotes. Ce banc doit tourner sur le poste de
+   developpement : Playwright n'est pas installe sur la borne. */
+const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/[\\/]$/, '');
 const TYPES = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css',
                 '.json':'application/json', '.png':'image/png' };
 
@@ -233,12 +239,18 @@ console.log('cible: ' + BASE);
   await page.evaluate(() => window.__startMatrice('milk'));
   await page.waitForTimeout(400);
 
-  /* START ouvre la pause. Le MEME appui ne doit pas valider REPRENDRE dans
-     la foulee : c'est le defaut que la consommation des fronts corrige. */
-  await appui(page, 0, 9);
+  /* Le bouton de pause ouvre la pause. Le MEME appui ne doit pas valider
+     REPRENDRE dans la foulee : c'est le defaut que la consommation des
+     fronts corrige.
+     C'est le bouton 5 depuis le releve du 18/08/2026 : la borne n'a pas de
+     START, l'index 9 n'existe pas sur son encodeur. Sur le meuble le 5 n'est
+     cable que sur la carte du joueur 2 ; ici l'appui part sur la manette 0,
+     ce qui teste la meme chose puisque les fronts sont lus sur toutes les
+     manettes confondues. */
+  await appui(page, 0, 5);
   const p = await etat(page);
   dire(p.overlay === 'pause' && p.jeu.state === 'paused',
-    'START ouvre la pause sans la refermer aussitot',
+    'le bouton de pause ouvre la pause sans la refermer aussitot',
     `overlay=${p.overlay} etat=${p.jeu.state}`);
 
   /* Et on en sort au bouton, curseur sur REPRENDRE. */
@@ -311,7 +323,7 @@ console.log('cible: ' + BASE);
   await page.evaluate(() => window.__startMatrice('milk'));
   await page.waitForTimeout(400);
   await page.evaluate(() => window.__game.player.flags.add('dash'));
-  await appui(page, 0, 9);
+  await appui(page, 0, 5);
   await appui(page, 0, 0);
   await page.waitForTimeout(250);
   const e = await etat(page);

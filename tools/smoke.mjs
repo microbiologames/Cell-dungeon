@@ -1,9 +1,14 @@
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { extname, join, normalize } from 'node:path';
 
-const ROOT = '/home/user/Cell-dungeon';
+/* La racine se deduit de l'emplacement de ce fichier. Elle etait codee en
+   dur sur le chemin d'une seule machine ('/home/user/Cell-dungeon'), donc
+   chaque fichier repondait 404 partout ailleurs et le banc mourait sur
+   l'attente de #btnStart, sans que rien ne soit casse dans le jeu. */
+const ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/[\\/]$/, '');
 const TYPES = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css', '.json':'application/json' };
 
 const server = createServer(async (req, res) => {

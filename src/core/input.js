@@ -37,22 +37,27 @@ const MENU_DY_KEYS = { ArrowUp: -1, KeyW: -1, ArrowDown: 1, KeyS: 1 };
    peripherique) : le stick droit de la meme manette, axes[2]/axes[3] du
    mappage "standard", prend la mise au point.
 
-   Les index de boutons sont ceux du mappage standard du Gamepad API, et ce
-   sont ceux de Microbe Fighter (0 = poing, 2 = pied, 9 = START) pour que les
-   deux jeux de la borne se jouent avec les memes boutons. Un encodeur peut
-   tres bien numeroter autrement : c'est un RELEVE a faire sur la borne avec
-   borne/touches.html, pas une devinette a laisser dans le code. */
+   Les index viennent du RELEVE fait sur la borne le 18/08/2026 (mesure CDP
+   sur ses deux cartes DragonRise, reportee depuis Family Fight) : 0 = A vert,
+   1 = B rouge, 2 = Y jaune, 3 = X bleu, 4 = Z blanc. Ce meuble n'a NI START
+   NI SELECT, les index 8 et 9 n'existent pas : d'ou le 9 retire de
+   'valider'. La pause passe au bouton 5, le seul qui reste ; il n'est cable
+   que sur la carte du joueur 2, ce qui suffit ici puisque les fronts sont
+   lus sur toutes les manettes confondues.
+   Le bouton 4 (blanc) est laisse libre expres : il porte le geste de retour
+   au menu du lanceur, qui le lit par-dessus le jeu. */
 const PAD_BOUTONS = {
   dash: [0, 2],
-  valider: [0, 2, 9],
-  pause: [9],
+  valider: [0, 2],
+  pause: [5],
 };
 const PAD_DPAD = { haut: 12, bas: 13, gauche: 14, droite: 15 };
 /* Zone morte. Un encodeur de borne est TOUT-OU-RIEN : son axe sort -1, 0 ou
    +1, donc n'importe quel seuil le laisse passer. La valeur basse est la
    pour les vraies manettes analogiques, dont le repos derive de quelques
-   centiemes. A relever au repos sur la borne (touches.html affiche les axes)
-   avant de la figer plus haut. */
+   centiemes. Releve du 18/08/2026 sur la borne : ses deux cartes sortent
+   [0, 0, 0, 0] au repos, donc 0,25 passe tres largement. A reconfirmer sur
+   place avec borne/touches.html avant l'evenement. */
 const PAD_ZONE_MORTE = 0.25;
 
 /** Lecture de l'URL : ?manettes=<index deplacement>,<index mise au point> */
@@ -66,6 +71,22 @@ function padsDemandes() {
 }
 
 const mort = (v) => (Math.abs(v) < PAD_ZONE_MORTE ? 0 : v);
+
+/* Les deux joysticks de la borne sont montes EN MIROIR : sur la carte
+   d'index 0, pousser a gauche donne axes[0] = +1 et vers le haut
+   axes[1] = +1, l'inverse de la convention. Mesure du 18/08/2026, reprise de
+   Family Fight. Sans elle, le joystick gauche fait nager a l'envers.
+   Restreint aux cartes DragonRise du meuble : le jeu se joue aussi a la
+   manette de salon, dont l'index 0 est parfaitement normal et ne doit
+   surtout pas etre inverse. */
+const BORNE_DRAGONRISE = /dragonrise|0079/i;
+const axe = (pad, i) => {
+  /* Le miroir n'a ete mesure que sur les DEUX axes du joystick (0 et 1). On
+     ne l'etend donc pas a axes[3], que seul le repli a une manette unique
+     utilise : inverser un axe qu'on n'a pas releve serait une devinette. */
+  const sign = i < 2 && pad.index === 0 && BORNE_DRAGONRISE.test(pad.id || '') ? -1 : 1;
+  return mort((pad.axes[i] || 0) * sign);
+};
 
 export class Input {
   constructor(canvas) {
@@ -228,20 +249,20 @@ export class Input {
     this._padEdges.clear();
 
     if (padM) {
-      this._padMove.x = mort(padM.axes[0] || 0) + this._dpadX(padM);
-      this._padMove.y = mort(padM.axes[1] || 0) + this._dpadY(padM);
+      this._padMove.x = axe(padM, 0) + this._dpadX(padM);
+      this._padMove.y = axe(padM, 1) + this._dpadY(padM);
     }
     if (padF && padF !== padM) {
       /* Axe VERTICAL de la seconde manette, pris tel quel : axes[1] est
          positif vers le bas, comme la molette et comme le glissement
          tactile. Inverser ici ferait partir les trois commandes dans des
          sens differents pour le meme geste. */
-      this._padFocus = clamp(mort(padF.axes[1] || 0) + this._dpadY(padF), -1, 1);
+      this._padFocus = clamp(axe(padF, 1) + this._dpadY(padF), -1, 1);
     } else if (padM && padM.axes.length >= 4) {
       /* Une seule manette : son stick droit. Le geste reste "le droit met au
          point", que les deux sticks soient sur deux peripheriques (borne) ou
          sur un seul (manette de salon). */
-      this._padFocus = clamp(mort(padM.axes[3] || 0), -1, 1);
+      this._padFocus = clamp(axe(padM, 3), -1, 1);
     }
 
     /* Fronts de boutons, toutes manettes confondues : sur la borne, le
@@ -259,7 +280,7 @@ export class Input {
         }
       }
       this._padPrev.set(i, now);
-      const y = mort(pad.axes[1] || 0) + this._dpadY(pad);
+      const y = axe(pad, 1) + this._dpadY(pad);
       if (y && !dyPad) dyPad = Math.sign(y);
     }
 
