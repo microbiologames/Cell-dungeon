@@ -129,6 +129,7 @@ function applyPendingDecorClear() {
 
 let last = performance.now();
 let panneauSon = false;
+let padVu = false;
 
 /**
  * Overlay de verification du son (touche L).
@@ -173,6 +174,30 @@ function frame(now) {
      rendu. Ajouter une matrice ne demande donc aucun cablage audio. */
   if (input.takeMuet()) son.setMuted(!son.muet);
   if (input.takePanneauSon()) panneauSon = !panneauSon;
+
+  /* Le cap de menu se consomme a CHAQUE image, overlay ouvert ou non. Garde
+     en reserve, il se vidait au mauvais moment : Espace est a la fois le
+     dash et la validation, et deux dashs tires en jeu validaient d'office
+     l'ecran de mort a son ouverture (banc manette, verdict 18 : on revenait
+     au lobby sans avoir rien vu). Un front de MANETTE ne peut pas faire ce
+     defaut, il meurt a la fin de son image ; le clavier, si. */
+  const menu = input.takeMenu();
+  if (overlay.current) {
+    /* START, et Echap au clavier, valident l'ecran ouvert : sur la borne
+       c'est le bouton qui ouvre la pause, donc celui qu'on represse pour en
+       sortir. Hors overlay le meme appui reste la pause, lue par la scene —
+       et l'ecran s'ouvrant APRES ce bloc, le meme appui ne fait jamais les
+       deux. */
+    if (input.takePause()) menu.valider = true;
+    overlay.naviguer(menu);
+    /* Et le dash en attente est jete : le bouton qui valide un ecran est
+       aussi celui du dash, et sortir de la pause avec lui lancait un dash
+       dans l'image suivante (banc manette, verdict 19). */
+    input.takeDash();
+  }
+  /* Une manette ne se declare qu'au premier appui : le libelle de l'ecran
+     titre doit donc pouvoir changer apres l'affichage. */
+  if (input.hasPad && !padVu) { padVu = true; overlay.majLibelleCommandes(true); }
   son.observe(scene === SCENE.JEU ? 'jeu' : 'lobby', scene === SCENE.JEU ? game : null, dt);
 
   if (scene === SCENE.LOBBY) {

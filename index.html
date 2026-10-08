@@ -61,6 +61,11 @@
     transition: border-color .1s, transform .1s;
   }
   .card:hover, .card:focus-visible { border-color: var(--hot); transform: translateX(2px); outline: none; }
+  /* Curseur sans souris (clavier, manette, borne d'arcade). Un halo, et pas
+     une bordure gauche : celle des cartes porte deja la couleur de rarete,
+     la remplacer effacait une information. */
+  .card.sel { border-color: var(--hot); transform: translateX(2px);
+    box-shadow: 0 0 0 2px var(--hot), 0 0 14px rgba(255, 212, 121, .35); }
   .card .body { display: flex; gap: 3%; align-items: flex-start; }
   .card .txt { flex: 1; min-width: 0; }
   /* Vignette d'evolution : rendue au plus proche voisin, comme le jeu. */
@@ -81,6 +86,8 @@
     padding: 2.4% 6%; cursor: pointer;
   }
   .btn:hover, .btn:focus-visible { border-color: var(--hot); color: var(--hot); outline: none; }
+  .btn.sel { border-color: var(--hot); color: var(--hot);
+    box-shadow: 0 0 0 2px var(--hot), 0 0 14px rgba(255, 212, 121, .35); }
   .row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   .keys { font-size: clamp(7px, 2vmin, 10px); color: var(--dim); letter-spacing: .06em; }
   /* Panneau du bestiaire : le fondement microbiologique d'une espece est trop

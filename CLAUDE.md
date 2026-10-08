@@ -88,6 +88,7 @@ C'est ce qui distingue ce dépôt. Quatre règles payées cher :
 ```
 npm run smoke      # le jeu se charge, tourne, reagit — rien n'est casse
 npm run especes    # les 4 souches jouables : stats, tirages, toxines, traits declenches
+npm run manette    # 19 verdicts : le jeu se joue a la MANETTE seule, sans souris ni clavier
 npm run visual     # captures en jeu, portrait et paysage
 npm run balance    # simulation d'equilibrage : plateau, decrochage, TTK
 npm run fuite      # on ne peut plus s'echapper : distance a la meute en fuyant
@@ -123,6 +124,26 @@ node tools/jeu-publier.mjs   # idem pour le jeu
   plus rien dire. Mesuré : 20 coureurs vivants pour un budget de 13 crédits.
 - **Le décor est calculé une fois par image** (`collectDecor`) et partagé par
   le joueur, les mobs et les projectiles.
+- **La borne d'arcade se joue à DEUX joysticks, et sans souris.** Le gauche
+  nage, le droit (haut/bas) fait la mise au point — un joueur, deux manches
+  en main. L'encodeur USB d'une borne est vu comme **une ou deux manettes** et
+  n'envoie aucune touche : tout écran qui ne se traverse qu'à la souris est
+  une impasse. D'où le **curseur d'overlay** (`Overlay.naviguer()`) — cap
+  vertical, validation, une seule mécanique pour l'écran-titre, les cartes,
+  la pause et la mort. L'axe vertical de la seconde manette est pris **tel
+  quel** : positif vers le bas, comme la molette et comme le glissement
+  tactile ; l'inverser ferait partir les trois commandes dans deux directions
+  pour le même geste (banc `manette`, verdict 8). Les index de boutons et
+  l'ordre des manettes se **relèvent** sur la borne avec `borne/touches.html`
+  du dépôt Microbe Fighter, jamais au jugé ; l'ordre se corrige sans toucher
+  au code par `index.html?manettes=1,0`.
+- **Une commande se consomme une fois par image, ouverte ou non.**
+  `takeMenu()` est appelé à chaque image : gardé en réserve, Espace — qui est
+  à la fois le dash et la validation — validait d'office l'écran de mort à son
+  ouverture, et on revenait au lobby sans avoir rien vu (banc `manette`,
+  verdict 18). Même règle pour les fronts de manette, consommés par le
+  preneur qui s'en sert : c'est ce qui rend l'ordre des preneurs sans
+  importance quand START est à la fois la pause et la validation.
 - **Le lobby est un CADRAN** : six puits à 60° sur un anneau de 78, bestiaire
   à six heures, **la niche au centre** (`src/scenes/lobby.js`). Dedans on
   s'habille, dehors on part : ne pas remettre de sélecteur de souche sur la
@@ -202,6 +223,15 @@ Le code lui-même est commenté en profondeur : `src/audio/son.js`,
   **Une souche par matrice est ecartee** (decision de l'auteur, 24/09/2026) :
   le joueur choisit sa souche au lobby, et une souche imposee par la matrice
   lui reprendrait ce choix. Ne pas y revenir sans nouvelle instruction.
+- **Borne d'arcade, fête de l'événement : le jeu est prêt, la borne non.**
+  Les manettes sont câblées et mesurées (19 verdicts), et le lanceur à deux
+  jeux vit dans `borne/` du dépôt **Microbe Fighter**, avec son runbook. Ce
+  qui reste ne peut se faire **que sur la borne** : relever les vrais index
+  de boutons (`borne/touches.html`), vérifier que le son sort sans geste
+  clavier (drapeau `--autoplay-policy=no-user-gesture-required` de Chromium :
+  un appui sur une manette n'est pas un geste utilisateur pour le
+  navigateur), compter les images par seconde sur la Raspberry, et confirmer
+  que le menu lit bien les manettes pendant qu'un jeu tourne dans son iframe.
 - **Le sang** reste à faire, et délibérément en dernier : ce n'est pas une
   goutte mais un **réseau vasculaire** — couloirs, courant pulsatile, système
   immunitaire, hématies qui bousculent. Il réutilisera la conduite, **et c'est

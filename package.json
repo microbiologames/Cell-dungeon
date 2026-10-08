@@ -22,7 +22,8 @@
     "son:studio": "node tools/son-studio-check.mjs",
     "son:extrait": "node tools/son-extrait.mjs",
     "son:derive": "node tools/son-derive.mjs",
-    "son:publier": "node tools/son-studio-publier.mjs"
+    "son:publier": "node tools/son-studio-publier.mjs",
+    "manette": "node tools/manette.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0"

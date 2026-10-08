@@ -42,10 +42,15 @@ export class Overlay {
       if (g && g.reroll()) this.showLevelUp();
     };
 
-    this.els.menuKeys.textContent = matchMedia('(pointer: coarse)').matches
-      ? 'GAUCHE : DEPLACER — DROITE : MISE AU POINT'
-      : 'WASD/ZQSD DEPLACER — MOLETTE OU R/F MISE AU POINT — ESPACE DASH';
+    /* Curseur d'overlay : l'index de la cible retenue dans l'ecran ouvert.
+       C'est le seul chemin vers COMMENCER, REPRENDRE, QUITTER et les cartes
+       quand il n'y a ni souris ni clavier — donc le chemin de la borne, dont
+       l'encodeur n'envoie que des axes et des boutons. */
+    this.curseur = 0;
+    this.majLibelleCommandes(false);
 
+    /* Les chiffres restent le raccourci du clavier : une carte, une touche.
+       Ils ne remplacent pas le curseur, ils doublent. */
     addEventListener('keydown', (e) => {
       if (this.current !== 'level') return;
       const n = Number(e.key);
@@ -55,6 +60,7 @@ export class Overlay {
 
   hideAll() {
     for (const el of Object.values(this.els)) el.classList?.remove('on');
+    this._oublierCurseur();
     this.current = null;
   }
 
@@ -62,6 +68,64 @@ export class Overlay {
     this.hideAll();
     this.els[which]?.classList.add('on');
     this.current = which;
+    /* Un ecran s'ouvre AVEC une cible deja designee : sur la borne, un
+       premier appui doit valider quelque chose, pas reveiller un curseur
+       invisible. */
+    this._poserCurseur(0);
+  }
+
+  /**
+   * Libelle des commandes de l'ecran-titre. Trois mondes, trois phrases :
+   * la manette passe devant le tactile des qu'une manette se declare, parce
+   * qu'une borne d'arcade a un ecran tactile dans aucun cas et que c'est
+   * pourtant ce que `pointer: coarse` laissait croire sur certains kiosques.
+   */
+  majLibelleCommandes(hasPad) {
+    if (!this.els.menuKeys) return;
+    this.els.menuKeys.textContent = hasPad
+      ? 'JOYSTICK GAUCHE : NAGER — JOYSTICK DROIT HAUT/BAS : MISE AU POINT — BOUTON : DASH'
+      : (matchMedia('(pointer: coarse)').matches
+        ? 'GAUCHE : DEPLACER — DROITE : MISE AU POINT'
+        : 'WASD/ZQSD DEPLACER — MOLETTE OU R/F MISE AU POINT — ESPACE DASH');
+  }
+
+  /* --- Curseur ----------------------------------------------------------- */
+
+  /** Les cibles de l'ecran ouvert, dans l'ordre du DOM, invisibles exclues. */
+  _cibles() {
+    const el = this.els[this.current];
+    if (!el) return [];
+    /* offsetParent est nul pour un element cache : c'est ce qui ecarte le
+       bouton de relance du transposon quand le joueur ne l'a pas. */
+    return [...el.querySelectorAll('.card, .btn')].filter((b) => b.offsetParent !== null);
+  }
+
+  _oublierCurseur() {
+    for (const el of Object.values(this.els)) {
+      el?.querySelectorAll?.('.sel').forEach((b) => b.classList.remove('sel'));
+    }
+  }
+
+  _poserCurseur(i) {
+    const cibles = this._cibles();
+    this._oublierCurseur();
+    if (!cibles.length) { this.curseur = 0; return; }
+    /* Bouclage, pas butee : sur une borne on ne doit jamais pouvoir coincer
+       le curseur contre un bord qu'on ne voit pas bouger. */
+    this.curseur = ((i % cibles.length) + cibles.length) % cibles.length;
+    const cible = cibles[this.curseur];
+    cible.classList.add('sel');
+    cible.scrollIntoView?.({ block: 'nearest' });
+  }
+
+  /**
+   * Un tour de navigation sans souris, appele par la boucle principale.
+   * @param {{dy: number, valider: boolean}} m  cap et validation consommes
+   */
+  naviguer(m) {
+    if (!this.current || (!m.dy && !m.valider)) return;
+    if (m.dy) this._poserCurseur(this.curseur + m.dy);
+    if (m.valider) this._cibles()[this.curseur]?.click();
   }
 
   resume() {
